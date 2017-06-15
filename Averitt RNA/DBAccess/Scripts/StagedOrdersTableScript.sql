@@ -1,0 +1,8 @@
+﻿USE [TODO]
+GO
+CREATE TABLE [dbo].[STAGED_ORDERS]
+(
+	[RegionIdentifier] NVARCHAR(32) NOT NULL,
+	[OrderIdentifier] NVARCHAR(32) NOT NULL
+)
+GO
