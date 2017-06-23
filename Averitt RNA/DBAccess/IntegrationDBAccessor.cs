@@ -24,15 +24,14 @@ namespace Averitt_RNA.DBAccess
             _Logger = logger;
         }
 
-        public List<StagedOrderRecord> SelectStagedOrders(
-            string regionID)
+        public List<StagedOrderRecord> SelectStagedOrders(string regionID, string staged)
         {
             List<StagedOrderRecord> stagedOrderRecordList = null;
             try
             {
                 stagedOrderRecordList =
                     GetList(
-                        SQLStrings.SELECT_STAGED_ORDERS(regionID),
+                        SQLStrings.SELECT_STAGED_ORDERS(regionID, staged),
                         new StagedOrderRecord(),
                         "Select Staged Orders (" + regionID + ")"
                     ).Cast<StagedOrderRecord>().ToList();
@@ -42,6 +41,25 @@ namespace Averitt_RNA.DBAccess
                 _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
             }
             return stagedOrderRecordList;
+        }
+
+        public List<StagedServiceLocationRecord> SelectStagedServiceLocations(string regionID, string staged)
+        {
+            List<StagedServiceLocationRecord> stagedStagedServiceLocationList = null;
+            try
+            {
+                stagedStagedServiceLocationList =
+                    GetList(
+                        SQLStrings.SELECT_STAGED_SERVICE_LOCATIONS(regionID, staged ),
+                        new StagedServiceLocationRecord(),
+                        "Select Staged Service Location (" + regionID + ")"
+                    ).Cast<StagedServiceLocationRecord>().ToList();
+            }
+            catch (DatabaseException ex)
+            {
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+            return stagedStagedServiceLocationList;
         }
 
         #endregion

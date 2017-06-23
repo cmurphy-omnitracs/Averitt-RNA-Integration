@@ -57,6 +57,7 @@ namespace Averitt_RNA
             bool success = false;
             try
             {
+                
                 Login();
                 if (RefreshCache(starting))
                 {

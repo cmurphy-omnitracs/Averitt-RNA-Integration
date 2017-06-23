@@ -2,6 +2,12 @@
 using System.Linq;
 using System.ServiceModel;
 using Averitt_RNA.Apex;
+using System.Collections.Generic;
+using System.IO;
+
+
+
+
 
 namespace Averitt_RNA
 {
@@ -1498,6 +1504,118 @@ namespace Averitt_RNA
             return route;
         }
 
+        public List<ServiceLocation> RetrieveServiceLocationsFromStagingTable (string regionId, string staged, out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage)
+        { 
+        
+            errorRetrieveSLFromStagingTable = false;
+            errorRetrieveSLFromStagingTableMessage = string.Empty;
+            List<ServiceLocation> retrieveList = new List<ServiceLocation>();
+            DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+
+            
+            try
+            {
+
+                retrieveList = DBAccessor.SelectStagedServiceLocations(regionId, staged).Cast<ServiceLocation>().ToList();
+
+                if (retrieveList == null)
+                {
+                    errorRetrieveSLFromStagingTable = true;
+                    _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
+                    return null;
+                    
+                }
+                else if (retrieveList.Count == 0)
+                {
+                    errorRetrieveSLFromStagingTable = true;
+                    errorRetrieveSLFromStagingTableMessage = String.Format("No New Staged Service Locations found in Staged Service Locatoins Table for {0}", regionId);
+                    _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
+                    return retrieveList;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error(ex.Message);
+            }
+
+            return null;
+        }
+
+        public List<Order> RetrieveOrderesFromStagingTable(string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
+        {
+
+            errorRetrieveOrdersFromStagingTable = false;
+            errorRetrieveOrdersFromStagingTableMessage = string.Empty;
+            List<Order> retrieveListOrders = new List<Order>();
+            DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+
+
+            try
+            {
+
+                retrieveListOrders = DBAccessor.SelectStagedOrders(regionId, staged).Cast<Order>().ToList();
+
+                if (retrieveListOrders == null)
+                {
+                    errorRetrieveOrdersFromStagingTable = true;
+                    _Logger.ErrorFormat(errorRetrieveOrdersFromStagingTableMessage);
+                    return null;
+
+                }
+                else if (retrieveListOrders.Count == 0)
+                {
+                    errorRetrieveOrdersFromStagingTable = true;
+                    errorRetrieveOrdersFromStagingTableMessage = String.Format("No New Staged Orders found in Staged Order Table for {0}", regionId);
+                    _Logger.ErrorFormat(errorRetrieveOrdersFromStagingTableMessage);
+                    return retrieveListOrders;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error(ex.Message);
+            }
+
+            return null;
+        }
+
+        public List<Order> RetrieveDummyOrdersFromCSV (string regionId, string staged, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
+        {
+
+            errorRetrieveDummyOrdersFromCSV = false;
+            errorRetrieveDummyOrdersFromCSVMessage = string.Empty;
+            List<Order> retrieveListDummyOrders = new List<Order>();
+            using (var file = File.OpenRead(@"C:\test.csv"))
+            using (var reader = new StreamReader(file))
+
+
+                try
+            {
+
+                retrieveListDummyOrders = 
+
+                if (retrieveListDummyOrders == null)
+                {
+                    errorRetrieveDummyOrdersFromCSV = true;
+                    _Logger.ErrorFormat(errorRetrieveDummyOrdersFromCSVMessage);
+                    return null;
+
+                }
+                else if (retrieveListDummyOrders.Count == 0)
+                {
+                    errorRetrieveDummyOrdersFromCSV = true;
+                    errorRetrieveDummyOrdersFromCSVMessage = String.Format("No Dummy Orders found in the CSV file {0} for region {1}", regionId);
+                    _Logger.ErrorFormat(errorRetrieveDummyOrdersFromCSVMessage);
+                    return retrieveListDummyOrders;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error(ex.Message);
+            }
+
+            return null;
+        }
+
         public ServiceLocation[] RetrieveServiceLocations(
             out ErrorLevel errorLevel,
             out string fatalErrorMessage,
@@ -1696,6 +1814,7 @@ namespace Averitt_RNA
             return saveResults;
         }
 
+        
         public SaveResult[] SaveServiceLocations(
             out ErrorLevel errorLevel,
             out string fatalErrorMessage,

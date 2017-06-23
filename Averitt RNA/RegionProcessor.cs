@@ -28,7 +28,7 @@ namespace Averitt_RNA
 
             if (!MainService.SessionRequired)
             {
-
+                Logger.Debug("Hellow World");
                 //TODO
 
             }

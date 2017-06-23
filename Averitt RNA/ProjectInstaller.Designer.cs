@@ -39,8 +39,8 @@
             // 
             // serviceInstaller1
             // 
-            this.serviceInstaller1.DisplayName = "TODO Integration Service";
-            this.serviceInstaller1.ServiceName = "TODO Integration Service";
+            this.serviceInstaller1.DisplayName = "Averitt Roadnet Anywhere Integration Service";
+            this.serviceInstaller1.ServiceName = "Averitt Roadnet Anywhere Integration Service";
             // 
             // ProjectInstaller
             // 
