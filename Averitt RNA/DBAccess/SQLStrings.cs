@@ -7,7 +7,7 @@ namespace Averitt_RNA.DBAccess
 
         private const string DB_DATE_STRING_FORMAT = "yyyy-MM-dd HH:mm:ss.fffffff";
 
-        //STAGED ORDERS
+        //GET STAGED ORDERS
         public static string SELECT_STAGED_ORDERS(
             string regionID, string Staged)
         {
@@ -19,7 +19,7 @@ namespace Averitt_RNA.DBAccess
                 regionID, Staged);
         }
 
-        //STAGED SERVICE LOCATIONS
+        //GET STAGED SERVICE LOCATIONS
         public static string SELECT_STAGED_SERVICE_LOCATIONS(
                     string regionID, string Staged)
         {
@@ -30,6 +30,16 @@ namespace Averitt_RNA.DBAccess
                 AND [Staged] = '{1}'",
                 regionID, Staged);
         }
-        
+
+        //INSERT STAGED ROUTES
+        public static string INSERT_STAGED_ROUTES(
+                    string regionID, string orderId, string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
+        {
+            return string.Format(@"
+                INSERT INTO STAGED_ROUTES
+                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, Status)
+                VALUES
+                ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})", regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+        }
     }
 }

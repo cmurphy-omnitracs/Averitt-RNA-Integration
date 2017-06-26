@@ -62,6 +62,22 @@ namespace Averitt_RNA.DBAccess
             return stagedStagedServiceLocationList;
         }
 
+        public void InsertStagedRoute(string regionID, string orderId, string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
+        {
+           
+            try
+            {
+                ExecuteNonQuery(
+                    SQLStrings.INSERT_STAGED_ROUTES(regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status),
+                     "Insert Route " + routeId + " into Staged Route table for Region " + regionID);
+            }
+            catch (DatabaseException ex)
+            {
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+            
+        }
+        
         #endregion
 
     }
