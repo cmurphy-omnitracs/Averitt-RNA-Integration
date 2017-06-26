@@ -62,6 +62,7 @@
     <Compile Include="ArchivesProcessor.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="DBAccess\IntegrationDBAccessor.cs" />
+    <Compile Include="DBAccess\Records\StagedServiceLocationsRecord.cs" />
     <Compile Include="DBAccess\Records\StagedOrderRecord.cs" />
     <Compile Include="DBAccess\SQLStrings.cs" />
     <Compile Include="MainService.cs">

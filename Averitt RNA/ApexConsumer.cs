@@ -9,6 +9,7 @@ using System.IO;
 
 
 
+
 namespace Averitt_RNA
 {
     public class ApexConsumer
@@ -1584,9 +1585,15 @@ namespace Averitt_RNA
             errorRetrieveDummyOrdersFromCSV = false;
             errorRetrieveDummyOrdersFromCSVMessage = string.Empty;
             List<Order> retrieveListDummyOrders = new List<Order>();
-            using (var file = File.OpenRead(@"C:\test.csv"))
-            using (var reader = new StreamReader(file))
 
+            //read csv file
+            var lines = File.ReadLines(Config.DummyOrderCSVFile).Select(a => a.Split(','));
+            int linelength = lines.First().Count();
+            var CSVFile = lines.Skip(1)
+                .SelectMany(x => x)
+                .Select((v, i) => new { Value = v, Index = i % linelength })
+                .Where(x => x.Index == 2 || x.Index == 3)
+                .Select(x => x.Value);
 
                 try
             {
@@ -1607,6 +1614,8 @@ namespace Averitt_RNA
                     _Logger.ErrorFormat(errorRetrieveDummyOrdersFromCSVMessage);
                     return retrieveListDummyOrders;
                 }
+
+                return retrieveListDummyOrders;
             }
             catch (Exception ex)
             {
