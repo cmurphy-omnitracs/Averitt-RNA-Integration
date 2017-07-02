@@ -3,9 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Data.Odbc;
 using Averitt_RNA.Apex;
+using System.Globalization;
 
 namespace Averitt_RNA.DBAccess.Records
 {
+
+
+
+
+
     public class StagedServiceLocationRecord : DBAccessUtility.DBRecord, IEquatable<StagedServiceLocationRecord>
     {
 
@@ -97,7 +103,79 @@ namespace Averitt_RNA.DBAccess.Records
                 PhoneNumber + ServiceTimeTypeIdentifier + ServiceWindowTypeIdentifier + Staged + Error + Status);
         }
 
-        #endregion
+       
 
+       
+
+        static public explicit operator ServiceLocation(StagedServiceLocationRecord record)
+        {
+
+           string dayOfTheWeek = string.Empty;
+
+            
+            var temp = Convert.ToString(record.DeliveryDays,2).Reverse().ToArray();
+            
+            if(temp[0] == '1')
+            {
+                dayOfTheWeek.Insert(0, "S");
+            } else if(temp[1] == '1')
+            {
+                dayOfTheWeek.Insert(1, "M");
+            }
+            else if (temp[2] == '1')
+            {
+                dayOfTheWeek.Insert(2, "T");
+            }else if(temp[3] == '1')
+            {
+                dayOfTheWeek.Insert(3, "W");
+            }else if(temp[4] == '1')
+            {
+                dayOfTheWeek.Insert(4, "Th");
+            }else if(temp[5] == '1')
+            {
+                dayOfTheWeek.Insert(5, "F");
+            }
+            else if (temp[6] == '1')
+            {
+                dayOfTheWeek.Insert(6, "Sa");
+            }
+
+
+            
+                return new ServiceLocation
+            {
+                Identifier = record.ServiceLocationIdentifier,
+                Description = record.Description,
+                Address = new Address
+                {
+                    AddressLine1 = record.AddressLine1,
+                    AddressLine2 = record.AddressLine2,
+                    Locality = new Locality
+                    {
+                        PostalCode = record.PostalCode,
+                    },
+                  
+                    
+                },
+                   
+                    
+                PhoneNumber = record.PhoneNumber,
+                WorldTimeZone_TimeZone = record.WorldTimeZone,
+                DayOfWeekFlags_DeliveryDays = dayOfTheWeek,
+                
+
+                
+               
+                
+                
+                
+
+            };
+                
+            
+        }
+
+
+        #endregion
     }
 }

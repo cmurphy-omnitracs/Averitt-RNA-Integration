@@ -1505,19 +1505,19 @@ namespace Averitt_RNA
             return route;
         }
 
-        public List<ServiceLocation> RetrieveServiceLocationsFromStagingTable (string regionId, string staged, out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage)
+        public List<ServiceLocation> RetrieveServiceLocationsFromStagingTable (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId, string staged, out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage)
         { 
         
             errorRetrieveSLFromStagingTable = false;
             errorRetrieveSLFromStagingTableMessage = string.Empty;
-            List<ServiceLocation> retrieveList = new List<ServiceLocation>();
+            List<DBAccess.Records.StagedServiceLocationRecord> retrieveList = new List<DBAccess.Records.StagedServiceLocationRecord>();
             DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
 
             
             try
             {
 
-                retrieveList = DBAccessor.SelectStagedServiceLocations(regionId, staged).Cast<ServiceLocation>().ToList();
+                retrieveList = DBAccessor.SelectStagedServiceLocations(regionId, staged);
 
                 if (retrieveList == null)
                 {
@@ -1531,7 +1531,55 @@ namespace Averitt_RNA
                     errorRetrieveSLFromStagingTable = true;
                     errorRetrieveSLFromStagingTableMessage = String.Format("No New Staged Service Locations found in Staged Service Locatoins Table for {0}", regionId);
                     _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
-                    return retrieveList;
+
+                    return retrieveList.Cast<ServiceLocation>().ToList();
+                } else
+                {
+                    List<ServiceLocation> serviceLocations = new List<ServiceLocation>();
+                    foreach (DBAccess.Records.StagedServiceLocationRecord location in retrieveList)
+                    {
+                        long serviceTimeTypeEntityKey = 0;
+                        long timeWindowTypeEntityKey = 0;
+                        long regionEntityKey = 0;
+                        var temp = (ServiceLocation)location;
+                        if (location.Status.ToUpper() == "NEW")
+                        {
+                            if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
+                            {
+                                _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                                temp.ServiceTimeTypeEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.ServiceTimeTypeEntityKey = serviceTimeTypeEntityKey;
+                            }
+                            if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
+                            {
+                                _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                                temp.ServiceTimeTypeEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
+                            }
+
+                            if(!regionEntityKeyDic.TryGetValue(location.ServiceWindowTypeIdentifier, out regionEntityKey))
+                            {
+                                _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
+                                temp.RegionEntityKeys[0] = 0;
+                            }
+                            else
+                            {
+                                temp.RegionEntityKeys[0] = regionEntityKey;
+                            }
+
+                                                   
+                            
+                            serviceLocations.Add(temp);
+                            
+                        }
+                    }
+                    return serviceLocations;
                 }
             }
             catch (Exception ex)
@@ -1542,19 +1590,20 @@ namespace Averitt_RNA
             return null;
         }
 
-        public List<Order> RetrieveOrderesFromStagingTable(string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
+        public List<Order> RetrieveOrderesFromStagingTable(Dictionary<string, long> RetrieveDepotsForRegion, string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
         {
 
             errorRetrieveOrdersFromStagingTable = false;
             errorRetrieveOrdersFromStagingTableMessage = string.Empty;
-            List<Order> retrieveListOrders = new List<Order>();
+            List<DBAccess.Records.StagedOrderRecord> retrieveListOrders = new List<DBAccess.Records.StagedOrderRecord>();
             DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+          
 
 
             try
             {
 
-                retrieveListOrders = DBAccessor.SelectStagedOrders(regionId, staged).Cast<Order>().ToList();
+                retrieveListOrders = DBAccessor.SelectStagedOrders(regionId, staged).ToList();
 
                 if (retrieveListOrders == null)
                 {
@@ -1568,14 +1617,38 @@ namespace Averitt_RNA
                     errorRetrieveOrdersFromStagingTable = true;
                     errorRetrieveOrdersFromStagingTableMessage = String.Format("No New Staged Orders found in Staged Order Table for {0}", regionId);
                     _Logger.ErrorFormat(errorRetrieveOrdersFromStagingTableMessage);
-                    return retrieveListOrders;
+                    return retrieveListOrders.Cast<Order>().ToList();
+                } else
+                {
+                    List<Order> stagedOrders = new List<Order>();
+                    foreach (DBAccess.Records.StagedOrderRecord order in retrieveListOrders)
+                    {
+                        long orginDepotEntityKey = 0;
+                        
+                        var temp = (Order) order;
+
+                        if (order.Status.ToUpper() == "NEW")
+                        {
+                            if (!RetrieveDepotsForRegion.TryGetValue(order.OriginDepotIdentifier, out orginDepotEntityKey))
+                            {
+                                _Logger.ErrorFormat("No match found for Orgin Depot with identifier {0} in RNA", order.OriginDepotIdentifier);
+                                temp.RequiredRouteOriginEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.RequiredRouteOriginEntityKey = orginDepotEntityKey;
+                            }
+
+                            stagedOrders.Add(temp);  
+                        }
+                    }
+                    return stagedOrders;
                 }
             }
             catch (Exception ex)
             {
                 _Logger.Error(ex.Message);
-            }
-
+            } 
             return null;
         }
 
@@ -1650,7 +1723,8 @@ namespace Averitt_RNA
                         PropertyInclusionMode = retrieveIdentifierOnly ? PropertyInclusionMode.AccordingToPropertyOptions : PropertyInclusionMode.All,
                         PropertyOptions = new ServiceLocationPropertyOptions
                         {
-                            Identifier = true
+                            Identifier = true,
+                            
                         },
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceLocation)
                     });
@@ -1860,7 +1934,8 @@ namespace Averitt_RNA
                             StandingPickupQuantities = true,
                             TimeWindowTypeEntityKey = true,
                             VisibleInAllRegions = true,
-                            WorldTimeZone_TimeZone = true
+                            WorldTimeZone_TimeZone = true,
+                            
                         }
                     });
                 if (saveResults == null)
@@ -1904,6 +1979,253 @@ namespace Averitt_RNA
             return saveResults;
         }
 
+        public Dictionary<string,long> RetrieveRegionEntityKey (string businessUnit)
+        {
+            Dictionary<string, long> regionEntityKeyDic = new Dictionary<string, long>();
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.RetrieveRegionsGrantingPermissions(
+                    MainService.SessionHeader, new RolePermission[] { }, false);
+                  
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Regions failed.");
+                 
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    Console.WriteLine("No Regions exist.");
+                    return null;
+                } else
+                {
+                    
+                    foreach(Region region in retrievalResults.Items)
+                    {
+                        regionEntityKeyDic.Add(region.Identifier, region.EntityKey);
+                    }
+
+                    return regionEntityKeyDic;
+
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Regions for the following business unit| " + string.Join(" | ", businessUnit) + " | " + errorMessage);
+
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                   
+                }
+               
+            }
+            catch (Exception ex)
+            {
+                _Logger.ErrorFormat("Retrive Regions | {0}",  ex.Message );
+             
+            }
+
+            return null;
+        }
+
+        public Dictionary<string, long> RetrieveServiceTimeEntityKey(out ErrorLevel errorLevel, out string fatalErrorMessage, string serviceTimeTypeIdentifier)
+        {
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    new MultipleRegionContext
+                    {
+                        BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
+                        Mode = MultipleRegionMode.All
+                    },
+                    new RetrievalOptions
+                    {
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new ServiceTimeTypePropertyOptions
+                        {
+                            Identifier = true,
+                            
+                
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceTimeType)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Service Time Type | " + string.Join(" | ", serviceTimeTypeIdentifier) + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "ServiceTime Types does not exist.";
+                    _Logger.Error(" ServiceTime Types does not exist for Multiple Regions | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    return retrievalResults.Items.Cast<ServiceTimeType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+                   
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Service Time Type Entity Keys | " + string.Join(" | ", serviceTimeTypeIdentifier) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Service Time Type Entity Key | " + string.Join(" | ", serviceTimeTypeIdentifier), ex);
+
+            }
+            return null;
+        }
+
+        public Dictionary<string, long> RetrieveTimeWindowEntityKey( out ErrorLevel errorLevel, out string fatalErrorMessage, string TimeWindowTypeIdentifier)
+        {
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                     new MultipleRegionContext
+                     {
+                         BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
+                         Mode = MultipleRegionMode.All
+                     },
+                    new RetrievalOptions
+                    {
+                       
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new TimeWindowTypePropertyOptions
+                        {
+                            Identifier = true,
+
+
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.TimeWindowType)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Time Window Type | " + string.Join(" | ", TimeWindowTypeIdentifier) + " | Failed with a null result.");
+
+                }
+                else
+                {
+                    Dictionary<string, long> dict = retrievalResults.Items.Cast<TimeWindowType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+                   foreach(TimeWindowType timeWindowType in retrievalResults.Items)
+                    {
+                        dict.Add(timeWindowType.Identifier, timeWindowType.EntityKey);
+                    }
+                    return dict;
+
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Time Window Type Type Entity Key | " + string.Join(" | ", TimeWindowTypeIdentifier) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.ErrorFormat("Error Retrieving Service Time Type Entity Key | " , ex.Message);
+
+            }
+            return null;
+        }
+
+        public Dictionary<string, long> RetrieveDepotsForRegion(out ErrorLevel errorLevel, out string fatalErrorMessage, string Region)
+        {
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    new MultipleRegionContext
+                    {
+                        BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
+                        Mode = MultipleRegionMode.All
+                    },
+                    new RetrievalOptions
+                    {
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new DepotPropertyOptions
+                        {
+                            Identifier = true
+
+
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Depot)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve All Depots | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Depots does not exist.";
+                    _Logger.Error(" Depots does not exist for Multiple Regions | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    return retrievalResults.Items.Cast<Depot>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Depot Entity Keys | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Depot Entity Key |  " + ex);
+
+            }
+            return null;
+        }
         #endregion
 
     }

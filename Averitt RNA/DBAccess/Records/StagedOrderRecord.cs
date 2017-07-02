@@ -122,6 +122,83 @@ namespace Averitt_RNA.DBAccess.Records
                                     Delete + Staged + Error + Status);
         }
 
+        static public explicit operator Order(StagedOrderRecord record)
+        {
+
+            Dictionary<string, object> dict = new Dictionary<string, object>();
+            dict.Add("LiftGateOnly", record.LiftgateOnly);
+            dict.Add("GuaranteedDelivery", record.GuaranteedDelivery);
+            dict.Add("Avail", record.Avail);
+            OrderServiceWindowDetail[] serviceWindowDetailArray = new OrderServiceWindowDetail[] { };
+
+            if ((record.ServiceWindowOverride1Start != null && record.ServiceWindowOverride1End != null) && (record.ServiceWindowOverride1Start.Length != 0
+                && record.ServiceWindowOverride1End.Length != 0))
+            {
+                serviceWindowDetailArray[0] = new OrderServiceWindowDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = record.ServiceWindowOverride1Start,
+                        EndTime = record.ServiceWindowOverride1End,
+                    }
+                };
+            } else
+            {
+                serviceWindowDetailArray[0] = new OrderServiceWindowDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = string.Empty,
+                        EndTime = string.Empty
+                    }
+                };
+            }
+            if ((record.ServiceWindowOverride2Start != null && record.ServiceWindowOverride2End != null) && (record.ServiceWindowOverride2Start.Length != 0
+                && record.ServiceWindowOverride2End.Length != 0))
+            {
+                serviceWindowDetailArray[1] = new OrderServiceWindowDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = record.ServiceWindowOverride2Start,
+                        EndTime = record.ServiceWindowOverride2End,
+                    }
+                };
+            } else
+            {
+                serviceWindowDetailArray[1] = new OrderServiceWindowDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = string.Empty,
+                        EndTime = string.Empty
+                    }
+                };
+            }
+
+
+
+            
+            return new Order
+            {
+                Identifier = record.ServiceLocationIdentifier,
+                BeginDate = record.BeginDate,
+                DeliveryQuantities = new Quantities
+                {
+                    Size1 = Convert.ToDouble(record.QuantitySize1),
+                    Size2 = Convert.ToDouble(record.QuantitySize2),
+                    Size3 = Convert.ToDouble(record.QuantitySize3)
+
+                },
+                PreferredRouteIdentifier = record.PreferredRouteIdentifier,
+                SpecialInstructions = record.SpecialInstructions,
+                CustomProperties = dict,
+                ServiceWindowDetails = serviceWindowDetailArray
+            };
+
+
+        }
+
         #endregion
 
     }
