@@ -1625,7 +1625,9 @@ namespace Averitt_RNA
                     {
                         long orginDepotEntityKey = 0;
                         
-                        var temp = (Order) order;
+                        Order temp = (Order) order;
+                        
+
 
                         if (order.Status.ToUpper() == "NEW")
                         {
@@ -1651,27 +1653,74 @@ namespace Averitt_RNA
             } 
             return null;
         }
-
-        public List<Order> RetrieveDummyOrdersFromCSV (string regionId, string staged, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
+       
+        public List<Order> RetrieveDummyOrdersFromCSV (Dictionary<string, long> originDict, Dictionary<string, long> orderClassDict, string regionId, string staged, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
         {
 
             errorRetrieveDummyOrdersFromCSV = false;
             errorRetrieveDummyOrdersFromCSVMessage = string.Empty;
             List<Order> retrieveListDummyOrders = new List<Order>();
+            string dummyCsvFilename = Config.DummyOrderCSVFile + "<" + regionId + ">_DummyOrders.csv";
 
             //read csv file
-            var lines = File.ReadLines(Config.DummyOrderCSVFile).Select(a => a.Split(','));
-            int linelength = lines.First().Count();
-            var CSVFile = lines.Skip(1)
-                .SelectMany(x => x)
-                .Select((v, i) => new { Value = v, Index = i % linelength })
-                .Where(x => x.Index == 2 || x.Index == 3)
-                .Select(x => x.Value);
-
-                try
+            try
             {
+                if (File.Exists(dummyCsvFilename))
+                {
+                    using (StreamReader sr = new StreamReader(dummyCsvFilename))
+                    {
 
-                retrieveListDummyOrders = 
+                        while (!sr.EndOfStream)
+                        {
+                            Order temp = new Order();
+                            string currentLine = sr.ReadLine();
+                            string[] dummyOrderValue = currentLine.Split(',');
+                            TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[0];
+                            long orderClassEntity;
+                            long routeOriginEntityKey;
+                            temp.Identifier = dummyOrderValue[0];
+                            temp.PickupQuantities.Size1 = Convert.ToDouble(dummyOrderValue[1]);
+                            temp.PickupQuantities.Size2 = Convert.ToDouble(dummyOrderValue[2]);
+                            temp.PickupQuantities.Size2 = Convert.ToDouble(dummyOrderValue[3]);
+                            temp.Tasks[0].LocationIdentifier = dummyOrderValue[4];
+                            serviceWindowOverride[0].DailyTimePeriod.StartTime = dummyOrderValue[5];
+                            serviceWindowOverride[0].DailyTimePeriod.EndTime = dummyOrderValue[6];
+                            temp.PreferredRouteIdentifier = dummyOrderValue[7];
+                            temp.Tasks[0].TaskType_Type = "Pickup";
+                            temp.Tasks[0].ServiceWindowOverrides = serviceWindowOverride;
+                            
+
+                            if (originDict.TryGetValue(dummyOrderValue[8], out orderClassEntity))
+                            {
+                                temp.OrderClassEntityKey = orderClassEntity;
+                            }
+                            else
+                            {
+                                _Logger.ErrorFormat("No Order Classes Found for Order", temp.Identifier);
+                            }
+
+                            if (originDict.TryGetValue(dummyOrderValue[9], out routeOriginEntityKey))
+                            {
+                                temp.RequiredRouteOriginEntityKey = routeOriginEntityKey;
+                            }
+                            else
+                            {
+                                _Logger.ErrorFormat("No Orgin Depot Found for Order", temp.Identifier);
+                            }
+
+
+                            
+
+                            retrieveListDummyOrders.Add(temp);
+                        }
+                    }
+                } else
+                {
+                    errorRetrieveDummyOrdersFromCSV = true;
+                    errorRetrieveDummyOrdersFromCSVMessage = String.Format("No file found that matches {0}", dummyCsvFilename);
+                    _Logger.ErrorFormat(errorRetrieveDummyOrdersFromCSVMessage);
+                    return null;
+                }
 
                 if (retrieveListDummyOrders == null)
                 {
@@ -1837,10 +1886,7 @@ namespace Averitt_RNA
             return saveResults;
         }
 
-        public SaveResult[] SaveOrders(
-            out ErrorLevel errorLevel,
-            out string fatalErrorMessage,
-            OrderSpec[] orderSpecs)
+        public SaveResult[] SaveOrders(out ErrorLevel errorLevel, out string fatalErrorMessage, OrderSpec[] orderSpecs)
         {
             SaveResult[] saveResults = null;
             errorLevel = ErrorLevel.None;
@@ -1853,7 +1899,6 @@ namespace Averitt_RNA
                     orderSpecs,
                     new SaveOptions
                     {
-                        //TODO
                         InclusionMode = PropertyInclusionMode.All
                     });
                 if (saveResults == null)
@@ -2222,6 +2267,73 @@ namespace Averitt_RNA
             catch (Exception ex)
             {
                 _Logger.Error("Retrieve Depot Entity Key |  " + ex);
+
+            }
+            return null;
+        }
+
+        public Dictionary<string, long> RetrieveOrderClassesDict(out ErrorLevel errorLevel, out string fatalErrorMessage, string Region)
+        {
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    new MultipleRegionContext
+                    {
+                        BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
+                        Mode = MultipleRegionMode.All
+                    },
+                    new RetrievalOptions
+                    {
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new OrderClassPropertyOptions
+                        {
+                            Identifier = true
+                          
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Depot)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve All Order Classes | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Order Classes does not exist.";
+                    _Logger.Error(" Order Classes does not exist for Multiple Regions | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    return retrievalResults.Items.Cast<OrderClass>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Order Classes Entity Keys | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Order Classes Entity Key |  " + ex);
 
             }
             return null;

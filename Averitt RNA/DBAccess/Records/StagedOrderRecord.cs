@@ -129,56 +129,39 @@ namespace Averitt_RNA.DBAccess.Records
             dict.Add("LiftGateOnly", record.LiftgateOnly);
             dict.Add("GuaranteedDelivery", record.GuaranteedDelivery);
             dict.Add("Avail", record.Avail);
-            OrderServiceWindowDetail[] serviceWindowDetailArray = new OrderServiceWindowDetail[] { };
-
+           
+            TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { };
+            Task[] task = new Task[0];
+            task[0].TaskType_Type = "Delivery";
+           
+              
             if ((record.ServiceWindowOverride1Start != null && record.ServiceWindowOverride1End != null) && (record.ServiceWindowOverride1Start.Length != 0
                 && record.ServiceWindowOverride1End.Length != 0))
             {
-                serviceWindowDetailArray[0] = new OrderServiceWindowDetail
-                {
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        StartTime = record.ServiceWindowOverride1Start,
-                        EndTime = record.ServiceWindowOverride1End,
-                    }
-                };
+                serviceWindowOverride[0].DailyTimePeriod.StartTime = record.ServiceWindowOverride1Start;
+                serviceWindowOverride[0].DailyTimePeriod.EndTime = record.ServiceWindowOverride1End;
+               
             } else
             {
-                serviceWindowDetailArray[0] = new OrderServiceWindowDetail
-                {
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        StartTime = string.Empty,
-                        EndTime = string.Empty
-                    }
-                };
+                serviceWindowOverride[0].DailyTimePeriod.StartTime = string.Empty;
+                serviceWindowOverride[0].DailyTimePeriod.EndTime = string.Empty;
+
+            
             }
             if ((record.ServiceWindowOverride2Start != null && record.ServiceWindowOverride2End != null) && (record.ServiceWindowOverride2Start.Length != 0
                 && record.ServiceWindowOverride2End.Length != 0))
             {
-                serviceWindowDetailArray[1] = new OrderServiceWindowDetail
-                {
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        StartTime = record.ServiceWindowOverride2Start,
-                        EndTime = record.ServiceWindowOverride2End,
-                    }
-                };
+                serviceWindowOverride[1].DailyTimePeriod.StartTime = record.ServiceWindowOverride2Start;
+                serviceWindowOverride[1].DailyTimePeriod.EndTime = record.ServiceWindowOverride2End;
             } else
             {
-                serviceWindowDetailArray[1] = new OrderServiceWindowDetail
-                {
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        StartTime = string.Empty,
-                        EndTime = string.Empty
-                    }
-                };
+                serviceWindowOverride[1].DailyTimePeriod.StartTime = string.Empty;
+                serviceWindowOverride[1].DailyTimePeriod.EndTime = string.Empty;
             }
 
+            task[0].ServiceWindowOverrides = serviceWindowOverride;
 
 
-            
             return new Order
             {
                 Identifier = record.ServiceLocationIdentifier,
@@ -193,7 +176,8 @@ namespace Averitt_RNA.DBAccess.Records
                 PreferredRouteIdentifier = record.PreferredRouteIdentifier,
                 SpecialInstructions = record.SpecialInstructions,
                 CustomProperties = dict,
-                ServiceWindowDetails = serviceWindowDetailArray
+                Tasks = task
+
             };
 
 
