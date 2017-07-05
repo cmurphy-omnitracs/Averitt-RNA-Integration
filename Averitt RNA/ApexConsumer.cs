@@ -1411,12 +1411,11 @@ namespace Averitt_RNA
             return notifications;
         }
 
-        public Route RetrieveRoute(
-            out ErrorLevel errorLevel,
-            out string fatalErrorMessage,
-            long entityKey)
+        public List<Route> RetrieveModifiedRNARoute( out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
         {
-            Route route = null;
+            List<Route> routes = null;
+
+          
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
             try
@@ -1426,65 +1425,57 @@ namespace Averitt_RNA
                     _RegionContext,
                     new RetrievalOptions
                     {
-                        Expression = new EqualToExpression
+                        Expression = new NotExpression
                         {
-                            Left = new PropertyExpression { Name = "EntityKey" },
-                            Right = new ValueExpression { Value = entityKey }
+                            Expression = new EqualToExpression
+                            {
+                                Left = new PropertyExpression { Name = "ModifiedTime" },
+                                Right = new ValueExpression { Value = lastCycleTime }
+                            }
+                                                        
                         },
-                        //TODO
                         PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         PropertyOptions = new RoutePropertyOptions
                         {
                             Identifier = true,
                             RegionEntityKey = true,
+                            Description = true,
                             StartTime = true,
                             Stops = true,
                             StopsOptions = new StopPropertyOptions
                             {
-                                Actions = true,
+                               
+                                SequenceNumber = true,
                                 ActionsOptions = new StopActionPropertyOptions
                                 {
-                                    StopActionLineItemQuantities = true,
-                                    StopActionLineItemQuantitiesOptions = new StopActionLineItemQuantitiesPropertyOptions
-                                    {
-                                        LineItem = true,
-                                        LineItemOptions = new LineItemPropertyOptions
-                                        {
-                                            CustomProperties = true,
-                                            Identifier = true,
-                                            LineItemType_Type = true,
-                                            PlannedQuantities = true,
-                                            Quantities = true
-                                        }
-                                    }
+                                    OrderIdentifier = true
+                                  
                                 },
-                                ArrivalTime = true,
-                                DepartureTime = true,
-                                IsCancelled = true
+                                
                             }
                         },
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Route)
                     });
                 if (retrievalResults.Items == null)
                 {
-                    _Logger.Error("RetrieveRoute | " + entityKey + " | Failed with a null result.");
+                    _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
                     errorLevel = ErrorLevel.Transient;
                 }
                 else if (retrievalResults.Items.Length == 0)
                 {
-                    fatalErrorMessage = "Route does not exist.";
-                    _Logger.Error("RetrieveRoute | " + entityKey + " | " + fatalErrorMessage);
+                    fatalErrorMessage = "Routes does not exist.";
+                    _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.Fatal;
                 }
                 else
                 {
-                    route = (Route)retrievalResults.Items[0];
+                    routes = retrievalResults.Items.Cast<Route>().ToList();
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("RetrieveRoute | " + entityKey + " | " + errorMessage);
+                _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | " + errorMessage);
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
@@ -1499,11 +1490,169 @@ namespace Averitt_RNA
             }
             catch (Exception ex)
             {
-                _Logger.Error("RetrieveRoute | " + entityKey, ex);
+                _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString(), ex);
                 errorLevel = ErrorLevel.Transient;
             }
-            return route;
+            return routes;
         }
+
+        public List<Order> RetrieveModifiedRNAOrders(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
+        {
+            List<Order> orders = null;
+
+
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+                        Expression = new NotExpression
+                        {
+                            Expression = new EqualToExpression
+                            {
+                                Left = new PropertyExpression { Name = "ModifiedTime" },
+                                Right = new ValueExpression { Value = lastCycleTime }
+                            }
+
+                        },
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new OrderPropertyOptions
+                        {
+                            Identifier = true,
+                            RegionEntityKey = true,
+                            
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Orders | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Orders doe not exist.";
+                    _Logger.Error("Retrieve Orders | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    orders = retrievalResults.Items.Cast<Order>().ToList();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Orders | Modified after/before " + lastCycleTime.ToLongDateString() + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Orders | Modified after/before" + lastCycleTime.ToLongDateString(), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return orders;
+        }
+
+        public void WriteRoutesToStagingTable(out ErrorLevel errorLevel, out string fatalErrorMessage, List<Route> saveRoutes)
+        {
+            List<Route> routes = null;
+
+
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+                        Expression = new NotExpression
+                        {
+                            Expression = new EqualToExpression
+                            {
+                                Left = new PropertyExpression { Name = "ModifiedTime" },
+                                Right = new ValueExpression { Value = lastCycleTime }
+                            }
+
+                        },
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new RoutePropertyOptions
+                        {
+                            Identifier = true,
+                            RegionEntityKey = true,
+                            Description = true,
+                            StartTime = true,
+                            Stops = true,
+                            StopsOptions = new StopPropertyOptions
+                            {
+
+                                SequenceNumber = true,
+                                ActionsOptions = new StopActionPropertyOptions
+                                {
+                                    OrderIdentifier = true
+
+                                },
+
+                            }
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Route)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Route does not exist.";
+                    _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    routes = retrievalResults.Items.Cast<Route>().ToList();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString(), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return routes;
+        }
+
 
         public List<ServiceLocation> RetrieveServiceLocationsFromStagingTable (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId, string staged, out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage)
         { 

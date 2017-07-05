@@ -15,8 +15,7 @@ namespace Averitt_RNA
         private ApexConsumer _ApexConsumer;
         private IntegrationDBAccessor _IntegrationDBAccessor;
 
-        public RegionProcessor(Region region)
-            : base(MethodBase.GetCurrentMethod().DeclaringType, region.Identifier)
+        public RegionProcessor(Region region) : base(MethodBase.GetCurrentMethod().DeclaringType, region.Identifier)
         {
             _Region = region;
             _ApexConsumer = new ApexConsumer(region, Logger);
@@ -28,7 +27,7 @@ namespace Averitt_RNA
 
             if (!MainService.SessionRequired)
             {
-                Logger.Debug("Hellow World");
+                Logger.Debug("Start Retrieving");
                 //TODO
 
             }

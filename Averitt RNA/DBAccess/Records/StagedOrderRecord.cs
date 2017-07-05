@@ -114,7 +114,7 @@ namespace Averitt_RNA.DBAccess.Records
 
         public override int GetHashCode()
         {
-            //TODO
+            
             return StringComparer.InvariantCultureIgnoreCase.GetHashCode(RegionIdentifier + OrderIdentifier + ServiceLocationIdentifier +
                                     BeginDate + QuantitySize1 + QuantitySize2 + QuantitySize3 + PreferredRouteIdentifier + OriginDepotIdentifier +
                                     OrderClassIdentifier + SpecialInstructions + ServiceWindowOverride1Start + ServiceWindowOverride1End +
@@ -143,8 +143,8 @@ namespace Averitt_RNA.DBAccess.Records
                
             } else
             {
-                serviceWindowOverride[0].DailyTimePeriod.StartTime = string.Empty;
-                serviceWindowOverride[0].DailyTimePeriod.EndTime = string.Empty;
+                serviceWindowOverride[0].DailyTimePeriod.StartTime = null;
+                serviceWindowOverride[0].DailyTimePeriod.EndTime = null;
 
             
             }
@@ -155,8 +155,8 @@ namespace Averitt_RNA.DBAccess.Records
                 serviceWindowOverride[1].DailyTimePeriod.EndTime = record.ServiceWindowOverride2End;
             } else
             {
-                serviceWindowOverride[1].DailyTimePeriod.StartTime = string.Empty;
-                serviceWindowOverride[1].DailyTimePeriod.EndTime = string.Empty;
+                serviceWindowOverride[1].DailyTimePeriod.StartTime = null;
+                serviceWindowOverride[1].DailyTimePeriod.EndTime = null;
             }
 
             task[0].ServiceWindowOverrides = serviceWindowOverride;
