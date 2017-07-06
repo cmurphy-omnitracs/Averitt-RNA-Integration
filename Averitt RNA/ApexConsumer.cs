@@ -1587,7 +1587,32 @@ namespace Averitt_RNA
                 foreach (Route route in saveRoutes)
                 {
                     var regiondId = regionIdentifier.FirstOrDefault(x => x.Value == route.EntityKey).Key;
-                    string startTime = null;
+                    string routeStartTime = null;
+                    string routeDesc = null;
+                    string routeStage=;
+                    string  routeError= ;
+                    string routeStatus =;
+
+                    if (route.StartTime.Value != null)
+                    {
+
+                        routeStartTime = route.StartTime.Value.ToUniversalTime().ToString(dateTime2Format);
+                    }
+                    else
+                    {
+                        routeStartTime = null;
+                        _Logger.ErrorFormat("The Start Time for Route {0} is null", route.Identifier);
+                    }
+                    if (route.Description != null)
+                    {
+
+                        routeDesc = route.Description;
+                    }
+                    else
+                    {
+                        routeDesc = null;
+                        _Logger.ErrorFormat("The Description for Route {0} is null", route.Identifier);
+                    }
                     foreach (Stop stop in route.Stops)
                     {
                         if(stop is ServiceableStop)
@@ -1595,35 +1620,24 @@ namespace Averitt_RNA
                             ServiceableStop thisStop = (ServiceableStop)stop;
                             if (thisStop.Actions != null)
                             {
-                                
+                                string stopSequence = null;
+                                if (thisStop.SequenceNumber.HasValue)
+                                {
+
+                                    stopSequence = thisStop.SequenceNumber.Value.ToString();
+                                }
+                                else
+                                {
+                                    stopSequence = null;
+                                    _Logger.ErrorFormat("The Sequence Number for Route {0} is null", route.Identifier);
+                                }
                                 foreach (StopAction order in thisStop.Actions)
                                 {
-                                    if (route.StartTime.Value != null)
-                                    {
+                                   
 
-                                         startTime = route.StartTime.Value.ToUniversalTime().ToString(dateTime2Format);
-                                    } else
-                                    {
-                                        string routeId = null;
-                                        _Logger.ErrorFormat("The Start Time for Route {0} is null", route.Identifier);
-                                    }
+                                    DBAccessor.InsertStagedRoute(regiondId, order.OrderIdentifier, route.Identifier, routeStartTime, routeDesc, stopSequence, routeStage, routeError, routeStatus);
+                                    _Logger.DebugFormat("Route {0} Sucessfully written into STAGE_ROUTE table", route.Identifier);
 
-                                    DBAccessor.InsertStagedRoute(regiondId, order.OrderIdentifier, routeId, route.StartTime.Value. );
-                                    if (retrievalResults.Items == null)
-                                    {
-                                        _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
-                                        errorLevel = ErrorLevel.Transient;
-                                    }
-                                    else if (retrievalResults.Items.Length == 0)
-                                    {
-                                        fatalErrorMessage = "Route does not exist.";
-                                        _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
-                                        errorLevel = ErrorLevel.Fatal;
-                                    }
-                                    else
-                                    {
-                                        routes = retrievalResults.Items.Cast<Route>().ToList();
-                                    }
                                 }
                             }
                         }
