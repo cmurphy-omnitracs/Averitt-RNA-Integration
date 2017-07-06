@@ -1525,6 +1525,7 @@ namespace Averitt_RNA
                             Identifier = true,
                             RegionEntityKey = true,
                             
+                            
                         },
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
                     });
@@ -1568,65 +1569,65 @@ namespace Averitt_RNA
             return orders;
         }
 
-        public void WriteRoutesToStagingTable(out ErrorLevel errorLevel, out string fatalErrorMessage, List<Route> saveRoutes)
+        public void WriteRoutesToStagingTable(Dictionary<string, long> regionIdentifier, out ErrorLevel errorLevel, out string fatalErrorMessage, List<Route> saveRoutes, List<Order> unassignedOrders)
         {
             List<Route> routes = null;
+            DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+            string dateTime2Format = "YYYY-MM-dd hh:mm:ss.FFFFFFF";
+
+
+
+
 
 
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
             try
             {
-                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
-                    MainService.SessionHeader,
-                    _RegionContext,
-                    new RetrievalOptions
+                foreach (Route route in saveRoutes)
+                {
+                    var regiondId = regionIdentifier.FirstOrDefault(x => x.Value == route.EntityKey).Key;
+                    string startTime = null;
+                    foreach (Stop stop in route.Stops)
                     {
-                        Expression = new NotExpression
+                        if(stop is ServiceableStop)
                         {
-                            Expression = new EqualToExpression
+                            ServiceableStop thisStop = (ServiceableStop)stop;
+                            if (thisStop.Actions != null)
                             {
-                                Left = new PropertyExpression { Name = "ModifiedTime" },
-                                Right = new ValueExpression { Value = lastCycleTime }
-                            }
-
-                        },
-                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                        PropertyOptions = new RoutePropertyOptions
-                        {
-                            Identifier = true,
-                            RegionEntityKey = true,
-                            Description = true,
-                            StartTime = true,
-                            Stops = true,
-                            StopsOptions = new StopPropertyOptions
-                            {
-
-                                SequenceNumber = true,
-                                ActionsOptions = new StopActionPropertyOptions
+                                
+                                foreach (StopAction order in thisStop.Actions)
                                 {
-                                    OrderIdentifier = true
+                                    if (route.StartTime.Value != null)
+                                    {
 
-                                },
+                                         startTime = route.StartTime.Value.ToUniversalTime().ToString(dateTime2Format);
+                                    } else
+                                    {
+                                        string routeId = null;
+                                        _Logger.ErrorFormat("The Start Time for Route {0} is null", route.Identifier);
+                                    }
 
+                                    DBAccessor.InsertStagedRoute(regiondId, order.OrderIdentifier, routeId, route.StartTime.Value. );
+                                    if (retrievalResults.Items == null)
+                                    {
+                                        _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
+                                        errorLevel = ErrorLevel.Transient;
+                                    }
+                                    else if (retrievalResults.Items.Length == 0)
+                                    {
+                                        fatalErrorMessage = "Route does not exist.";
+                                        _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
+                                        errorLevel = ErrorLevel.Fatal;
+                                    }
+                                    else
+                                    {
+                                        routes = retrievalResults.Items.Cast<Route>().ToList();
+                                    }
+                                }
                             }
-                        },
-                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Route)
-                    });
-                if (retrievalResults.Items == null)
-                {
-                    _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
-                    errorLevel = ErrorLevel.Transient;
-                }
-                else if (retrievalResults.Items.Length == 0)
-                {
-                    fatalErrorMessage = "Route does not exist.";
-                    _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
-                    errorLevel = ErrorLevel.Fatal;
-                }
-                else
-                {
-                    routes = retrievalResults.Items.Cast<Route>().ToList();
+                        }
+                    }
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
@@ -1739,7 +1740,7 @@ namespace Averitt_RNA
             return null;
         }
 
-        public List<Order> RetrieveOrderesFromStagingTable(Dictionary<string, long> RetrieveDepotsForRegion, string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
+        public List<Order> RetrieveOrdersFromStagingTable(Dictionary<string, long> RetrieveDepotsForRegion, string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
         {
 
             errorRetrieveOrdersFromStagingTable = false;

@@ -41,5 +41,15 @@ namespace Averitt_RNA.DBAccess
                 VALUES
                 ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})", regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
         }
+
+        public static string INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(
+                  string regionID, string orderId, string staged, string error, string status)
+        {
+            return string.Format(@"
+                INSERT INTO STAGED_ROUTES
+                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, Status)
+                VALUES
+                ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})", regionID, orderId, null, null, null, null, staged, error, status);
+        }
     }
 }

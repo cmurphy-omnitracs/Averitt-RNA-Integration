@@ -77,7 +77,23 @@ namespace Averitt_RNA.DBAccess
             }
             
         }
-        
+
+        public void InsertStagedUnassignedOrders(string regionID, string orderId, string staged, string error, string status)
+        {
+
+            try
+            {
+                ExecuteNonQuery(
+                    SQLStrings.INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(regionID, orderId, staged, error, status),
+                     "Insert UnnasignedOrder " + orderId + " into Staged Route table for Region " + regionID);
+            }
+            catch (DatabaseException ex)
+            {
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
         #endregion
 
     }
