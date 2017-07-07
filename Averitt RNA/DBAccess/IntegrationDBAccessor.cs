@@ -43,14 +43,15 @@ namespace Averitt_RNA.DBAccess
             return stagedOrderRecordList;
         }
 
-        public List<StagedServiceLocationRecord> SelectStagedServiceLocations(string regionID, string staged)
+        public List<StagedServiceLocationRecord> SelectStagedServiceLocations(string regionID)
         {
             List<StagedServiceLocationRecord> stagedStagedServiceLocationList = null;
+            string status = "NEW";
             try
             {
                 stagedStagedServiceLocationList =
                     GetList(
-                        SQLStrings.SELECT_STAGED_SERVICE_LOCATIONS(regionID, staged ),
+                        SQLStrings.SELECT_STAGED_SERVICE_LOCATIONS(regionID, status),
                         new StagedServiceLocationRecord(),
                         "Select Staged Service Location (" + regionID + ")"
                     ).Cast<StagedServiceLocationRecord>().ToList();
@@ -58,7 +59,37 @@ namespace Averitt_RNA.DBAccess
             catch (DatabaseException ex)
             {
                 _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+               
             }
+
+
+
+            _Logger.Debug("Sucessfully Retrieved Service Locations from Staged_Service_Location Table" );
+            return stagedStagedServiceLocationList;
+        }
+
+        public List<StagedServiceLocationRecord> SelectAllStagedServiceLocations(string regionID)
+        {
+            List<StagedServiceLocationRecord> stagedStagedServiceLocationList = null;
+            
+            try
+            {
+                stagedStagedServiceLocationList =
+                    GetList(
+                        SQLStrings.SELECT_ALL_STAGED_SERVICE_LOCATIONS(regionID),
+                        new StagedServiceLocationRecord(),
+                        "Select Staged Service Location (" + regionID + ")"
+                    ).Cast<StagedServiceLocationRecord>().ToList();
+            }
+            catch (DatabaseException ex)
+            {
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+
+            }
+
+
+
+            _Logger.Debug("Sucessfully Retrieved Service Locations from Staged_Service_Location Table");
             return stagedStagedServiceLocationList;
         }
 
@@ -78,9 +109,10 @@ namespace Averitt_RNA.DBAccess
             
         }
 
-        public void InsertStagedUnassignedOrders(string regionID, string orderId, string staged, string error, string status)
+        public void InsertStagedUnassignedOrders(string regionID, string orderId, string staged, string error, string status, out string databaseError, out bool errorCaught)
         {
-
+            databaseError = string.Empty;
+            errorCaught = false;
             try
             {
                 ExecuteNonQuery(
@@ -89,6 +121,51 @@ namespace Averitt_RNA.DBAccess
             }
             catch (DatabaseException ex)
             {
+                databaseError = ex.Message;
+                errorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                
+            }
+
+        }
+
+
+        //public void DeleteServiceLocation(string regionID, string serviceLocationId, string staged, string error, string status, out string databaseError, out bool databaseErrorCaught)
+        //{
+        //    databaseError = string.Empty;
+        //    databaseErrorCaught = false;
+        //    try
+        //    {
+        //        ExecuteNonQuery(
+        //            SQLStrings.UPDATE_STAGED_SERVICE_LOCATION(regionID, serviceLocationId, staged, error, status),
+        //             "Update  Service Location " + serviceLocationId + " status from New to Completed");
+        //    }
+        //    catch (DatabaseException ex)
+        //    {
+        //        databaseError = ex.Message;
+        //        databaseErrorCaught = true;
+        //        _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+        //    }
+
+        //}
+
+
+        public void UpdateServiceLocationStatus(string regionID, string serviceLocationID, string staged, string error, string status,
+            out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                ExecuteNonQuery(
+                    SQLStrings.UPDATE_STAGED_SERVICE_LOCATION_STATUS(regionID, serviceLocationID,  staged, error, status),
+                     "Update  Service Location " + serviceLocationID + " status from New to Completed");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
                 _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
             }
 

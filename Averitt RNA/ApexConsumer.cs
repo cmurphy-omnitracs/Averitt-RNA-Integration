@@ -1569,19 +1569,14 @@ namespace Averitt_RNA
             return orders;
         }
 
-        public void WriteRoutesToStagingTable(Dictionary<string, long> regionIdentifier, out ErrorLevel errorLevel, out string fatalErrorMessage, List<Route> saveRoutes, List<Order> unassignedOrders)
+        public void WriteRoutesAndUnOrdersToStagingTable(Dictionary<string, long> regionIdentifier, out ErrorLevel errorLevel, out string fatalErrorMessage, List<Route> saveRoutes, List<Order> unassignedOrders)
         {
-            List<Route> routes = null;
+           
             DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
             string dateTime2Format = "YYYY-MM-dd hh:mm:ss.FFFFFFF";
-
-
-
-
-
-
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
+
             try
             {
                 foreach (Route route in saveRoutes)
@@ -1589,9 +1584,9 @@ namespace Averitt_RNA
                     var regiondId = regionIdentifier.FirstOrDefault(x => x.Value == route.EntityKey).Key;
                     string routeStartTime = null;
                     string routeDesc = null;
-                    string routeStage=;
-                    string  routeError= ;
-                    string routeStatus =;
+                    string routeStage= DateTime.UtcNow.ToString(dateTime2Format);
+                    string routeError= string.Empty;
+                    string routeStatus = "NEW";
 
                     if (route.StartTime.Value != null)
                     {
@@ -1613,6 +1608,7 @@ namespace Averitt_RNA
                         routeDesc = null;
                         _Logger.ErrorFormat("The Description for Route {0} is null", route.Identifier);
                     }
+
                     foreach (Stop stop in route.Stops)
                     {
                         if(stop is ServiceableStop)
@@ -1634,7 +1630,6 @@ namespace Averitt_RNA
                                 foreach (StopAction order in thisStop.Actions)
                                 {
                                    
-
                                     DBAccessor.InsertStagedRoute(regiondId, order.OrderIdentifier, route.Identifier, routeStartTime, routeDesc, stopSequence, routeStage, routeError, routeStatus);
                                     _Logger.DebugFormat("Route {0} Sucessfully written into STAGE_ROUTE table", route.Identifier);
 
@@ -1643,11 +1638,34 @@ namespace Averitt_RNA
                         }
                     }
                 }
+
+                foreach(Order order in unassignedOrders)
+                {
+                    string regiondId = regionIdentifier.FirstOrDefault(x => x.Value == order.RegionEntityKey).Key; 
+                    string orderError = string.Empty;
+                    bool orderErrorCaught = false;
+                    string orderStatus = "NEW";
+                    string orderStage = DateTime.UtcNow.ToString(dateTime2Format);
+                    
+                    DBAccessor.InsertStagedUnassignedOrders(regiondId, order.Identifier, orderStage, orderError, orderStatus, out orderError, out orderErrorCaught);
+
+                    if (orderErrorCaught)
+                    {
+                        _Logger.Error("Error Writting Unassigned Orders to Staged Route Table | " + orderError);
+                        errorLevel = ErrorLevel.Transient;
+                    }
+                    else
+                    {
+                        _Logger.DebugFormat("Unassigned Order {0} Sucessfully written into STAGE_ROUTE table", order.Identifier);
+                    }
+
+
+                }
             }
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("Retrieve Routes | Modified after/before " + lastCycleTime.ToLongDateString() + " | " + errorMessage);
+                _Logger.Error("Write Routes Error | " + errorMessage);
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
@@ -1662,50 +1680,69 @@ namespace Averitt_RNA
             }
             catch (Exception ex)
             {
-                _Logger.Error("Retrieve Routes | Modified after/before" + lastCycleTime.ToLongDateString(), ex);
+                _Logger.Error("Retrieve Routes | " + ex.Message);
                 errorLevel = ErrorLevel.Transient;
             }
-            return routes;
+            
         }
 
 
-        public List<ServiceLocation> RetrieveServiceLocationsFromStagingTable (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId, string staged, out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage)
-        { 
-        
+        public void RetrieveSLFromSTandSaveToRNA (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId, string staged, 
+            out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, out ErrorLevel errorLevel, out string fatalErrorMessage)
+        {
+
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
             errorRetrieveSLFromStagingTable = false;
             errorRetrieveSLFromStagingTableMessage = string.Empty;
             List<DBAccess.Records.StagedServiceLocationRecord> retrieveList = new List<DBAccess.Records.StagedServiceLocationRecord>();
             DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+            List<ServiceLocation> saveServiceLocations = new List<ServiceLocation>();
 
-            
             try
             {
-
-                retrieveList = DBAccessor.SelectStagedServiceLocations(regionId, staged);
-
+                //Get Service Location Records
+                retrieveList = DBAccessor.SelectAllStagedServiceLocations(regionId);
+                List<DBAccess.Records.StagedServiceLocationRecord> checkedServiceLocationList = DBAccessor.SelectStagedServiceLocations(regionId);
                 if (retrieveList == null)
                 {
                     errorRetrieveSLFromStagingTable = true;
                     _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
-                    return null;
                     
+
                 }
                 else if (retrieveList.Count == 0)
                 {
                     errorRetrieveSLFromStagingTable = true;
-                    errorRetrieveSLFromStagingTableMessage = String.Format("No New Staged Service Locations found in Staged Service Locatoins Table for {0}", regionId);
+                    errorRetrieveSLFromStagingTableMessage = String.Format("No New Staged Service Locations found in Staged Service Locations Table for {0}", regionId);
                     _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
 
-                    return retrieveList.Cast<ServiceLocation>().ToList();
-                } else
+                  
+                }
+                else
                 {
                     List<ServiceLocation> serviceLocations = new List<ServiceLocation>();
+                    
+                    //Check for Duplicates Records in Table
                     foreach (DBAccess.Records.StagedServiceLocationRecord location in retrieveList)
+                    {
+                        if (retrieveList.Contains(location))
+                        {
+                            //script to delete record in table
+                        }
+                        else
+                        {
+                            checkedServiceLocationList.Add(location);
+                        }
+                    }
+                    //Check for Service Locations in RNA
+                    foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationList)
                     {
                         long serviceTimeTypeEntityKey = 0;
                         long timeWindowTypeEntityKey = 0;
                         long regionEntityKey = 0;
                         var temp = (ServiceLocation)location;
+                        string errorServiceLocation = null;
                         if (location.Status.ToUpper() == "NEW")
                         {
                             if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
@@ -1727,7 +1764,7 @@ namespace Averitt_RNA
                                 temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
                             }
 
-                            if(!regionEntityKeyDic.TryGetValue(location.ServiceWindowTypeIdentifier, out regionEntityKey))
+                            if (!regionEntityKeyDic.TryGetValue(location.ServiceWindowTypeIdentifier, out regionEntityKey))
                             {
                                 _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
                                 temp.RegionEntityKeys[0] = 0;
@@ -1737,21 +1774,116 @@ namespace Averitt_RNA
                                 temp.RegionEntityKeys[0] = regionEntityKey;
                             }
 
-                                                   
-                            
+
+
                             serviceLocations.Add(temp);
-                            
+
                         }
+
+                        //ServiceLocation[] retreivedServiceLocation = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, location.ServiceLocationIdentifier, true);
+
+                        RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(MainService.SessionHeader,
+                            _RegionContext, new RetrievalOptions
+                            {
+                                Expression = new NotExpression
+                                {
+                                    Expression = new EqualToExpression
+                                    {
+                                        Left = new PropertyExpression { Name = "Identifier" },
+                                        Right = new ValueExpression { Value = location.ServiceLocationIdentifier }
+                                    }
+
+                                },
+                                PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                                PropertyOptions = new ServiceLocationPropertyOptions
+                                {
+                                    Identifier = true,
+
+                                },
+                                Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceLocation)
+                            });
+
+                        if (retrievalResults.Items == null)
+                        {
+                            errorServiceLocation = "Retrieve Service Location " + location.ServiceLocationIdentifier + " | Failed with a null result.";
+                            _Logger.Error(errorServiceLocation);
+
+                        }
+                        else if (retrievalResults.Items.Length == 0)//Serivice Location Don't Exist
+                        {
+                            //Save Service Location to RNA
+                            saveServiceLocations.Add(temp);
+                            try
+                            {
+                                //TODO queryserice geocode
+                                SaveServiceLocations(out errorLevel, out fatalErrorMessage, serviceLocations.ToArray());
+                                
+                            }
+                            catch(Exception ex)
+                            {
+                                _Logger.Error(ex.Message);
+                                errorRetrieveSLFromStagingTable = true;
+                                errorRetrieveSLFromStagingTableMessage = ex.Message;
+                            }
+                        }
+                        else //Service Location Exist in RNA
+                        {
+                            try
+                            {
+                                //Update Service Location 
+                                DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
+                                out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
+
+                                if (errorRetrieveSLFromStagingTable)
+                                {
+                                    _Logger.Error(errorRetrieveSLFromStagingTableMessage);
+                                }
+                                else
+                                {
+                                    _Logger.DebugFormat("Serivice Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
+
+                                }
+
+                            }
+                            catch (Exception ex)
+                            {
+                                _Logger.Error(ex.Message);
+                                errorRetrieveSLFromStagingTable = true;
+                                errorRetrieveSLFromStagingTableMessage = ex.Message;
+                            }
+
+                        }
+                     
                     }
-                    return serviceLocations;
+                }
+            }
+            
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Service Location | " + errorMessage);
+
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
                 }
             }
             catch (Exception ex)
             {
                 _Logger.Error(ex.Message);
+                errorLevel = ErrorLevel.Transient;
             }
 
-            return null;
+         
+
+            
         }
 
         public List<Order> RetrieveOrdersFromStagingTable(Dictionary<string, long> RetrieveDepotsForRegion, string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
@@ -1973,6 +2105,72 @@ namespace Averitt_RNA
                 errorLevel = ErrorLevel.Transient;
             }
             return serviceLocations;
+        }
+
+        public ServiceLocation RetrieveServiceLocation(
+            out ErrorLevel errorLevel,
+            out string fatalErrorMessage,
+            string identifier,
+            bool retrieveIdentifierOnly = false)
+        {
+            ServiceLocation serviceLocation = null;
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+                        Expression = new InExpression
+                        {
+                            Left = new PropertyExpression { Name = "Identifier" },
+                            Right = new ValueExpression { Value = identifier }
+                        },
+                        //TODO
+                        PropertyInclusionMode = retrieveIdentifierOnly ? PropertyInclusionMode.AccordingToPropertyOptions : PropertyInclusionMode.All,
+                        PropertyOptions = new ServiceLocationPropertyOptions
+                        {
+                            Identifier = true,
+                            
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceLocation)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Service Location | " + string.Join(" | ", identifier) + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                    return null;
+                }
+                else
+                {
+                    var temp = retrievalResults.Items.Cast<ServiceLocation>().ToArray();
+                    serviceLocation = temp[0];
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Service Location | " + string.Join(" | ", identifier) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Service Locations | " + string.Join(" | ", identifier), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return serviceLocation;
         }
 
         public SaveResult[] SaveDailyRoutingSessions(
