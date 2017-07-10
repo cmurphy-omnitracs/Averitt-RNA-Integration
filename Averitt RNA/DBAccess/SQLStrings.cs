@@ -15,7 +15,7 @@ namespace Averitt_RNA.DBAccess
                 SELECT *
                 FROM [TSDBA].[STAGED_ORDERS]
                 WHERE [RegionIdentifier] = '{0}'
-                And [Staged} = '{1}'",
+                And [Staged] = '{1}'",
                 regionID, Staged);
         }
 
@@ -41,6 +41,15 @@ namespace Averitt_RNA.DBAccess
                 WHERE [RegionIdentifier] = '{0}'",
                 regionID);
         }
+        public static string SELECT_ALL_STAGED_SERVICE_LOCATIONS_STATUS(
+                 string status)
+        {
+            return string.Format(@"
+                SELECT *
+                FROM [TSDBA].[STAGED_SERVICE_LOCATIONS] 
+                WHERE [Stagus] = '{0}'",
+                status);
+        }
 
         //INSERT STAGED ROUTES
         public static string INSERT_STAGED_ROUTES(
@@ -54,19 +63,13 @@ namespace Averitt_RNA.DBAccess
         }
 
 
-        public static string DELETE_STAGED_SERVICE_LOCATION(string regionID, string serviceLocationID, string staged, string error, string status)
+        public static string DELETE_EXPIRED_STAGED_SERVICE_LOCATION(string regionID, string serviceLocationID, string staged)
         {
             return string.Format(@"
                
-                SELECT RegionIdentifier, ServiceLocationIdentifier,
-                FROM STAGED_SERVICE_LOCATIONS;
-                UPDATE STAGED_SERVICE_LOCATIONS
-                SET Status = {0}, Error = {1}
-                WHERE RegionIdentifier = {2} AND ServiceLocationIdentifier = {3} AND Staged = {4}
-                
-        
-                
-                ", status, error, regionID, serviceLocationID, staged);
+                DELETE FROM STAGED_SERVICE_LOCATIONS
+                WHERE RegionIdentifier = '{0}' AND ServiceLocationIdentifier = '{1}' AND Staged = '{2}'
+                ", regionID, serviceLocationID, staged);
         }
 
         public static string UPDATE_STAGED_SERVICE_LOCATION_STATUS(string regionID, string serviceLocationID, string staged, string error, string status)
@@ -76,12 +79,12 @@ namespace Averitt_RNA.DBAccess
                 SELECT RegionIdentifier, ServiceLocationIdentifier,Staged
                 FROM STAGED_SERVICE_LOCATIONS;
                 UPDATE STAGED_SERVICE_LOCATIONS
-                SET Status = {0}, Error = {1} , 
-                WHERE RegionIdentifier = {2} AND ServiceLocationIdentifier = {3} AND Staged = {4}
+                SET Status = '{0}', Error = '{1}'
+                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}' AND Staged = '{4}'
                 ", status, error, regionID, serviceLocationID, staged);
         }
 
-        public static string UPDATE_STAGED_SERVICE_LOCATION(string regionID, string serviceLocationID, string StopSequenceNumber, 
+        public static string UPDATE_STAGED_SERVICE_LOCATION(string regionID, string serviceLocationID, string StopSequenceNumber,
             string routeDescription, string routeStartTime, string routeIdentifier, string orderIdentifier, string staged, string error, string status)
         {
             return string.Format(@"
@@ -122,5 +125,42 @@ namespace Averitt_RNA.DBAccess
                 VALUES
                 ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})", regionID, orderId, null, null, null, null, staged, error, status);
         }
+
+        public static string DELETE_EXPIRED_STAGED_ROUTES(
+                  string regionID, string orderIdentifier, string staged)
+        {
+            return string.Format(@"
+                DELETE FROM STAGED_ROUTES
+                WHERE RegionIdentifier = '{0}' AND OrderIdentifier = '{1}' AND Staged = '{2}'
+                ", regionID, orderIdentifier, staged);
+        }
+
+        public static string DELETE_EXPIRED_STAGED_ORDERS(
+                 string regionID, string orderIdentifier, string staged)
+        {
+            return string.Format(@"
+                DELETE FROM STAGED_ORDERS
+                WHERE Status = '{1}' AND Staged = '{2}'
+                ", regionID, orderIdentifier, staged);
+        }
+
+        public static string SELECT_ALL_STAGED_ORDERS_STATUS(string status)
+        {
+            return string.Format(@"
+                SELECT *
+                FROM [TSDBA].[STAGED_ORDERS]
+                WHERE [Status] = '{0}'",
+                status);
+        }
+
+        public static string SELECT_ALL_STAGED_ROUTES_STATUS(string status)
+        {
+            return string.Format(@"
+                SELECT *
+                FROM [TSDBA].[STAGED_ROUTES]
+                WHERE [Status] = '{0}'",
+                status);
+        }
     }
+
 }

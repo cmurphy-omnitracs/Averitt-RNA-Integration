@@ -4,7 +4,8 @@ using System.ServiceModel;
 using Averitt_RNA.Apex;
 using System.Collections.Generic;
 using System.IO;
-
+using System.ComponentModel;
+using System.Reflection;
 
 
 
@@ -26,6 +27,8 @@ namespace Averitt_RNA
         private RoutingServiceClient _RoutingServiceClient;
 
         #endregion
+
+       
 
         #region Public Members
 
@@ -73,6 +76,23 @@ namespace Averitt_RNA
             Worker,
             WorkerType
         }
+        public Dictionary<int, string> GeocodeAccuracyDict = new Dictionary<int, string>
+        {
+
+            { 0,"Street Exact"},
+            {1, "Rooftop Exact"},
+            { 2,"Street High"},
+            { 3, "Rooftop High"},
+            {4, "Street Medium"},
+            {5, "Rooftop Medium"},
+            {6, "Street Low"},
+            { 7, "Rooftop Low"},
+            { 8, "Postal Detail"},
+            { 9, "Postal"},
+            { 10, "City"},
+            {11, "Not Applicable" },
+        };
+
 
         public const string DATE_FORMAT = "yyyy-MM-dd";
         public const string DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss.fffffff";
@@ -1113,6 +1133,25 @@ namespace Averitt_RNA
 
         #endregion
 
+        #region Private Methods
+        private string GetEnumDescription(Enum value)
+        {
+            // Get the Description attribute value for the enum value
+            FieldInfo fi = value.GetType().GetField(value.ToString());
+            DescriptionAttribute[] attributes =
+                (DescriptionAttribute[])fi.GetCustomAttributes(
+                    typeof(DescriptionAttribute), false);
+
+            if (attributes.Length > 0)
+            {
+                return attributes[0].Description;
+            }
+            else
+            {
+                return value.ToString();
+            }
+        }
+        #endregion
         #region Public Methods
 
         public ApexConsumer(
@@ -1688,9 +1727,10 @@ namespace Averitt_RNA
 
 
         public void RetrieveSLFromSTandSaveToRNA (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId, string staged, 
-            out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, out ErrorLevel errorLevel, out string fatalErrorMessage)
+            out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, out ErrorLevel errorLevel, out string fatalErrorMessage, out bool timeOut)
         {
-
+           
+            timeOut = false;
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
             errorRetrieveSLFromStagingTable = false;
@@ -1721,21 +1761,21 @@ namespace Averitt_RNA
                 }
                 else
                 {
-                    List<ServiceLocation> serviceLocations = new List<ServiceLocation>();
+                    List<ServiceLocation> serviceLocationsInRna = new List<ServiceLocation>();
                     
                     //Check for Duplicates Records in Table
                     foreach (DBAccess.Records.StagedServiceLocationRecord location in retrieveList)
                     {
                         if (retrieveList.Contains(location))
                         {
-                            //script to delete record in table
+                            //script to delete or filter duplicate service location records in table
                         }
                         else
                         {
                             checkedServiceLocationList.Add(location);
                         }
                     }
-                    //Check for Service Locations in RNA
+                    //Check if filtered Service Locations exist in RNA
                     foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationList)
                     {
                         long serviceTimeTypeEntityKey = 0;
@@ -1743,6 +1783,8 @@ namespace Averitt_RNA
                         long regionEntityKey = 0;
                         var temp = (ServiceLocation)location;
                         string errorServiceLocation = null;
+
+                        //Add SerivceTimeType, region and timewindowType entity keys
                         if (location.Status.ToUpper() == "NEW")
                         {
                             if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
@@ -1776,11 +1818,14 @@ namespace Averitt_RNA
 
 
 
-                            serviceLocations.Add(temp);
+                            serviceLocationsInRna.Add(temp);
 
                         }
 
                         //ServiceLocation[] retreivedServiceLocation = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, location.ServiceLocationIdentifier, true);
+
+                        //Get specific service location from RNA
+                        
 
                         RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(MainService.SessionHeader,
                             _RegionContext, new RetrievalOptions
@@ -1802,35 +1847,152 @@ namespace Averitt_RNA
                                 },
                                 Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceLocation)
                             });
-
+                        //Returned  with null result
                         if (retrievalResults.Items == null)
                         {
-                            errorServiceLocation = "Retrieve Service Location " + location.ServiceLocationIdentifier + " | Failed with a null result.";
+                            errorServiceLocation = "Retrieve Service Location " + location.ServiceLocationIdentifier + " | Returned with a null result.";
                             _Logger.Error(errorServiceLocation);
 
-                        }
-                        else if (retrievalResults.Items.Length == 0)//Serivice Location Don't Exist
-                        {
-                            //Save Service Location to RNA
-                            saveServiceLocations.Add(temp);
-                            try
+                            //Address is not in RNa, Add service location address in service location record to RNA
+                            Address[] newAddress = new Address[] { };
+                            newAddress[0] = temp.Address;
+                            //Geocode Result
+                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+                            //Look for best accuracy for geocode result
+                            foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
                             {
-                                //TODO queryserice geocode
-                                SaveServiceLocations(out errorLevel, out fatalErrorMessage, serviceLocations.ToArray());
-                                
+                                foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
+                                {
+                                    for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                    {
+                                        string accuracyGeo = string.Empty;
+
+
+                                        if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                        {
+                                            if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                            {
+                                                temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                                                temp.Coordinate = candidate.Coordinate;
+                                            }
+                                        }
+
+                                    }
+
+                                }
                             }
-                            catch(Exception ex)
+
+                            saveServiceLocations.Add(temp);
+                           
+                            //Update Service Location Record to Complete
+                            DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
+                            out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
+
+                            if (errorRetrieveSLFromStagingTable)
                             {
-                                _Logger.Error(ex.Message);
-                                errorRetrieveSLFromStagingTable = true;
-                                errorRetrieveSLFromStagingTableMessage = ex.Message;
+                                _Logger.Error(errorRetrieveSLFromStagingTableMessage);
+                            }
+                            else
+                            {
+                                _Logger.DebugFormat("Service Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
+
+                            }
+
+                        }
+                        else if (retrievalResults.Items.Length == 0)//Serivice Location Doesn't Exist
+                        {
+                            //Using Geocode to geocode new address
+
+                            //Address is not in RNa, Add service location address in service location record to RNA
+                            Address[] newAddress = new Address[] { };
+                            newAddress[0] = temp.Address;
+                            //Geocode Result
+                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+                            //Look for best accuracy for geocode result
+                            foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
+                            {
+                                foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
+                                {
+                                    for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                    {
+                                        string accuracyGeo = string.Empty;
+
+
+                                        if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                        {
+                                            if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                            {
+                                                temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                                                temp.Coordinate = candidate.Coordinate;
+                                            }
+                                        }
+
+                                    }
+
+                                }
+                            }
+                            //Add location to savelocation list
+
+                            saveServiceLocations.Add(temp);
+                           
+
+                            //Update Service Location Record to Complete 
+                            DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
+                            out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
+
+                            if (errorRetrieveSLFromStagingTable)
+                            {
+                                _Logger.Error(errorRetrieveSLFromStagingTableMessage);
+                            }
+                            else
+                            {
+                                _Logger.DebugFormat("Service Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
+
                             }
                         }
                         else //Service Location Exist in RNA
                         {
                             try
                             {
-                                //Update Service Location 
+                                var temp2 = retrievalResults.Items.Cast<ServiceLocation>().ToArray();
+
+                                if (!temp.Address.Equals(temp2[0].Address)) //check if service location record Address (temp) has a new address to matching sevice location in RNA (temp2)
+                                {
+                                    //If address is different Get Geocode for SL in database and update RNA with service location address in service location record
+                                    Address[] newAddress = new Address[] { };
+                                    newAddress[0] = temp.Address;
+                                    //Geocode Result
+                                    GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+                                    //Look for best accuracy for geocode result
+                                    foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
+                                    {
+                                        foreach( GeocodeCandidate candidate in result.Results) //for each GeocodeCandidat
+                                        {
+                                                for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                                {
+                                                    string accuracyGeo = string.Empty;
+                                                    
+                                                    
+                                                    if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                                    {
+                                                        if(accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                        {
+                                                        temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                                                        temp.Coordinate = candidate.Coordinate;
+                                                    }
+                                                    }
+                                                       
+                                                }
+                                            
+                                        }
+                                    }
+
+                                    //Add service location to save list
+                                    saveServiceLocations.Add(temp);
+                                    
+                                }
+
+                                //Update Service Location Record to Complete 
                                 DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
                                 out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
 
@@ -1840,7 +2002,7 @@ namespace Averitt_RNA
                                 }
                                 else
                                 {
-                                    _Logger.DebugFormat("Serivice Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
+                                    _Logger.DebugFormat("Service Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
 
                                 }
 
@@ -1855,6 +2017,20 @@ namespace Averitt_RNA
                         }
                      
                     }
+                }
+
+                //Save servicelocations list to RNA
+                try
+                {
+
+                    SaveServiceLocations(out errorLevel, out fatalErrorMessage, saveServiceLocations.ToArray());
+
+                }
+                catch (Exception ex)
+                {
+                    _Logger.Error(ex.Message);
+                    errorRetrieveSLFromStagingTable = true;
+                    errorRetrieveSLFromStagingTableMessage = ex.Message;
                 }
             }
             
@@ -2386,27 +2562,32 @@ namespace Averitt_RNA
             return saveResults;
         }
 
-        public Dictionary<string,long> RetrieveRegionEntityKey (string businessUnit)
+        public Dictionary<string, long> RetrieveRegionEntityKey(out ErrorLevel errorLevel, out string fatalErrorMessage)
         {
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
             Dictionary<string, long> regionEntityKeyDic = new Dictionary<string, long>();
             try
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.RetrieveRegionsGrantingPermissions(
                     MainService.SessionHeader, new RolePermission[] { }, false);
-                  
+
                 if (retrievalResults.Items == null)
                 {
                     _Logger.Error("Retrieve Regions failed.");
-                 
+                    errorLevel = ErrorLevel.Transient;
+
                 }
                 else if (retrievalResults.Items.Length == 0)
                 {
                     Console.WriteLine("No Regions exist.");
+                    errorLevel = ErrorLevel.Fatal;
                     return null;
-                } else
+                }
+                else
                 {
-                    
-                    foreach(Region region in retrievalResults.Items)
+
+                    foreach (Region region in retrievalResults.Items)
                     {
                         regionEntityKeyDic.Add(region.Identifier, region.EntityKey);
                     }
@@ -2418,26 +2599,27 @@ namespace Averitt_RNA
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("Retrieve Regions for the following business unit| " + string.Join(" | ", businessUnit) + " | " + errorMessage);
+                _Logger.Error("Retrieve Regions for the following business unit| " + string.Join(" | ", _BusinessUnitEntityKey.ToString()) + " | " + errorMessage);
 
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
                     MainService.SessionRequired = true;
-                   
+                    errorLevel = ErrorLevel.Transient;
+
                 }
-               
+
             }
             catch (Exception ex)
             {
-                _Logger.ErrorFormat("Retrive Regions | {0}",  ex.Message );
-             
+                _Logger.ErrorFormat("Retrive Regions | {0}", ex.Message);
+
             }
 
             return null;
         }
 
-        public Dictionary<string, long> RetrieveServiceTimeEntityKey(out ErrorLevel errorLevel, out string fatalErrorMessage, string serviceTimeTypeIdentifier)
+        public Dictionary<string, long> RetrieveServiceTimeEntityKey(out ErrorLevel errorLevel, out string fatalErrorMessage)
         {
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
@@ -2456,14 +2638,14 @@ namespace Averitt_RNA
                         PropertyOptions = new ServiceTimeTypePropertyOptions
                         {
                             Identifier = true,
-                            
-                
+
+
                         },
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceTimeType)
                     });
                 if (retrievalResults.Items == null)
                 {
-                    _Logger.Error("Retrieve Service Time Type | " + string.Join(" | ", serviceTimeTypeIdentifier) + " | Failed with a null result.");
+                    _Logger.Error("Retrieve Service Time Types for All Regions Failed with a null result.");
                     errorLevel = ErrorLevel.Transient;
 
                 }
@@ -2476,13 +2658,13 @@ namespace Averitt_RNA
                 else
                 {
                     return retrievalResults.Items.Cast<ServiceTimeType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
-                   
+
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("Retrieve Service Time Type Entity Keys | " + string.Join(" | ", serviceTimeTypeIdentifier) + " | " + errorMessage);
+                _Logger.Error("Retrieve Service Time Type Entity Keys" + errorMessage);
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
@@ -2499,13 +2681,13 @@ namespace Averitt_RNA
             }
             catch (Exception ex)
             {
-                _Logger.Error("Retrieve Service Time Type Entity Key | " + string.Join(" | ", serviceTimeTypeIdentifier), ex);
+                _Logger.Error("Retrieve Service Time Type Entity Key | " + ex);
 
             }
             return null;
         }
 
-        public Dictionary<string, long> RetrieveTimeWindowEntityKey( out ErrorLevel errorLevel, out string fatalErrorMessage, string TimeWindowTypeIdentifier)
+        public Dictionary<string, long> RetrieveTimeWindowEntityKey(out ErrorLevel errorLevel, out string fatalErrorMessage)
         {
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
@@ -2520,7 +2702,7 @@ namespace Averitt_RNA
                      },
                     new RetrievalOptions
                     {
-                       
+
                         PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         PropertyOptions = new TimeWindowTypePropertyOptions
                         {
@@ -2532,13 +2714,13 @@ namespace Averitt_RNA
                     });
                 if (retrievalResults.Items == null)
                 {
-                    _Logger.Error("Retrieve Time Window Type | " + string.Join(" | ", TimeWindowTypeIdentifier) + " | Failed with a null result.");
+                    _Logger.Error("Retrieve Time Window Type Dict | Failed with a null result.");
 
                 }
                 else
                 {
                     Dictionary<string, long> dict = retrievalResults.Items.Cast<TimeWindowType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
-                   foreach(TimeWindowType timeWindowType in retrievalResults.Items)
+                    foreach (TimeWindowType timeWindowType in retrievalResults.Items)
                     {
                         dict.Add(timeWindowType.Identifier, timeWindowType.EntityKey);
                     }
@@ -2549,7 +2731,7 @@ namespace Averitt_RNA
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("Retrieve Time Window Type Type Entity Key | " + string.Join(" | ", TimeWindowTypeIdentifier) + " | " + errorMessage);
+                _Logger.Error("Retrieve Time Window Type Type Entity Key | " + errorMessage);
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
@@ -2560,13 +2742,13 @@ namespace Averitt_RNA
             }
             catch (Exception ex)
             {
-                _Logger.ErrorFormat("Error Retrieving Service Time Type Entity Key | " , ex.Message);
+                _Logger.ErrorFormat("Error Retrieving Service Time Type Entity Key | ", ex.Message);
 
             }
             return null;
         }
 
-        public Dictionary<string, long> RetrieveDepotsForRegion(out ErrorLevel errorLevel, out string fatalErrorMessage, string Region)
+        public Dictionary<string, long> RetrieveDepotsForRegion(out ErrorLevel errorLevel, out string fatalErrorMessage)
         {
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
@@ -2634,7 +2816,7 @@ namespace Averitt_RNA
             return null;
         }
 
-        public Dictionary<string, long> RetrieveOrderClassesDict(out ErrorLevel errorLevel, out string fatalErrorMessage, string Region)
+        public Dictionary<string, long> RetrieveOrderClassesDict(out ErrorLevel errorLevel, out string fatalErrorMessage)
         {
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
@@ -2653,7 +2835,7 @@ namespace Averitt_RNA
                         PropertyOptions = new OrderClassPropertyOptions
                         {
                             Identifier = true
-                          
+
                         },
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Depot)
                     });
@@ -2700,7 +2882,10 @@ namespace Averitt_RNA
             }
             return null;
         }
+
+
         #endregion
+
 
     }
 }

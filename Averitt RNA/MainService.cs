@@ -6,6 +6,7 @@ using System.ServiceModel;
 using System.ServiceProcess;
 using Averitt_RNA.Apex;
 using WindowsServiceUtility;
+using System.IO;
 
 namespace Averitt_RNA
 {
@@ -32,6 +33,8 @@ namespace Averitt_RNA
         public static Dictionary<long, UrlSet> RegionUrlSets;
         public static DateTime LastTruncateArchivesTime;
         public static Dictionary<long, Dictionary<string, int>> RegionGeocodeTimeoutCounts;
+        public static DateTime dictCacheTimeRetreived = DateTime.MinValue;
+        public static string dictCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dicts.json");
 
         #endregion
 

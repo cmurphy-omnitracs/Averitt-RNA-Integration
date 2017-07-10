@@ -91,6 +91,7 @@ namespace Averitt_RNA.DBAccess.Records
             //TODO
             return RegionIdentifier == other.RegionIdentifier
                 && ServiceLocationIdentifier == other.ServiceLocationIdentifier
+                && OrderIdentifier == other.OrderIdentifier
                 && BeginDate == other.BeginDate
                 && QuantitySize1 == other.QuantitySize1
                 && QuantitySize2 == other.QuantitySize2

@@ -42,6 +42,28 @@ namespace Averitt_RNA.DBAccess
             }
             return stagedOrderRecordList;
         }
+        public List<StagedRouteRecord> SelectStagedRoutesStatus(string status, out string databaseError, out bool databaseErrorCaught)
+        {
+            List<StagedRouteRecord> stagedRouteRecordList = null;
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                stagedRouteRecordList =
+                    GetList(
+                        SQLStrings.SELECT_ALL_STAGED_ROUTES_STATUS(status),
+                        new StagedOrderRecord(),
+                        "Select Staged routes (" + status + ")"
+                    ).Cast<StagedRouteRecord>().ToList();
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+            return stagedRouteRecordList;
+        }
 
         public List<StagedServiceLocationRecord> SelectStagedServiceLocations(string regionID)
         {
@@ -90,6 +112,35 @@ namespace Averitt_RNA.DBAccess
 
 
             _Logger.Debug("Sucessfully Retrieved Service Locations from Staged_Service_Location Table");
+            return stagedStagedServiceLocationList;
+        }
+
+        public List<StagedServiceLocationRecord> SelectAllStagedServiceLocationsStatus(string status, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            List<StagedServiceLocationRecord> stagedStagedServiceLocationList = null;
+
+            try
+            {
+                stagedStagedServiceLocationList =
+                    GetList(
+                        SQLStrings.SELECT_ALL_STAGED_SERVICE_LOCATIONS_STATUS(status),
+                        new StagedServiceLocationRecord(),
+                        "Select Staged Service Location with Status(" + status + ")"
+                    ).Cast<StagedServiceLocationRecord>().ToList();
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+
+            }
+
+
+
+            _Logger.DebugFormat("Sucessfully Retrieved Service Locations with status {0} from Staged_Service_Location Table", status);
             return stagedStagedServiceLocationList;
         }
 
@@ -169,6 +220,93 @@ namespace Averitt_RNA.DBAccess
                 _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
             }
 
+        }
+
+        public void DeleteExpiredOrder(string regionID, string orderId, string staged, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_EXPIRED_STAGED_ORDERS(regionID, orderId, staged),
+                     "Delete expired Order" + orderId + " from STAGE_ORDER Table");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public void DeleteExpiredStagedRoute(string regionID, string orderId, string staged, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, orderId, staged),
+                     "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public void DeleteExpiredStagedServiceLocation(string regionID, string serviceLocationId, string staged, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_EXPIRED_STAGED_SERVICE_LOCATION(regionID, serviceLocationId, staged),
+                     "Delete expired Service Location" + serviceLocationId + " from STAGED_SERVICE_LOCATION Table");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public List<StagedOrderRecord> SelectAllStagedOrdersStatus(string status, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            List<StagedOrderRecord> stagedOrderRecords = null;
+            try
+            {
+                //Edit this 
+
+                stagedOrderRecords =
+                   GetList(
+                       SQLStrings.SELECT_ALL_STAGED_SERVICE_LOCATIONS(status),
+                       new StagedServiceLocationRecord(),
+                       "Select all staged orders based on Status: " + status + " from STAGED_SERVICE_LOCATION Table"
+                   ).Cast<StagedOrderRecord>().ToList();
+
+                
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+            return stagedOrderRecords;
         }
 
         #endregion

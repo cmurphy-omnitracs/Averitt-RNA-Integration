@@ -23,5 +23,6 @@ namespace Averitt_RNA
         public static readonly int SLEEP_DURATION = Convert.ToInt32(ConfigurationManager.AppSettings["SleepDuration"]);
         public static readonly TimeSpan[] TRUNCATE_ARCHIVES_TIMES = ConfigurationManager.AppSettings["TruncateArchivesTimes"].Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(time => TimeSpan.Parse(time)).ToArray();
         public static readonly string DummyOrderCSVFile = ConfigurationManager.AppSettings["DummyOrderCSVFile"];
+        public static readonly int DictServiceTimeRefresh = Convert.ToInt32(ConfigurationManager.AppSettings["DictServiceTimeRefresh"]);
     }
 }
