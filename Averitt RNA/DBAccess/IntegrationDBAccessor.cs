@@ -167,7 +167,7 @@ namespace Averitt_RNA.DBAccess
             try
             {
                 ExecuteNonQuery(
-                    SQLStrings.INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(regionID, orderId, staged, error, status),
+                    SQLStrings.INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(regionID, orderId, staged, status),
                      "Insert UnnasignedOrder " + orderId + " into Staged Route table for Region " + regionID);
             }
             catch (DatabaseException ex)
@@ -209,6 +209,7 @@ namespace Averitt_RNA.DBAccess
             try
             {
                 //Edit this 
+               
                 ExecuteNonQuery(
                     SQLStrings.UPDATE_STAGED_SERVICE_LOCATION_STATUS(regionID, serviceLocationID,  staged, error, status),
                      "Update  Service Location " + serviceLocationID + " status from New to Completed");

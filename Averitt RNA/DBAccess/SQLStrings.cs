@@ -13,7 +13,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 SELECT *
-                FROM [TSDBA].[STAGED_ORDERS]
+                FROM  [STAGED_ORDERS]
                 WHERE [RegionIdentifier] = '{0}'
                 And [Staged] = '{1}'",
                 regionID, Staged);
@@ -25,7 +25,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 SELECT *
-                FROM [TSDBA].[STAGED_SERVICE_LOCATIONS] 
+                FROM [STAGED_SERVICE_LOCATIONS] 
                 WHERE [RegionIdentifier] = '{0}' 
                 AND [Status] = '{1}'",
                 regionID, Status);
@@ -37,7 +37,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 SELECT *
-                FROM [TSDBA].[STAGED_SERVICE_LOCATIONS] 
+                FROM  [STAGED_SERVICE_LOCATIONS] 
                 WHERE [RegionIdentifier] = '{0}'",
                 regionID);
         }
@@ -46,7 +46,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 SELECT *
-                FROM [TSDBA].[STAGED_SERVICE_LOCATIONS] 
+                FROM  [STAGED_SERVICE_LOCATIONS] 
                 WHERE [Stagus] = '{0}'",
                 status);
         }
@@ -57,9 +57,9 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, Status)
+                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
                 VALUES
-                ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})", regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+                ('{0}', '{1}', '{2}', CONVERT(datetime2,'{3}'), '{4}', {5}, CONVERT(datetime2,'{6}'), '{7}', '{8}')", regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
         }
 
 
@@ -68,7 +68,7 @@ namespace Averitt_RNA.DBAccess
             return string.Format(@"
                
                 DELETE FROM STAGED_SERVICE_LOCATIONS
-                WHERE RegionIdentifier = '{0}' AND ServiceLocationIdentifier = '{1}' AND Staged = '{2}'
+                WHERE RegionIdentifier = '{0}' AND ServiceLocationIdentifier = '{1}' AND Staged =  CONVERT(datetime2,'{2}')
                 ", regionID, serviceLocationID, staged);
         }
 
@@ -76,15 +76,25 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                
-                SELECT RegionIdentifier, ServiceLocationIdentifier,Staged
-                FROM STAGED_SERVICE_LOCATIONS;
                 UPDATE STAGED_SERVICE_LOCATIONS
-                SET Status = '{0}', Error = '{1}'
-                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}' AND Staged = '{4}'
+                SET [Status] = '{0}'
+                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}' AND Staged =  CONVERT(datetime2,'{4}')
                 ", status, error, regionID, serviceLocationID, staged);
         }
 
-        public static string UPDATE_STAGED_SERVICE_LOCATION(string regionID, string serviceLocationID, string StopSequenceNumber,
+        public static string UPDATE_STAGED_SERVICE_LOCATION_ERROR(string regionID, string serviceLocationID, string staged, string error, string status)
+        {
+            return string.Format(@"
+               
+                SELECT RegionIdentifier, ServiceLocationIdentifier,Staged
+                FROM STAGED_SERVICE_LOCATIONS;
+                UPDATE STAGED_SERVICE_LOCATIONS
+                SET [Status] = '{0}', Error = '{1}'
+                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}' AND Staged =  CONVERT(datetime2,'{4}')
+                ", status, error, regionID, serviceLocationID, staged);
+        }
+
+        public static string UPDATE_STAGED_SERVICE_LOCATION(string regionID, string serviceLocationID, int StopSequenceNumber,
             string routeDescription, string routeStartTime, string routeIdentifier, string orderIdentifier, string staged, string error, string status)
         {
             return string.Format(@"
@@ -92,8 +102,8 @@ namespace Averitt_RNA.DBAccess
                 SELECT RegionIdentifier, ServiceLocationIdentifier,Staged
                 FROM STAGED_SERVICE_LOCATIONS;
                 UPDATE STAGED_SERVICE_LOCATIONS
-                SET Status = {0}, Error = {1}, StopSequenceNumber = {5}, RouteDescription = {6}, RouteStartTime = {7}, RouteIdentifier = {8}, OrderIdentifier = {9}, 
-                WHERE RegionIdentifier = {2} AND ServiceLocationIdentifier = {3} AND Staged = {4}
+                SET [Status] = '{0}', Error = '{1}', StopSequenceNumber = {5} , RouteDescription = '{6}', RouteStartTime =  CONVERT(datetime2,'{7}'), RouteIdentifier = '{8}', OrderIdentifier = '{9}', 
+                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}' AND Staged =  CONVERT(datetime2,'{4}')
                 ", status, error, regionID, serviceLocationID, staged, routeDescription, routeStartTime, routeIdentifier, orderIdentifier);
         }
 
@@ -101,29 +111,29 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 UPDATE STAGED_ORDERS
-                SET Status = {0}, Error = {1}
-                WHERE RegionIdentifier = {2} AND OrderIdentifier = {3} AND Staged = {4}
+                SET [Status] = '{0}', Error = '{1}'
+                WHERE RegionIdentifier = '{2}' AND OrderIdentifier = '{3}' AND Staged = CONVERT(datetime2,'{4}')
                 ", status, error, regionID, orderId, staged);
         }
 
-        public static string UPDATE_STAGED_ROUTES_ERROR(string regionID, string orderId, string staged, string error, string status)
+        public static string UPDATE_STAGED_ROUTES_ERROR(string regionID, string orderId, string staged, string status, string error)
         {
             return string.Format(@"
                 UPDATE STAGED_ROUTES
-                SET Status = {0}, Error = {1}
-                WHERE RegionIdentifier = {2} AND OrderIdentifier = {3} AND Staged = {4}
+                SET [Status] = '{0}', Error = '{1}'
+                WHERE RegionIdentifier = '{1}' AND OrderIdentifier = '{2}' AND Staged = CONVERT(datetime2,'{4}')
                 ", status, error, regionID, orderId, staged);
         }
 
 
         public static string INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(
-                  string regionID, string orderId, string staged, string error, string status)
+                  string regionID, string orderId, string staged, string status)
         {
             return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, Status)
+                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, [Status])
                 VALUES
-                ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})", regionID, orderId, null, null, null, null, staged, error, status);
+                ( '{0}', '{1}', '{2}', CONVERT(datetime2,'{3}'), '{4}', {5}, CONVERT(datetime2,'{6}'), '{7}')", regionID, orderId, null, null, null, null, staged, status);
         }
 
         public static string DELETE_EXPIRED_STAGED_ROUTES(
@@ -131,7 +141,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 DELETE FROM STAGED_ROUTES
-                WHERE RegionIdentifier = '{0}' AND OrderIdentifier = '{1}' AND Staged = '{2}'
+                WHERE RegionIdentifier = '{0}' AND OrderIdentifier = '{1}' AND Staged =  CONVERT(datetime2,'{2}')
                 ", regionID, orderIdentifier, staged);
         }
 
@@ -140,7 +150,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 DELETE FROM STAGED_ORDERS
-                WHERE Status = '{1}' AND Staged = '{2}'
+                WHERE [Status] = '{1}' AND Staged =  CONVERT(datetime2,'{2}')
                 ", regionID, orderIdentifier, staged);
         }
 
@@ -148,7 +158,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 SELECT *
-                FROM [TSDBA].[STAGED_ORDERS]
+                FROM STAGED_ORDERS
                 WHERE [Status] = '{0}'",
                 status);
         }
@@ -157,7 +167,7 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 SELECT *
-                FROM [TSDBA].[STAGED_ROUTES]
+                FROM STAGED_ROUTES
                 WHERE [Status] = '{0}'",
                 status);
         }

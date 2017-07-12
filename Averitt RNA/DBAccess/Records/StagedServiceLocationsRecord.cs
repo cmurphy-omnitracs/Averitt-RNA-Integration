@@ -36,6 +36,20 @@ namespace Averitt_RNA.DBAccess.Records
 
         #endregion
 
+        #region Public Members
+        [Flags]
+        public enum DeliveryDaysFlag
+        {
+            U = 1,
+            M = 2,
+            T = 4,
+            W = 8,
+            R = 16,
+            F = 32,
+            S = 64
+        }
+        #endregion
+
         #region Public Methods
 
         override public string ToString()
@@ -110,39 +124,15 @@ namespace Averitt_RNA.DBAccess.Records
         static public explicit operator ServiceLocation(StagedServiceLocationRecord record)
         {
 
-           string dayOfTheWeek = string.Empty;
-
-            
-            var temp = Convert.ToString(record.DeliveryDays,2).Reverse().ToArray();
-            
-            if(temp[0] == '1')
-            {
-                dayOfTheWeek.Insert(0, "S");
-            } else if(temp[1] == '1')
-            {
-                dayOfTheWeek.Insert(1, "M");
-            }
-            else if (temp[2] == '1')
-            {
-                dayOfTheWeek.Insert(2, "T");
-            }else if(temp[3] == '1')
-            {
-                dayOfTheWeek.Insert(3, "W");
-            }else if(temp[4] == '1')
-            {
-                dayOfTheWeek.Insert(4, "Th");
-            }else if(temp[5] == '1')
-            {
-                dayOfTheWeek.Insert(5, "F");
-            }
-            else if (temp[6] == '1')
-            {
-                dayOfTheWeek.Insert(6, "Sa");
-            }
+          
+            var mask = (DeliveryDaysFlag)record.DeliveryDays;
 
 
-            
-                return new ServiceLocation
+            List<DeliveryDaysFlag> result = Enum.GetValues(typeof(DeliveryDaysFlag)).Cast<DeliveryDaysFlag>().Where(value => mask.HasFlag(value)).ToList();
+            string combinedDeliveryDay = string.Join("", result);
+
+
+            return new ServiceLocation
             {
                 Identifier = record.ServiceLocationIdentifier,
                 Description = record.Description,
@@ -161,7 +151,7 @@ namespace Averitt_RNA.DBAccess.Records
                     
                 PhoneNumber = record.PhoneNumber,
                 WorldTimeZone_TimeZone = record.WorldTimeZone,
-                DayOfWeekFlags_DeliveryDays = dayOfTheWeek,
+                DayOfWeekFlags_DeliveryDays = combinedDeliveryDay,
                 
 
                 

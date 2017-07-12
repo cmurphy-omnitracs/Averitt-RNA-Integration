@@ -1268,12 +1268,14 @@ namespace Averitt_RNA
                     new GeocodeCriteria
                     {
                         NamedPlaces = addresses.Select(address => new NamedPlace { PlaceAddress = address }).ToArray()
+                        
                     },
                     new GeocodeOptions
                     {
                         NetworkArcCandidatePropertyInclusionMode = PropertyInclusionMode.All,
                         NetworkPOICandidatePropertyInclusionMode = PropertyInclusionMode.All,
                         NetworkPointAddressCandidatePropertyInclusionMode = PropertyInclusionMode.All
+                        
                     });
                 if (geocodeResults == null)
                 {
@@ -1726,12 +1728,12 @@ namespace Averitt_RNA
         }
 
 
-        public void RetrieveSLFromSTandSaveToRNA (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId, string staged, 
-            out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, out ErrorLevel errorLevel, out string fatalErrorMessage, out bool timeOut)
+        public void RetrieveSLFromSTandSaveToRNA (Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> timeWindowTypes, Dictionary<string,long> servicetimeTypes, string regionId,
+            out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, out string fatalErrorMessage, out bool timeOut)
         {
            
             timeOut = false;
-            errorLevel = ErrorLevel.None;
+            ErrorLevel errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
             errorRetrieveSLFromStagingTable = false;
             errorRetrieveSLFromStagingTableMessage = string.Empty;
@@ -1762,25 +1764,23 @@ namespace Averitt_RNA
                 else
                 {
                     List<ServiceLocation> serviceLocationsInRna = new List<ServiceLocation>();
-                    
+
                     //Check for Duplicates Records in Table
-                    foreach (DBAccess.Records.StagedServiceLocationRecord location in retrieveList)
+                    if (retrieveList.Count != retrieveList.Distinct().Count())
                     {
-                        if (retrieveList.Contains(location))
-                        {
-                            //script to delete or filter duplicate service location records in table
-                        }
-                        else
-                        {
-                            checkedServiceLocationList.Add(location);
-                        }
+                        checkedServiceLocationList = retrieveList.Distinct().ToList();
+                    }
+                    else
+                    {
+                        checkedServiceLocationList = retrieveList;
+
                     }
                     //Check if filtered Service Locations exist in RNA
                     foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationList)
                     {
                         long serviceTimeTypeEntityKey = 0;
                         long timeWindowTypeEntityKey = 0;
-                        long regionEntityKey = 0;
+                        long[] regionEntityKey = new long[1] { 0 };
                         var temp = (ServiceLocation)location;
                         string errorServiceLocation = null;
 
@@ -1806,14 +1806,15 @@ namespace Averitt_RNA
                                 temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
                             }
 
-                            if (!regionEntityKeyDic.TryGetValue(location.ServiceWindowTypeIdentifier, out regionEntityKey))
+                            if (!regionEntityKeyDic.TryGetValue(location.RegionIdentifier, out regionEntityKey[0]))
                             {
                                 _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
                                 temp.RegionEntityKeys[0] = 0;
                             }
                             else
                             {
-                                temp.RegionEntityKeys[0] = regionEntityKey;
+                                temp.RegionEntityKeys = new long[] { };
+                                temp.RegionEntityKeys = regionEntityKey;
                             }
 
 
@@ -1830,15 +1831,14 @@ namespace Averitt_RNA
                         RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(MainService.SessionHeader,
                             _RegionContext, new RetrievalOptions
                             {
-                                Expression = new NotExpression
+                                                                
+                                Expression = new EqualToExpression
                                 {
-                                    Expression = new EqualToExpression
-                                    {
-                                        Left = new PropertyExpression { Name = "Identifier" },
-                                        Right = new ValueExpression { Value = location.ServiceLocationIdentifier }
-                                    }
-
+                                    Left = new PropertyExpression { Name = "Identifier" },
+                                    Right = new ValueExpression { Value = location.ServiceLocationIdentifier }
                                 },
+
+                                
                                 PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                                 PropertyOptions = new ServiceLocationPropertyOptions
                                 {
@@ -1859,30 +1859,35 @@ namespace Averitt_RNA
                             //Geocode Result
                             GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
                             //Look for best accuracy for geocode result
-                            foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
+                            if (errorLevel == ApexConsumer.ErrorLevel.None)
                             {
-                                foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
+
+
+                                foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
                                 {
-                                    for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                    foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
                                     {
-                                        string accuracyGeo = string.Empty;
-
-
-                                        if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                         {
-                                            if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                            string accuracyGeo = string.Empty;
+
+
+                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
                                             {
-                                                temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                                                temp.Coordinate = candidate.Coordinate;
+                                                if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                {
+                                                    temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                                                    temp.Coordinate = candidate.Coordinate;
+                                                }
                                             }
+
                                         }
 
                                     }
-
                                 }
-                            }
 
-                            saveServiceLocations.Add(temp);
+                                saveServiceLocations.Add(temp);
+                            }
                            
                             //Update Service Location Record to Complete
                             DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
@@ -1909,32 +1914,34 @@ namespace Averitt_RNA
                             //Geocode Result
                             GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
                             //Look for best accuracy for geocode result
-                            foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
+                            if (errorLevel == ApexConsumer.ErrorLevel.None)
                             {
-                                foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
+                                foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
                                 {
-                                    for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                    foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
                                     {
-                                        string accuracyGeo = string.Empty;
-
-
-                                        if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                         {
-                                            if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                            string accuracyGeo = string.Empty;
+
+
+                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
                                             {
-                                                temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                                                temp.Coordinate = candidate.Coordinate;
+                                                if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                {
+                                                    temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                                                    temp.Coordinate = candidate.Coordinate;
+                                                }
                                             }
+
                                         }
 
                                     }
-
                                 }
-                            }
-                            //Add location to savelocation list
+                                //Add location to savelocation list
 
-                            saveServiceLocations.Add(temp);
-                           
+                                saveServiceLocations.Add(temp);
+                            }
 
                             //Update Service Location Record to Complete 
                             DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
@@ -1959,34 +1966,36 @@ namespace Averitt_RNA
                                 if (!temp.Address.Equals(temp2[0].Address)) //check if service location record Address (temp) has a new address to matching sevice location in RNA (temp2)
                                 {
                                     //If address is different Get Geocode for SL in database and update RNA with service location address in service location record
-                                    Address[] newAddress = new Address[] { };
+                                    Address[] newAddress = new Address[1];
                                     newAddress[0] = temp.Address;
                                     //Geocode Result
                                     GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
                                     //Look for best accuracy for geocode result
-                                    foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
+                                    if (errorLevel != ApexConsumer.ErrorLevel.Fatal)
                                     {
-                                        foreach( GeocodeCandidate candidate in result.Results) //for each GeocodeCandidat
+                                        foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
                                         {
+                                            foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidat
+                                            {
                                                 for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                                 {
                                                     string accuracyGeo = string.Empty;
-                                                    
-                                                    
+
+
                                                     if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
                                                     {
-                                                        if(accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                        if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
                                                         {
-                                                        temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                                                        temp.Coordinate = candidate.Coordinate;
+                                                            temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                                                            temp.Coordinate = candidate.Coordinate;
+                                                        }
                                                     }
-                                                    }
-                                                       
+
                                                 }
-                                            
+
+                                            }
                                         }
                                     }
-
                                     //Add service location to save list
                                     saveServiceLocations.Add(temp);
                                     
@@ -2025,6 +2034,13 @@ namespace Averitt_RNA
 
                     SaveServiceLocations(out errorLevel, out fatalErrorMessage, saveServiceLocations.ToArray());
 
+                    if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                    {
+                        _Logger.Debug("Fatel Error Occured Saving Service Location Successfully: " + fatalErrorMessage);
+                    } else
+                    {
+                        _Logger.Debug("Saving Service Location Successfully");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -2586,11 +2602,10 @@ namespace Averitt_RNA
                 }
                 else
                 {
+                    
+                   regionEntityKeyDic = retrievalResults.Items.Cast<Region>().ToList().ToDictionary(x => x.Identifier, x => x.EntityKey);
+                   
 
-                    foreach (Region region in retrievalResults.Items)
-                    {
-                        regionEntityKeyDic.Add(region.Identifier, region.EntityKey);
-                    }
 
                     return regionEntityKeyDic;
 
@@ -2720,10 +2735,7 @@ namespace Averitt_RNA
                 else
                 {
                     Dictionary<string, long> dict = retrievalResults.Items.Cast<TimeWindowType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
-                    foreach (TimeWindowType timeWindowType in retrievalResults.Items)
-                    {
-                        dict.Add(timeWindowType.Identifier, timeWindowType.EntityKey);
-                    }
+                    
                     return dict;
 
                 }
@@ -2837,7 +2849,7 @@ namespace Averitt_RNA
                             Identifier = true
 
                         },
-                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Depot)
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.OrderClass)
                     });
                 if (retrievalResults.Items == null)
                 {

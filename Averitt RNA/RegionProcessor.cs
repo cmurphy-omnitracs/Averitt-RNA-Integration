@@ -16,7 +16,6 @@ namespace Averitt_RNA
         private Region _Region;
         private ApexConsumer _ApexConsumer;
         private IntegrationDBAccessor _IntegrationDBAccessor;
-        static private log4net.ILog _Logger;
         private static DictCache dictCache = new DictCache();
         private static CacheHelper cacheHelper = new CacheHelper();
 
@@ -36,28 +35,44 @@ namespace Averitt_RNA
             
             if (!MainService.SessionRequired)
             {
+                bool errorCaught = false;
+                string errorMessage = string.Empty;
+                string fatalErrorMessage = string.Empty;
+                bool timeOut = false;
                 Logger.Debug("Start Retrieving");
 
-                if ((DateTime.Now.Minute % Config.DictServiceTimeRefresh) == 0)
+                //Write cache file if it doesn't exist or if it needs to get refreshed
+                if (((DateTime.Now.Minute % Config.DictServiceTimeRefresh) == 0) || !File.Exists(MainService.dictCacheFile))
                 {
                     try
                     {
-                        Logger.Debug("Writing and Loading Dictionaries");
+                        Logger.Debug("Starting Writing and Loading of Dictionaries");
                         dictCache.resetCache();
                         WriteDictCachedData();
                         LoadDictCachedData();
                         Logger.Debug("Writing and Loading Dictionaries Completed Successfully");
                     }
+
+
                     catch (Exception ex)
                     {
-                        _Logger.ErrorFormat("Error loading Dict cache file: {0}", ex.Message);
+                        Logger.ErrorFormat("Error Loading or Writing Dictionary Cache File: {0}", ex.Message);
                     }
 
 
+
                 }
+                else
+                {
 
-                //TODO
+                    //Load Service Locations from Database and save them to RNA
+                    LoadDictCachedData();
 
+                    _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
+                        _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+
+
+                }
             }
             else
             {
@@ -73,7 +88,8 @@ namespace Averitt_RNA
             ApexConsumer.ErrorLevel errorLevel = ApexConsumer.ErrorLevel.None;
             string errorMessage = string.Empty;
 
-            _Logger.InfoFormat("Writing Dictionary Cache file to {0}", dictCache);
+           
+            Logger.InfoFormat("Writing Dictionary Cache file to {0}", MainService.dictCacheFile.ToString());
             try
             {
                 dictCache.orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
@@ -99,7 +115,7 @@ namespace Averitt_RNA
             }
             catch (Exception ex)
             {
-                _Logger.ErrorFormat("Error writing cache file: {0}", ex.Message);
+                Logger.ErrorFormat("Error writing cache file: {0}", ex.Message);
             }
         }
 
@@ -107,11 +123,11 @@ namespace Averitt_RNA
         {
             if (!File.Exists(MainService.dictCacheFile))
             {
-                _Logger.Info("No cache file exists");
+                Logger.Info("No cache file exists");
             }
             else
             {
-               _Logger.InfoFormat("Loading cache file from {0}", MainService.dictCacheFile);
+               Logger.InfoFormat("Loading cache file from {0}", MainService.dictCacheFile);
                 try
                 {
                     string jsonData = File.ReadAllText(MainService.dictCacheFile);
@@ -119,12 +135,12 @@ namespace Averitt_RNA
                     if (temp != null)
                     {
                         dictCache = temp;
-                       _Logger.Debug("Dicts loaded from " + MainService.dictCacheFile);
+                       Logger.Debug("Dicts loaded from " + MainService.dictCacheFile);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _Logger.ErrorFormat("Error opening cache file: {0}", ex.Message);
+                    Logger.ErrorFormat("Error opening cache file: {0}", ex.Message);
                 }
             }
         }

@@ -67,10 +67,12 @@
     <Compile Include="CacheHelper.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="DBAccess\IntegrationDBAccessor.cs" />
+    <Compile Include="DBAccess\Records\StagedRouteRecord.cs" />
     <Compile Include="DBAccess\Records\StagedServiceLocationsRecord.cs" />
     <Compile Include="DBAccess\Records\StagedOrderRecord.cs" />
     <Compile Include="DBAccess\SQLStrings.cs" />
     <Compile Include="DictCache.cs" />
+    <Compile Include="FlagsHelper.cs" />
     <Compile Include="MainService.cs">
       <SubType>Component</SubType>
     </Compile>
