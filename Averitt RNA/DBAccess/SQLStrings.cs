@@ -137,21 +137,21 @@ namespace Averitt_RNA.DBAccess
         }
 
         public static string DELETE_EXPIRED_STAGED_ROUTES(
-                  string regionID, string orderIdentifier, string staged)
+                  string regionID, string status)
         {
             return string.Format(@"
                 DELETE FROM STAGED_ROUTES
-                WHERE RegionIdentifier = '{0}' AND OrderIdentifier = '{1}' AND Staged =  CONVERT(datetime2,'{2}')
-                ", regionID, orderIdentifier, staged);
+                WHERE RegionIdentifier = '{0}' AND [Status] ='{1}')
+                ", regionID, status);
         }
 
         public static string DELETE_EXPIRED_STAGED_ORDERS(
-                 string regionID, string orderIdentifier, string staged)
+                 string status, string regionID)
         {
             return string.Format(@"
                 DELETE FROM STAGED_ORDERS
-                WHERE [Status] = '{1}' AND Staged =  CONVERT(datetime2,'{2}')
-                ", regionID, orderIdentifier, staged);
+                WHERE [Status] = '{0}' AND RegionIdentifier = '{1}
+                ", status, regionID);
         }
 
         public static string SELECT_ALL_STAGED_ORDERS_STATUS(string status)

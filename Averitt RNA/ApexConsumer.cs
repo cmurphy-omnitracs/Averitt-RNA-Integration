@@ -2365,6 +2365,7 @@ namespace Averitt_RNA
                     bool bitSet = true;
                     List<DBAccess.Records.StagedOrderRecord> deleteOrderRecordList = checkedOrderRecordList.FindAll(x => Convert.ToBoolean(x.Delete) == bitSet);
                     List<Order> deleteOrderList = new List<Order>();
+                    string[] originDepotIdentifiers = checkedOrderRecordList.Select(x => x.OriginDepotIdentifier).ToArray();
 
 
                     string[] checkedSLId = checkedOrderRecordList.Select(x => x.OrderIdentifier).ToArray();
@@ -2416,20 +2417,95 @@ namespace Averitt_RNA
                     foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
                     {
                         var temp = (Order)order;
+                        temp.Action = ActionType.Delete;
                         deleteOrderList.Add(temp);
+                        
                     }
+
+                    //Unassign and Delete Orders
+                    if (deleteOrderList.Any())
                     {
+                        try
+                        {
+                            errorLevel = ErrorLevel.None;
+                            ManipulationResult unassignOrders = UnassignedOrders(out errorLevel, out fatalErrorMessage, deleteOrderList.ToArray());
+                            if (errorLevel != ErrorLevel.Fatal)
+                            {
+                                SaveResult[] deleteOrders = DeleteOrder(out errorLevel, out fatalErrorMessage, deleteOrderList.ToArray());
+                            }
+                            
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during delete Orders" + ex.Message);
+                        }
+                    }
+
+                  
+                    //Retrieve Tomorrows Routing Session
+                     try
+                    {
+                        
+                        errorLevel = ErrorLevel.None;
+                        DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorLevel, out fatalErrorMessage, DateTime.Now.AddDays(1), originDepotIdentifiers);
+                        List<string> sessionsToCreate = new List<string>();
+                        //List of depots that don't have routing session
+
+                        foreach (String origindepot in originDepotIdentifiers)
+                        {
+                            if (!tomorrowsRoutingSession.Any(x => x.Description == origindepot))
+                            {
+                                sessionsToCreate.Add(origindepot);
+                            }
+                           
+                         }
+
+                        //create routing session
+                        try
+                        {
+                            SaveResult[] newRoutingSessions = SaveDailyRoutingSessions(out errorLevel,out fatalErrorMessage, new DateTime[] { DateTime.Now.AddDays(1) }, sessionsToCreate.ToArray());
+                            foreach(SaveResult saveResult in newRoutingSessions)
+                            {
+                                if(saveResult.Error != null)
+                                {
+                                    var temp = (DailyRoutingSession)saveResult.Object;
+                                    _Logger.Error("An error has occured while creating session for Depot " + temp.Description + ":" + saveResult.Error.Code + " " + saveResult.Error.Detail);
+                                } else
+                                {
+                                    var temp = (DailyRoutingSession)saveResult.Object;
+                                    _Logger.Error("Created Session for session for Depot " + temp.Description);
+
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during Creating Routing Sessions" + ex.Message);
+                        }
 
 
-                        //Retrieve Orders from RNA
-                        rnaOrders = RetrieveModifiedRNAOrders(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime).ToList();
+
+
+                        foreach (DailyRoutingSession session in tomorrowsRoutingSession)
+                        {
+                            if (!originDepotIdentifiers.Any( x => x == session.Description))
+                            {
+
+                            }
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+                        _Logger.Error("An error has occured during delete Orders" + ex.Message);
+                    }
+
+                    rnaOrders = RetrieveModifiedRNAOrders(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime).ToList();
 
 
                     if (rnaOrders == null) //Orders return null, Add Orders to RNA
                     {
-
-
-
+                        
                         try
                         {
                             List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
@@ -2480,92 +2556,36 @@ namespace Averitt_RNA
                         }
                     }
 
-                    else  //Orders have a been found n in RNA
+                    else  //Orders have a been found in RNA
                     {
                         // Order Checked List and Returned RNA List
                         checkedOrdersList.OrderBy(x => x.Identifier);
                         rnaOrders.OrderBy(x => x.Identifier);
-                        List<Order> deleteOrders = new List<Order>();
-                        
-                       foreach(Order order in rnaOrders)
-                        {
-                            order.
-                        }
+                        List<Order> updateOrders = new List<Order>();
+                        List<Order> regOrders = new List<Order>();
 
-                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
-                        //Geocode Address
-                        try
+                        foreach (Order rnaOrder in rnaOrders)
                         {
-                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-
-                            if (timeOut)
+                            foreach(Order order in checkedOrdersList)
                             {
-                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
-                            }
-                            else
-                            {
-                                for (int y = 0; y <= checkedServiceLocationList.Count; y++)
+                                if(rnaOrder.Identifier == order.Identifier)
                                 {
-                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
-
-                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
-                                    {
-
-
-                                        for (int j = 0; j <= newAddressGeocodeResult[y].Results.Count(); j++) //for the corresponding GeocodeCandidate for a location
-                                        {
-
-                                            for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                            {
-                                                string accuracyGeo = string.Empty;
-
-
-                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
-                                                {
-                                                    if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
-                                                    {
-
-                                                        bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
-
-                                                    }
-                                                }
-
-                                            }
-
-                                        }
-
-
-
-
-
-                                        //Get Best Coordinate
-                                        Coordinate mostAccurateCordinate = new Coordinate();
-                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                        {
-                                            string accuracyGeo = string.Empty;
-                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
-                                            {
-                                                Coordinate bestGeocodeCordinate = new Coordinate();
-
-                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
-                                                {
-                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
-                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
-
-
-                                                }
-                                            }
-
-
-                                        }
-
-                                        //Add location to save list with BU entity key
-                                        checkedServiceLocationList[y].Action = ActionType.Add;
-                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
-                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
-                                    }
+                                    order.Action = ActionType.Update;
+                                    updateOrders.Add(order);
+                                }
+                                else
+                                {
+                                    order.Action = ActionType.Add;
+                                    regOrders.Add(order);
                                 }
                             }
+                        }
+
+                       //Save Updated Orders
+                        try
+                        {
+                           
+                           
                         }
                         catch (Exception ex)
                         {
@@ -2927,7 +2947,7 @@ namespace Averitt_RNA
         public SaveResult[] SaveDailyRoutingSessions(
             out ErrorLevel errorLevel,
             out string fatalErrorMessage,
-            DateTime[] startDates)
+            DateTime[] startDates, string[] originIdentifiers)
         {
             SaveResult[] saveResults = null;
             errorLevel = ErrorLevel.None;
@@ -2937,15 +2957,16 @@ namespace Averitt_RNA
                 saveResults = _RoutingServiceClient.Save(
                     MainService.SessionHeader,
                     _RegionContext,
-                    startDates.Select(startDate => new DailyRoutingSession
+                    originIdentifiers.Select(originIdentifier => new DailyRoutingSession
                     {
                         Action = ActionType.Add,
-                        Description = DEFAULT_IDENTIFIER,
+                        Description = originIdentifier,
                         NumberOfTimeUnits = 1,
                         RegionEntityKey = _Region.EntityKey,
                         SessionMode_Mode = Enum.GetName(typeof(Apex.SessionMode), Apex.SessionMode.Operational),
-                        StartDate = startDate.ToString(DATE_FORMAT),
-                        TimeUnit_TimeUnitType = Enum.GetName(typeof(TimeUnit), TimeUnit.Day)
+                        StartDate = startDates[0].ToString(DATE_FORMAT),
+                        TimeUnit_TimeUnitType = Enum.GetName(typeof(TimeUnit), TimeUnit.Day),
+                        
                     }).ToArray(),
                     new SaveOptions
                     {
@@ -2954,7 +2975,8 @@ namespace Averitt_RNA
                         ReturnInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         ReturnPropertyOptions = new DailyRoutingSessionPropertyOptions
                         {
-                            StartDate = true
+                            StartDate = true,
+                            Description = true
                         },
                         ReturnSavedItems = true
                     });
@@ -3455,44 +3477,235 @@ namespace Averitt_RNA
             return null;
         }
 
-        public GeocodeResult[] Geocode2(
-            Address[] addresses)
+        public SaveResult[] DeleteOrder(out ErrorLevel errorLevel,out string fatalErrorMessage, Order[] deleteOrders)
         {
+            SaveResult[] saveResults = null;
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
 
-            Console.WriteLine("Begin Geocode process.");
-
-            GeocodeResult[] geocodeResults = _MappingServiceClient.Geocode(
+                saveResults = _RoutingServiceClient.Save(
                 MainService.SessionHeader,
-                 _RegionContext,
-                new GeocodeCriteria
+                _RegionContext,
+                deleteOrders,
+                new SaveOptions
                 {
-                    NamedPlaces = addresses.Select(address => new NamedPlace { PlaceAddress = address }).ToArray()
-                },
-                new GeocodeOptions
-                {
-                    NetworkArcCandidatePropertyInclusionMode = PropertyInclusionMode.All,
-                    NetworkPOICandidatePropertyInclusionMode = PropertyInclusionMode.All,
-                    NetworkPointAddressCandidatePropertyInclusionMode = PropertyInclusionMode.All
+                    InclusionMode = PropertyInclusionMode.All,
+                    IgnoreEntityVersion = true
                 });
 
-            foreach (GeocodeResult geocodeResult in geocodeResults)
-            {
-                if (geocodeResult.Results == null || geocodeResult.Results.Length == 0)
+                if (saveResults == null)
                 {
-                    throw new Exception("Geocode failed.");
+                    _Logger.Error("DeleteOrders | " + string.Join(" | ", deleteOrders.Select(deleteOrder => ToString(deleteOrder))) + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
                 }
                 else
                 {
-                    foreach (GeocodeCandidate geocodeCandidate in geocodeResult.Results)
+                    for (int i = 0; i < saveResults.Length; i++)
                     {
-                        Console.WriteLine("Geocode Candidate: " + geocodeCandidate.Coordinate.Latitude + "," + geocodeCandidate.Coordinate.Longitude + " | " + geocodeCandidate.Score + " | " + geocodeCandidate.GeocodeAccuracy_Quality);
+                        if (saveResults[i].Error != null)
+                        {
+                            _Logger.Error("DeleteOrders | " + ToString(deleteOrders[i]) + " | Failed with Error: " + ToString(saveResults[i].Error));
+                            errorLevel = ErrorLevel.Partial;
+                        }
                     }
                 }
+                if (saveResults[0].Error != null)
+                {
+                    throw new Exception("Delete Order failed with Error: " + saveResults[0].Error.Code + " | " + saveResults[0].Error.Detail);
+                }
+
+                
+
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("DeleteOrders | " + string.Join(" | ", deleteOrders.Select(deleteOrder => ToString(deleteOrder))) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch ( Exception ex)
+            {
+                _Logger.Error("DeleteOrders | " + string.Join(" | ", deleteOrders.Select(deleteOrder => ToString(deleteOrder))), ex);
+                errorLevel = ErrorLevel.Transient;
             }
 
-            return geocodeResults;
+
+            return saveResults;
+
 
         }
+
+        public ManipulationResult UnassignedOrders(out ErrorLevel errorLevel, out string fatalErrorMessage, Order[] unassignOrders)
+        {
+            ManipulationResult unassignResults = null;
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            //long[] routeEntityKeys = unassignOrders.Select(x => x.Tasks[0].).ToArray();
+            DomainInstance[] orderEntityKeys = new DomainInstance[] {};
+
+            for (int i=0;i< unassignOrders.Length;i++)
+            {
+                orderEntityKeys[i].EntityKey = unassignOrders[i].EntityKey;
+            }
+           
+           
+
+            try
+            {
+
+                unassignResults = _RoutingServiceClient.UnassignOrders(
+                MainService.SessionHeader,
+                _RegionContext,
+                orderEntityKeys,
+                new RemoveOrderOptions
+                {
+                    AddToUnassigneds = true,
+                    DeliveryQuantitiesOnVehicle = true,
+                    
+                }, new RouteRetrievalOptions[]
+                {
+                    new RouteRetrievalOptions
+                    {
+                        InclusionMode = PropertyInclusionMode.All
+                    }
+
+                });
+
+                
+                if (unassignResults == null)
+                {
+                    _Logger.Error("Unassign Orders | " + string.Join(" | ", unassignOrders.Select(unassignOrder => ToString(unassignOrder))) + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    for (int i = 0; i < unassignResults.Errors.Length; i++)
+                    {
+                        if (unassignResults.Errors[i] != null)
+                        {
+                            _Logger.Error("Unassign Order | " + unassignResults.Errors[i].OrderEntityKey.ToString() + " | Failed with Error: " + unassignResults.Errors[i].Reason.ErrorCode_Status);
+                            errorLevel = ErrorLevel.Partial;
+                        }
+                    }
+                }
+
+
+                
+
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("UnassignOrders | " + string.Join(" | ", unassignOrders.Select(unassignOrder => ToString(unassignOrder))) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("DeleteOrders | " + string.Join(" | ", unassignOrders.Select(unassignOrder => ToString(unassignOrder))), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+
+
+            return unassignResults;
+
+
+        }
+
+        public DailyRoutingSession[] RetrieveDailyRoutingSessionwithOrigin(
+           out ErrorLevel errorLevel,
+           out string fatalErrorMessage,
+           DateTime startDate, string[] originDepotsId )
+        {
+            DailyRoutingSession[] dailyRoutingSessions = null;
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+                        Expression = new AndExpression
+                        {
+                            Expressions = new SimpleExpressionBase[]
+                            {
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "Description" },
+                                    Right = new ValueExpression { Value = originDepotsId }
+                                },
+                                new InExpression
+                                {
+                                    Left = new PropertyExpression { Name = "StartDate" },
+                                    Right = new ValueExpression { Value = startDate.ToString(DATE_FORMAT) }
+                                }
+                            }
+                        },
+                        
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new DailyRoutingSessionPropertyOptions
+                        {
+                            StartDate = true
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.DailyRoutingSession)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("RetrieveDailyRoutingSessions | " + string.Join(" | ", startDate) + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    dailyRoutingSessions = retrievalResults.Items.Cast<DailyRoutingSession>().ToArray();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("RetrieveDailyRoutingSessions | " + string.Join(" | ", startDate) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("RetrieveDailyRoutingSessions | " + string.Join(" | ", startDate), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return dailyRoutingSessions;
+        }
+
 
 
 

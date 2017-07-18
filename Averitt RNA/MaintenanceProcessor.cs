@@ -89,7 +89,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredOrder(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Staged, out errorMessage, out errorCaught);
+                                record.Status, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
@@ -113,7 +113,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredOrder(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Staged, out errorMessage, out errorCaught);
+                                record.Status, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
@@ -225,7 +225,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedRoute(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Staged, out errorMessage, out errorCaught);
+                                record.Status, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
@@ -249,7 +249,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedRoute(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Staged, out errorMessage, out errorCaught);
+                                record.Status, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
