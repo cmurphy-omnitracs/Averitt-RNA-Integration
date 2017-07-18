@@ -40,14 +40,16 @@ namespace Averitt_RNA.DBAccess.Records
         [Flags]
         public enum DeliveryDaysFlag
         {
-            U = 1,
-            M = 2,
-            T = 4,
-            W = 8,
-            R = 16,
-            F = 32,
-            S = 64
+            Sunday = 1,
+            Monday = 2,
+            Tuesday = 4,
+            Wednesday = 8,
+            Thursday = 16,
+            Friday = 32,
+            Saturday = 64
         }
+
+        public static string TimeFormat = "hh\\:mm\\:ss\\.fffffff";
         #endregion
 
         #region Public Methods
@@ -129,37 +131,101 @@ namespace Averitt_RNA.DBAccess.Records
 
 
             List<DeliveryDaysFlag> result = Enum.GetValues(typeof(DeliveryDaysFlag)).Cast<DeliveryDaysFlag>().Where(value => mask.HasFlag(value)).ToList();
-            string combinedDeliveryDay = string.Join("", result);
+            string combinedDeliveryDay = string.Join(",", result);
 
 
             return new ServiceLocation
             {
-                Identifier = record.ServiceLocationIdentifier,
+                Identifier = record.ServiceLocationIdentifier.ToUpper(),
                 Description = record.Description,
+
                 Address = new Address
                 {
+
                     AddressLine1 = record.AddressLine1,
                     AddressLine2 = record.AddressLine2,
                     Locality = new Locality
                     {
+                        AdminDivision1 = record.State,
+                        AdminDivision3 = record.City,
+                        CountryISO3Abbr = "USA",
                         PostalCode = record.PostalCode,
                     },
-                  
-                    
+
+
                 },
-                   
-                    
+                Action = ActionType.Add,
+              
+                
+                OpenCloseOverrides = new ServiceLocationOpenCloseDetail[]
+                {
+                new ServiceLocationOpenCloseDetail
+                {
+                    Action = ActionType.Add,
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Monday, DayOfWeekFlags.Wednesday, DayOfWeekFlags.Friday }),
+                        EndTime = new TimeSpan(17, 0, 0).ToString(TimeFormat),
+                        StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
+                    },
+                    OrderClassEntityKey = 101
+                },
+                new ServiceLocationOpenCloseDetail
+                {
+                    Action = ActionType.Add,
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Tuesday, DayOfWeekFlags.Thursday }),
+                        EndTime = new TimeSpan(20, 0, 0).ToString(TimeFormat),
+                        StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
+                    },
+                    OrderClassEntityKey = 101
+                }
+                },
+                ServiceWindowOverrides = new ServiceLocationServiceWindowDetail[]
+                {
+                new ServiceLocationServiceWindowDetail
+                {
+                    Action = ActionType.Add,
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.WeekDays.ToString(),
+                        EndTime = new TimeSpan(12, 0, 0).ToString(TimeFormat),
+                        StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
+                    },
+                    OrderClassEntityKey = 101
+                },
+                new ServiceLocationServiceWindowDetail
+                {
+                    Action = ActionType.Add,
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Monday, DayOfWeekFlags.Wednesday, DayOfWeekFlags.Friday }),
+                        EndTime = new TimeSpan(17, 0, 0).ToString(TimeFormat),
+                        StartTime = new TimeSpan(13, 0, 0).ToString(TimeFormat)
+                    },
+                    OrderClassEntityKey = 101
+                },
+                new ServiceLocationServiceWindowDetail
+                {
+                    Action = ActionType.Add,
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Tuesday, DayOfWeekFlags.Thursday }),
+                        EndTime = new TimeSpan(20, 0, 0).ToString(TimeFormat),
+                        StartTime = new TimeSpan(13, 0, 0).ToString(TimeFormat)
+                    },
+                    OrderClassEntityKey = 101
+                }
+                },
+                StandingDeliveryQuantities = new Quantities { },
+                StandingPickupQuantities = new Quantities { },
+
                 PhoneNumber = record.PhoneNumber,
                 WorldTimeZone_TimeZone = record.WorldTimeZone,
                 DayOfWeekFlags_DeliveryDays = combinedDeliveryDay,
                 
-
                 
-               
-                
-                
-                
-
             };
                 
             

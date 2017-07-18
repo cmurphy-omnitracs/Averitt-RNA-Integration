@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Data.Odbc;
 using Averitt_RNA.Apex;
+using System.Data.SqlTypes;
 
 namespace Averitt_RNA.DBAccess.Records
 {
@@ -29,7 +30,7 @@ namespace Averitt_RNA.DBAccess.Records
         public string LiftgateOnly { get; set; }
         public string GuaranteedDelivery { get; set; }
         public string Avail { get; set; }
-        public char Delete { get; set; }
+        public SqlBoolean Delete { get; set; }
         public string Staged { get; set; }
         public string Error { get; set; }
         public string Status { get; set; }
@@ -66,7 +67,7 @@ namespace Averitt_RNA.DBAccess.Records
                 LiftgateOnly = reader["LiftgateOnly"].ToString(),
                 GuaranteedDelivery = reader["GuaranteedDelivery"].ToString(),
                 Avail = reader["Avail"].ToString(),
-                Delete = Convert.ToChar(reader["Delete"]),
+                Delete = Convert.ToBoolean(reader["Delete"]),
                 Staged = reader["Staged"].ToString(),
                 Error = reader["Error"].ToString(),
                 Status = reader["Status"].ToString()
@@ -74,6 +75,7 @@ namespace Averitt_RNA.DBAccess.Records
             } as DBAccessUtility.DBRecord;
         }
 
+        
         public OrderSpec ToOrderSpec()
         {
             return new OrderSpec
@@ -107,10 +109,12 @@ namespace Averitt_RNA.DBAccess.Records
                 && LiftgateOnly == other.LiftgateOnly
                 && GuaranteedDelivery == other.GuaranteedDelivery
                 && Avail == other.Avail
-                && Delete == other.Delete
+                && Convert.ToBoolean(Delete) == Convert.ToBoolean(other.Delete)
                 && Staged == other.Staged
                 && Error == other.Error
                 && Status == other.Status;
+
+            
         }
 
         public override int GetHashCode()
@@ -177,12 +181,15 @@ namespace Averitt_RNA.DBAccess.Records
                 PreferredRouteIdentifier = record.PreferredRouteIdentifier,
                 SpecialInstructions = record.SpecialInstructions,
                 CustomProperties = dict,
-                Tasks = task
+                Tasks = task,
+                
 
             };
 
 
         }
+
+        
 
         #endregion
 

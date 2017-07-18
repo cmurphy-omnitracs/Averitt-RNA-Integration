@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.ComponentModel;
 using System.Reflection;
+using System.Data.SqlTypes;
 
 
 
@@ -25,10 +26,11 @@ namespace Averitt_RNA
         private QueryServiceClient _QueryServiceClient;
         private MappingServiceClient _MappingServiceClient;
         private RoutingServiceClient _RoutingServiceClient;
-
+        private Address test123 = Testdata.TestData.ServiceLocation.Address;
+       
         #endregion
 
-       
+
 
         #region Public Members
 
@@ -79,15 +81,15 @@ namespace Averitt_RNA
         public Dictionary<int, string> GeocodeAccuracyDict = new Dictionary<int, string>
         {
 
-            { 0,"Street Exact"},
-            {1, "Rooftop Exact"},
-            { 2,"Street High"},
-            { 3, "Rooftop High"},
-            {4, "Street Medium"},
-            {5, "Rooftop Medium"},
-            {6, "Street Low"},
-            { 7, "Rooftop Low"},
-            { 8, "Postal Detail"},
+            { 0,"StreetExact"},
+            {1, "RooftopExact"},
+            { 2,"StreetHigh"},
+            { 3, "RooftopHigh"},
+            {4, "StreetMedium"},
+            {5, "RooftopMedium"},
+            {6, "StreetLow"},
+            { 7, "RooftopLow"},
+            { 8, "PostalDetail"},
             { 9, "Postal"},
             { 10, "City"},
             {11, "Not Applicable" },
@@ -1739,27 +1741,30 @@ namespace Averitt_RNA
             errorRetrieveSLFromStagingTableMessage = string.Empty;
             List<DBAccess.Records.StagedServiceLocationRecord> retrieveList = new List<DBAccess.Records.StagedServiceLocationRecord>();
             DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+            List<ServiceLocation> checkedServiceLocationList = new List<ServiceLocation>();
             List<ServiceLocation> saveServiceLocations = new List<ServiceLocation>();
+            List<ServiceLocation> rnaServiceLocations = new List<ServiceLocation>();
 
             try
             {
-                //Get Service Location Records
+                //Get Service Location Records from database
                 retrieveList = DBAccessor.SelectAllStagedServiceLocations(regionId);
-                List<DBAccess.Records.StagedServiceLocationRecord> checkedServiceLocationList = DBAccessor.SelectStagedServiceLocations(regionId);
-                if (retrieveList == null)
+                List<DBAccess.Records.StagedServiceLocationRecord> checkedServiceLocationRecordList = DBAccessor.SelectStagedServiceLocations(regionId);
+
+                if (retrieveList == null)// Database Service Locations Table Null
                 {
                     errorRetrieveSLFromStagingTable = true;
                     _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
-                    
+
 
                 }
-                else if (retrieveList.Count == 0)
+                else if (retrieveList.Count == 0)//  Database Service Locations Table Empty
                 {
                     errorRetrieveSLFromStagingTable = true;
                     errorRetrieveSLFromStagingTableMessage = String.Format("No New Staged Service Locations found in Staged Service Locations Table for {0}", regionId);
                     _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
 
-                  
+
                 }
                 else
                 {
@@ -1768,288 +1773,492 @@ namespace Averitt_RNA
                     //Check for Duplicates Records in Table
                     if (retrieveList.Count != retrieveList.Distinct().Count())
                     {
-                        checkedServiceLocationList = retrieveList.Distinct().ToList();
+                        bool errorDeletingDuplicateServiceLocations = false;
+                        string errorDeletingDuplicateServiceLocationsMessage = string.Empty;
+                        //filter out duplicates
+                        _Logger.DebugFormat("Duplicate Service Locations Found, Deleting them from Staged Service Locations Table");
+
+                        checkedServiceLocationRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
+                        DBAccessor.DeleteDuplicatedServiceLocation(out errorDeletingDuplicateServiceLocationsMessage, out errorDeletingDuplicateServiceLocations);
+                        if (errorDeletingDuplicateServiceLocations == true)
+                        {
+                            _Logger.ErrorFormat("Error Deleting Duplicate Service Locations: " + errorDeletingDuplicateServiceLocationsMessage);
+                        } else
+                        {
+                            _Logger.DebugFormat("Deleting Service Locations from Staged Service Locations Table Sucessful");
+                        }
                     }
                     else
                     {
-                        checkedServiceLocationList = retrieveList;
+                        checkedServiceLocationRecordList = retrieveList;
 
                     }
-                    //Check if filtered Service Locations exist in RNA
-                    foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationList)
+
+                    //Retrieve service locations with status of New
+                    checkedServiceLocationRecordList = checkedServiceLocationRecordList.FindAll(x => x.Status.ToUpper().Equals("NEW"));
+
+                    string[] checkedSLId = checkedServiceLocationRecordList.Select(x => x.ServiceLocationIdentifier).ToArray();
+
+                    //Add serviceTimeType, timeWindowType, and region Entity Keys to Checked Service Locations
+                    foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationRecordList)
                     {
                         long serviceTimeTypeEntityKey = 0;
                         long timeWindowTypeEntityKey = 0;
                         long[] regionEntityKey = new long[1] { 0 };
                         var temp = (ServiceLocation)location;
-                        string errorServiceLocation = null;
-
+                       
                         //Add SerivceTimeType, region and timewindowType entity keys
-                        if (location.Status.ToUpper() == "NEW")
+
+                        if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
                         {
-                            if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
-                            {
-                                _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
-                                temp.ServiceTimeTypeEntityKey = 0;
-                            }
-                            else
-                            {
-                                temp.ServiceTimeTypeEntityKey = serviceTimeTypeEntityKey;
-                            }
-                            if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
-                            {
-                                _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
-                                temp.ServiceTimeTypeEntityKey = 0;
-                            }
-                            else
-                            {
-                                temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
-                            }
-
-                            if (!regionEntityKeyDic.TryGetValue(location.RegionIdentifier, out regionEntityKey[0]))
-                            {
-                                _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
-                                temp.RegionEntityKeys[0] = 0;
-                            }
-                            else
-                            {
-                                temp.RegionEntityKeys = new long[] { };
-                                temp.RegionEntityKeys = regionEntityKey;
-                            }
-
-
-
-                            serviceLocationsInRna.Add(temp);
-
+                            _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                            temp.ServiceTimeTypeEntityKey = 0;
+                        }
+                        else
+                        {
+                            temp.ServiceTimeTypeEntityKey = serviceTimeTypeEntityKey;
+                        }
+                        if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
+                        {
+                            _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                            temp.ServiceTimeTypeEntityKey = 0;
+                        }
+                        else
+                        {
+                            temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
                         }
 
-                        //ServiceLocation[] retreivedServiceLocation = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, location.ServiceLocationIdentifier, true);
+                        if (!regionEntityKeyDic.TryGetValue(location.RegionIdentifier, out regionEntityKey[0]))
+                        {
+                            _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
+                            temp.RegionEntityKeys[0] = 0;
+                        }
+                        else
+                        {
+                            temp.RegionEntityKeys = new long[] { };
+                            temp.RegionEntityKeys = regionEntityKey;
+                        }
 
-                        //Get specific service location from RNA
+
+                        checkedServiceLocationList.Add(temp);
+                    }
+
+                    //Retrieve Service Locations from RNA
+                    rnaServiceLocations = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, checkedSLId, false).ToList();
+
+
+                    if (rnaServiceLocations == null) //Service Location return null, Add service locations to RNA
+                    {
+
+                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                        //Geocode Address
+
                         
+                        //Look for best accuracy for geocode result
 
-                        RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(MainService.SessionHeader,
-                            _RegionContext, new RetrievalOptions
-                            {
-                                                                
-                                Expression = new EqualToExpression
-                                {
-                                    Left = new PropertyExpression { Name = "Identifier" },
-                                    Right = new ValueExpression { Value = location.ServiceLocationIdentifier }
-                                },
-
-                                
-                                PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                                PropertyOptions = new ServiceLocationPropertyOptions
-                                {
-                                    Identifier = true,
-
-                                },
-                                Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceLocation)
-                            });
-                        //Returned  with null result
-                        if (retrievalResults.Items == null)
+                        try
                         {
-                            errorServiceLocation = "Retrieve Service Location " + location.ServiceLocationIdentifier + " | Returned with a null result.";
-                            _Logger.Error(errorServiceLocation);
-
-                            //Address is not in RNa, Add service location address in service location record to RNA
-                            Address[] newAddress = new Address[] { };
-                            newAddress[0] = temp.Address;
-                            //Geocode Result
                             GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-                            //Look for best accuracy for geocode result
-                            if (errorLevel == ApexConsumer.ErrorLevel.None)
+
+                            if (timeOut)
                             {
-
-
-                                foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
+                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
+                            }
+                            else
+                            {
+                                for (int y = 0; y < checkedServiceLocationList.Count; y++)
                                 {
-                                    foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
+                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
+
+                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
                                     {
-                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+
+
+                                        for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
                                         {
-                                            string accuracyGeo = string.Empty;
 
-
-                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                            for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                             {
-                                                if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+
+                                                string accuracyGeo = string.Empty;
+
+                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
                                                 {
-                                                    temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                                                    temp.Coordinate = candidate.Coordinate;
+                                                    if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                    {
+
+                                                        bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
+                                                        break;
+                                                    }
                                                 }
+
+
                                             }
 
                                         }
 
-                                    }
-                                }
-
-                                saveServiceLocations.Add(temp);
-                            }
-                           
-                            //Update Service Location Record to Complete
-                            DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
-                            out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
-
-                            if (errorRetrieveSLFromStagingTable)
-                            {
-                                _Logger.Error(errorRetrieveSLFromStagingTableMessage);
-                            }
-                            else
-                            {
-                                _Logger.DebugFormat("Service Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
-
-                            }
-
-                        }
-                        else if (retrievalResults.Items.Length == 0)//Serivice Location Doesn't Exist
-                        {
-                            //Using Geocode to geocode new address
-
-                            //Address is not in RNa, Add service location address in service location record to RNA
-                            Address[] newAddress = new Address[] { };
-                            newAddress[0] = temp.Address;
-                            //Geocode Result
-                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-                            //Look for best accuracy for geocode result
-                            if (errorLevel == ApexConsumer.ErrorLevel.None)
-                            {
-                                foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
-                                {
-                                    foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidate
-                                    {
+                                        //Get Best Coordinate
+                                        Coordinate mostAccurateCordinate = new Coordinate();
                                         for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                         {
                                             string accuracyGeo = string.Empty;
-
-
-                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
                                             {
-                                                if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
                                                 {
-                                                    temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                                                    temp.Coordinate = candidate.Coordinate;
+                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+
+
                                                 }
+                                            }
+
+
+                                        }
+
+                                        //Add location to save list with BU entity key
+                                        checkedServiceLocationList[y].Action = ActionType.Add;
+                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                        }
+                       
+                    }
+
+
+
+                    else if (rnaServiceLocations.Count == 0) //Service Locations have not been found, Add service locations to RNA
+                    {
+
+                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                        //Geocode Address
+
+                        //Look for best accuracy for geocode result
+                        try
+                        {
+                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+
+                            if (timeOut)
+                            {
+                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
+                            }
+                            else
+                            {
+                              
+                                for( int y=0; y< checkedServiceLocationList.Count; y++)
+                                {
+                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
+                                    
+                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
+                                    {
+
+
+                                        for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
+                                        {
+
+                                            for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                            {
+
+                                                string accuracyGeo = string.Empty;
+
+                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                                {
+                                                    if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                    {
+
+                                                        bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
+                                                        break;
+                                                    }
+                                                }
+
+
                                             }
 
                                         }
 
+
+
+
+
+                                        //Get Best Coordinate
+                                        Coordinate mostAccurateCordinate = new Coordinate();
+                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                        {
+                                            string accuracyGeo = string.Empty;
+                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
+                                            {
+                                                Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                {
+                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+
+
+                                                }
+                                            }
+
+
+                                        }
+
+                                        //Add location to save list with BU entity key
+                                        checkedServiceLocationList[y].Action = ActionType.Add;
+                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
                                     }
                                 }
-                                //Add location to savelocation list
-
-                                saveServiceLocations.Add(temp);
                             }
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                        }
+                    }
+               
+                    else  //Service Location Record have a corresponding Service Location in RNA
+                    {
+                        // Order Checked List and Returned RNA List
+                        checkedServiceLocationList.OrderBy(x => x.Identifier);
+                        rnaServiceLocations.OrderBy(x => x.Identifier);
 
-                            //Update Service Location Record to Complete 
-                            DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
-                            out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
+                        //
+                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                        //Geocode Address
+                        try
+                        {
+                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
 
-                            if (errorRetrieveSLFromStagingTable)
+                            if (timeOut)
                             {
-                                _Logger.Error(errorRetrieveSLFromStagingTableMessage);
+                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
                             }
                             else
                             {
-                                _Logger.DebugFormat("Service Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
-
-                            }
-                        }
-                        else //Service Location Exist in RNA
-                        {
-                            try
-                            {
-                                var temp2 = retrievalResults.Items.Cast<ServiceLocation>().ToArray();
-
-                                if (!temp.Address.Equals(temp2[0].Address)) //check if service location record Address (temp) has a new address to matching sevice location in RNA (temp2)
+                                for (int y = 0; y < checkedServiceLocationList.Count; y++)
                                 {
-                                    //If address is different Get Geocode for SL in database and update RNA with service location address in service location record
-                                    Address[] newAddress = new Address[1];
-                                    newAddress[0] = temp.Address;
-                                    //Geocode Result
-                                    GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-                                    //Look for best accuracy for geocode result
-                                    if (errorLevel != ApexConsumer.ErrorLevel.Fatal)
+                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
+
+                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
                                     {
-                                        foreach (GeocodeResult result in newAddressGeocodeResult) //for each GeocodeResult
-                                        {
-                                            foreach (GeocodeCandidate candidate in result.Results) //for each GeocodeCandidat
+
+                                        
+                                            for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
                                             {
-                                                for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+
+                                                for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                                 {
+
                                                     string accuracyGeo = string.Empty;
-
 
                                                     if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
                                                     {
-                                                        if (accuracyGeo == candidate.GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                        if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
                                                         {
-                                                            temp.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                                                            temp.Coordinate = candidate.Coordinate;
+
+                                                            bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
+                                                            break;
                                                         }
                                                     }
+
 
                                                 }
 
                                             }
+                                        
+
+
+
+
+
+                                        //Get Best Coordinate
+                                        Coordinate mostAccurateCordinate = new Coordinate();
+                                        for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                        {
+                                            string accuracyGeo = string.Empty;
+                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
+                                            {
+                                                Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                {
+                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+
+
+                                                }
+                                            }
+
+
                                         }
+
+                                        //if the service location is in RNA, action is Update
+                                        if (rnaServiceLocations.Contains(checkedServiceLocationList[y]))
+                                        {
+                                           
+                                        }
+                                        else //if not action is add
+                                        {
+                                            checkedServiceLocationList[y].Action = ActionType.Update;
+                                        }
+
+                                        //Add location to save list with BU entity key
+                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
                                     }
-                                    //Add service location to save list
-                                    saveServiceLocations.Add(temp);
-                                    
                                 }
-
-                                //Update Service Location Record to Complete 
-                                DBAccessor.UpdateServiceLocationStatus(location.RegionIdentifier, location.ServiceLocationIdentifier, location.Staged, errorServiceLocation, "COMPLETE",
-                                out errorRetrieveSLFromStagingTableMessage, out errorRetrieveSLFromStagingTable);
-
-                                if (errorRetrieveSLFromStagingTable)
-                                {
-                                    _Logger.Error(errorRetrieveSLFromStagingTableMessage);
-                                }
-                                else
-                                {
-                                    _Logger.DebugFormat("Service Location {0} Status updated to COMPLETED IN STAGED_SERVICE_LOCATION table", location.ServiceLocationIdentifier);
-
-                                }
-
                             }
-                            catch (Exception ex)
-                            {
-                                _Logger.Error(ex.Message);
-                                errorRetrieveSLFromStagingTable = true;
-                                errorRetrieveSLFromStagingTableMessage = ex.Message;
-                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                        }
+                            
+                            //Look for best accuracy for geocode result
+
+                        
+                    }
+
+
+
+
+                   
+
+                    //Save servicelocations list to RNA
+                    try
+                    {
+                        
+                        SaveResult[] saveLocationResults = SaveServiceLocations(out errorLevel, out fatalErrorMessage,  saveServiceLocations.ToArray() );
+
+                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                        {
+                            _Logger.Debug("Fatal Error Occured Saving Service Locations: " + fatalErrorMessage);
 
                         }
-                     
+                        else if(errorLevel == ApexConsumer.ErrorLevel.Partial || errorLevel == ApexConsumer.ErrorLevel.Transient)
+                        {
+                            
+                           
+
+                            foreach(SaveResult saveResult in saveLocationResults)
+                            {
+                                if(saveResult.Error != null)
+                                {
+                                    var temp = (ServiceLocation)saveResult.Object;
+                                    bool errorUpdatingServiceLocation = false;
+                                    string errorUpdatingServiceLocationMessage = string.Empty;
+                                    var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
+                                    
+
+
+                                    if (saveResult.Error.ValidationFailures != null)
+                                    {
+                                        foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                        {
+                                            _Logger.Debug("A Validation Error Occured While Saving Service Location. The " + validFailure.Property + " Property for Service Location " + temp.Identifier + " is not Valid");
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
+                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                            if (errorUpdatingServiceLocation)
+                                            {
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+                                                
+                                            }
+                                            else
+                                            {
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                            }
+                                        }
+                                    }
+                                    else if (saveResult.Error.Code.ErrorCode_Status == "DuplicateData")
+                                    {
+                                        _Logger.Debug("A Duplicate Save Data Error Occured While Saving Service Location " + temp.Identifier);
+                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
+                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Duplicate Save Data Error Occured While Saving Service Location ", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                        if (errorUpdatingServiceLocation)
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+                                            
+                                        }
+                                        else
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                        }
+                                    }
+                                    else if (saveResult.Error.Code.ErrorCode_Status == "NoResultsFound| ")
+                                    {
+                                        _Logger.Debug("An Update Error Occured While Saving Service Location " + temp.Identifier + ". The Updated Information Is The Same Information Found In RNA");
+                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "An Update Error Occured While Saving Service Location. The Updated Information Is The Same Information Found In RNA", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                        if (errorUpdatingServiceLocation)
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+
+                                        }
+                                        else
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var temp3 = "An Error Occured While Saving Service Location. " + saveResult.Error.Code.ErrorCode_Status + " " + saveResult.Error.Detail;
+                                        _Logger.Debug("An Error Occured While Saving Service Location " + temp.Identifier + ". The Error is the Following: " + saveResult.Error.Code.ErrorCode_Status + "| " + saveResult.Error.Detail);
+                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, temp3, "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                        if (errorUpdatingServiceLocation)
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+
+                                        }
+                                        else
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                        }
+                                    }
+
+
+                                   
+
+                                } 
+                            }
+                        }
+                        else if (errorLevel == ApexConsumer.ErrorLevel.None)
+                        {
+                            foreach (SaveResult saveResult in saveLocationResults)
+                            {
+                                var temp = (ServiceLocation)saveResult.Object;
+                                bool errorUpdatingServiceLocation = false;
+                                string errorUpdatingServiceLocationMessage = string.Empty;
+                                _Logger.Debug("Service Location " + temp.Identifier + " Saved Successfully");
+                               
+                                var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
+                                DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+
+                                if (errorUpdatingServiceLocation)
+                                {
+                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+                                } else
+                                {
+                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete Succesfull");
+                                }
+                            }
+                            
+                        }
                     }
-                }
-
-                //Save servicelocations list to RNA
-                try
-                {
-
-                    SaveServiceLocations(out errorLevel, out fatalErrorMessage, saveServiceLocations.ToArray());
-
-                    if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                    catch (Exception ex)
                     {
-                        _Logger.Debug("Fatel Error Occured Saving Service Location Successfully: " + fatalErrorMessage);
-                    } else
-                    {
-                        _Logger.Debug("Saving Service Location Successfully");
+                        _Logger.Error(ex.Message);
+                        errorRetrieveSLFromStagingTable = true;
+                        errorRetrieveSLFromStagingTableMessage = ex.Message;
                     }
-                }
-                catch (Exception ex)
-                {
-                    _Logger.Error(ex.Message);
-                    errorRetrieveSLFromStagingTable = true;
-                    errorRetrieveSLFromStagingTableMessage = ex.Message;
                 }
             }
-            
+
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
@@ -2078,6 +2287,354 @@ namespace Averitt_RNA
             
         }
 
+
+
+
+        public void RetrieveOrdersandSaveToRNA(Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> orginDepotTypes, Dictionary<string, long> orderClassTypes, string regionId,
+           out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, out string fatalErrorMessage, out bool timeOut)
+        {
+
+            timeOut = false;
+            ErrorLevel errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            errorRetrieveSLFromStagingTable = false;
+            errorRetrieveSLFromStagingTableMessage = string.Empty;
+            List<DBAccess.Records.StagedOrderRecord> retrieveList = new List<DBAccess.Records.StagedOrderRecord>();
+            DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+            List<DBAccess.Records.StagedOrderRecord> checkedOrderRecordList = new List<DBAccess.Records.StagedOrderRecord>();
+            List<Order> saveOrders = new List<Order>();
+            List<Order> rnaOrders = new List<Order>();
+
+            try
+            {
+                //Get Order Records from database
+                retrieveList = DBAccessor.SelectStagedOrders(regionId);
+                List<DBAccess.Records.StagedOrderRecord> checkedStagedOrdersList = DBAccessor.SelectStagedOrders(regionId);
+
+                if (retrieveList == null)// Database Staged Orders Table Null
+                {
+                    errorRetrieveSLFromStagingTable = true;
+                    _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
+
+
+                }
+                else if (retrieveList.Count == 0)//  Database Service Locations Table Empty
+                {
+                    errorRetrieveSLFromStagingTable = true;
+                    errorRetrieveSLFromStagingTableMessage = String.Format("No Orders found in Staged Orders for {0}", regionId);
+                    _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
+
+
+                }
+                else
+                {
+                    List<Order> OrdersInRna = new List<Order>();
+                    List<Order> checkedOrdersList = new List<Order>();
+
+                    //Check for Duplicates Records in Table
+                    if (retrieveList.Count != retrieveList.Distinct().Count())
+                    {
+                        checkedOrderRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
+
+                        bool errorDeletingDuplicateOrders = false;
+                        string errorDeletingDuplicateOrdersMessage = string.Empty;
+                        //filter out duplicates
+                        _Logger.DebugFormat("Duplicate Orders Found, Deleting them from Orders Table");
+
+                        checkedOrderRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
+                        DBAccessor.DeleteDuplicatedOrders(out errorDeletingDuplicateOrdersMessage, out errorDeletingDuplicateOrders);
+                        if (errorDeletingDuplicateOrders == true)
+                        {
+                            _Logger.ErrorFormat("Error Deleting Duplicate Orders: " + errorDeletingDuplicateOrdersMessage);
+                        }
+                        else
+                        {
+                            _Logger.DebugFormat("Deleting Orders from Staged Orders Table Sucessful");
+                        }
+                    }
+                    else
+                    {
+                        checkedOrderRecordList = retrieveList;
+
+                    }
+
+                    //Retrieve Orders with status of New
+                    checkedOrderRecordList = checkedOrderRecordList.FindAll(x => x.Status.ToUpper().Equals("NEW"));
+
+                    //Retrieve Orders with status of Delete
+                    bool bitSet = true;
+                    List<DBAccess.Records.StagedOrderRecord> deleteOrderRecordList = checkedOrderRecordList.FindAll(x => Convert.ToBoolean(x.Delete) == bitSet);
+                    List<Order> deleteOrderList = new List<Order>();
+
+
+                    string[] checkedSLId = checkedOrderRecordList.Select(x => x.OrderIdentifier).ToArray();
+
+                    //Add OrderClass, OrginDepot, and region Entity Keys to Orders
+                    foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList)
+                    {
+                        long orderClassEntity = 0;
+                        long originDepotKey = 0;
+                        long[] regionEntityKey = new long[1] { 0 };
+                        var temp = (Order)order;
+
+                        //Add SerivceTimeType, region and timewindowType entity keys
+
+                        if (!orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntity))
+                        {
+                            _Logger.ErrorFormat("No match found for Order Class with identifier {0} in RNA", order.OrderClassIdentifier);
+                            temp.OrderClassEntityKey = 0;
+                        }
+                        else
+                        {
+                            temp.OrderClassEntityKey = orderClassEntity;
+                        }
+                        if (!orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out originDepotKey))
+                        {
+                            _Logger.ErrorFormat("No match found for Origin Depot with identifier {0} in RNA", order.OriginDepotIdentifier);
+                            temp.RequiredRouteOriginEntityKey = 0;
+                        }
+                        else
+                        {
+                            temp.RequiredRouteOriginEntityKey = originDepotKey;
+                        }
+
+                        if (!regionEntityKeyDic.TryGetValue(order.RegionIdentifier, out regionEntityKey[0]))
+                        {
+                            _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", order.RegionIdentifier);
+                            temp.RegionEntityKey = 0;
+                        }
+                        else
+                        {
+                            temp.RegionEntityKey = new long();
+                            temp.RegionEntityKey = regionEntityKey[0];
+                        }
+
+
+                        checkedOrdersList.Add(temp);
+                    }
+
+                    foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
+                    {
+                        var temp = (Order)order;
+                        deleteOrderList.Add(temp);
+                    }
+                    {
+
+
+                        //Retrieve Orders from RNA
+                        rnaOrders = RetrieveModifiedRNAOrders(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime).ToList();
+
+
+                    if (rnaOrders == null) //Orders return null, Add Orders to RNA
+                    {
+
+
+
+                        try
+                        {
+                            List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
+
+                            foreach (Order order in rnaOrders)
+                            {
+                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            }
+
+
+                            SaveResult[] savedOrders = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during saving Orders" + ex.Message);
+                        }
+
+                    }
+
+
+
+                    else if (rnaOrders.Count == 0) //Orders have not been found, Add Orders to RNA
+                    {
+
+
+
+                        try
+                        {
+                            List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
+
+                            foreach (Order order in rnaOrders)
+                            {
+                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            }
+
+
+                            SaveResult[] savedOrders = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during saving Orders" + ex.Message);
+                        }
+                    }
+
+                    else  //Orders have a been found n in RNA
+                    {
+                        // Order Checked List and Returned RNA List
+                        checkedOrdersList.OrderBy(x => x.Identifier);
+                        rnaOrders.OrderBy(x => x.Identifier);
+                        List<Order> deleteOrders = new List<Order>();
+                        
+                       foreach(Order order in rnaOrders)
+                        {
+                            order.
+                        }
+
+                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                        //Geocode Address
+                        try
+                        {
+                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+
+                            if (timeOut)
+                            {
+                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
+                            }
+                            else
+                            {
+                                for (int y = 0; y <= checkedServiceLocationList.Count; y++)
+                                {
+                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
+
+                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
+                                    {
+
+
+                                        for (int j = 0; j <= newAddressGeocodeResult[y].Results.Count(); j++) //for the corresponding GeocodeCandidate for a location
+                                        {
+
+                                            for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                            {
+                                                string accuracyGeo = string.Empty;
+
+
+                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                                {
+                                                    if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                    {
+
+                                                        bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
+
+                                                    }
+                                                }
+
+                                            }
+
+                                        }
+
+
+
+
+
+                                        //Get Best Coordinate
+                                        Coordinate mostAccurateCordinate = new Coordinate();
+                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                        {
+                                            string accuracyGeo = string.Empty;
+                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
+                                            {
+                                                Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                {
+                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+
+
+                                                }
+                                            }
+
+
+                                        }
+
+                                        //Add location to save list with BU entity key
+                                        checkedServiceLocationList[y].Action = ActionType.Add;
+                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                        }
+
+                        //Look for best accuracy for geocode result
+
+
+                    }
+
+
+
+
+
+
+                    //Save servicelocations list to RNA
+                    try
+                    {
+
+                        ServiceLocation[] testData1 = new ServiceLocation[] { saveServiceLocations.First() };
+                        SaveServiceLocations(out errorLevel, out fatalErrorMessage, new ServiceLocation[] { saveServiceLocations.First() });
+
+                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                        {
+                            _Logger.Debug("Fatel Error Occured Saving Service Location Successfully: " + fatalErrorMessage);
+                        }
+                        else
+                        {
+                            _Logger.Debug("Saving Service Location Successfully");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _Logger.Error(ex.Message);
+                        errorRetrieveSLFromStagingTable = true;
+                        errorRetrieveSLFromStagingTableMessage = ex.Message;
+                    }
+                }
+            }
+
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Service Location | " + errorMessage);
+
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error(ex.Message);
+                errorLevel = ErrorLevel.Transient;
+            }
+
+
+
+
+        }
+
         public List<Order> RetrieveOrdersFromStagingTable(Dictionary<string, long> RetrieveDepotsForRegion, string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
         {
 
@@ -2091,7 +2648,7 @@ namespace Averitt_RNA
             try
             {
 
-                retrieveListOrders = DBAccessor.SelectStagedOrders(regionId, staged).ToList();
+                retrieveListOrders = DBAccessor.SelectStagedOrders(regionId).ToList();
 
                 if (retrieveListOrders == null)
                 {
@@ -2256,12 +2813,13 @@ namespace Averitt_RNA
                             Left = new PropertyExpression { Name = "Identifier" },
                             Right = new ValueExpression { Value = identifiers }
                         },
-                        //TODO
+                        
                         PropertyInclusionMode = retrieveIdentifierOnly ? PropertyInclusionMode.AccordingToPropertyOptions : PropertyInclusionMode.All,
                         PropertyOptions = new ServiceLocationPropertyOptions
                         {
                             Identifier = true,
-                            
+                            RegionEntityKeys = true,
+                                                       
                         },
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceLocation)
                     });
@@ -2269,6 +2827,7 @@ namespace Averitt_RNA
                 {
                     _Logger.Error("RetrieveServiceLocations | " + string.Join(" | ", identifiers) + " | Failed with a null result.");
                     errorLevel = ErrorLevel.Transient;
+                    serviceLocations = retrievalResults.Items.Cast<ServiceLocation>().ToArray();
                 }
                 else
                 {
@@ -2505,6 +3064,7 @@ namespace Averitt_RNA
             SaveResult[] saveResults = null;
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
+           
             try
             {
                 saveResults = _RoutingServiceClient.Save(
@@ -2514,28 +3074,28 @@ namespace Averitt_RNA
                     new SaveOptions
                     {
                         //TODO
-                        InclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                        PropertyOptions = new ServiceLocationPropertyOptions
-                        {
-                            Address = true,
-                            BusinessUnitEntityKey = true,
-                            Coordinate = true,
-                            DayOfWeekFlags_DeliveryDays = true,
-                            Description = true,
-                            GeocodeAccuracy_GeocodeAccuracy = true,
-                            GeocodeMethod_GeocodeMethod = true,
-                            Identifier = true,
-                            PhoneNumber = true,
-                            RegionEntityKeys = true,
-                            ServiceTimeTypeEntityKey = true,
-                            StandardInstructions = true,
-                            StandingDeliveryQuantities = true,
-                            StandingPickupQuantities = true,
-                            TimeWindowTypeEntityKey = true,
-                            VisibleInAllRegions = true,
-                            WorldTimeZone_TimeZone = true,
-                            
-                        }
+                        InclusionMode = PropertyInclusionMode.All, ReturnSavedItems = true
+                        //PropertyOptions = new ServiceLocationPropertyOptions
+                        //{
+                        //    BusinessUnitEntityKey = true,
+                        //    CreatedInRegionEntityKey = true,
+                        //    RegionEntityKeys = true,
+                        //    Address = true,
+                        //    Coordinate = true,
+                        //    Description = true,
+                        //    GeocodeAccuracy_GeocodeAccuracy = true,
+                        //    Identifier = true,
+                        //    PhoneNumber = true,
+                        //    WorldTimeZone_TimeZone = true,
+                        //    Priority = true,
+                        //    ServiceTimeTypeEntityKey = true,
+                        //    TimeWindowTypeEntityKey = true,
+
+                           
+
+
+
+                        // }
                     });
                 if (saveResults == null)
                 {
@@ -2894,6 +3454,46 @@ namespace Averitt_RNA
             }
             return null;
         }
+
+        public GeocodeResult[] Geocode2(
+            Address[] addresses)
+        {
+
+            Console.WriteLine("Begin Geocode process.");
+
+            GeocodeResult[] geocodeResults = _MappingServiceClient.Geocode(
+                MainService.SessionHeader,
+                 _RegionContext,
+                new GeocodeCriteria
+                {
+                    NamedPlaces = addresses.Select(address => new NamedPlace { PlaceAddress = address }).ToArray()
+                },
+                new GeocodeOptions
+                {
+                    NetworkArcCandidatePropertyInclusionMode = PropertyInclusionMode.All,
+                    NetworkPOICandidatePropertyInclusionMode = PropertyInclusionMode.All,
+                    NetworkPointAddressCandidatePropertyInclusionMode = PropertyInclusionMode.All
+                });
+
+            foreach (GeocodeResult geocodeResult in geocodeResults)
+            {
+                if (geocodeResult.Results == null || geocodeResult.Results.Length == 0)
+                {
+                    throw new Exception("Geocode failed.");
+                }
+                else
+                {
+                    foreach (GeocodeCandidate geocodeCandidate in geocodeResult.Results)
+                    {
+                        Console.WriteLine("Geocode Candidate: " + geocodeCandidate.Coordinate.Latitude + "," + geocodeCandidate.Coordinate.Longitude + " | " + geocodeCandidate.Score + " | " + geocodeCandidate.GeocodeAccuracy_Quality);
+                    }
+                }
+            }
+
+            return geocodeResults;
+
+        }
+
 
 
         #endregion

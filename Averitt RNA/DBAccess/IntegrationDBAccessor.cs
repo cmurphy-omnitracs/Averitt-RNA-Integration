@@ -24,14 +24,14 @@ namespace Averitt_RNA.DBAccess
             _Logger = logger;
         }
 
-        public List<StagedOrderRecord> SelectStagedOrders(string regionID, string staged)
+        public List<StagedOrderRecord> SelectStagedOrders(string regionID)
         {
             List<StagedOrderRecord> stagedOrderRecordList = null;
             try
             {
                 stagedOrderRecordList =
                     GetList(
-                        SQLStrings.SELECT_STAGED_ORDERS(regionID, staged),
+                        SQLStrings.SELECT_STAGED_ORDERS(regionID),
                         new StagedOrderRecord(),
                         "Select Staged Orders (" + regionID + ")"
                     ).Cast<StagedOrderRecord>().ToList();
@@ -201,7 +201,7 @@ namespace Averitt_RNA.DBAccess
         //}
 
 
-        public void UpdateServiceLocationStatus(string regionID, string serviceLocationID, string staged, string error, string status,
+        public void UpdateServiceLocationStatus(string regionID, string serviceLocationID, string error, string status,
             out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
@@ -211,7 +211,7 @@ namespace Averitt_RNA.DBAccess
                 //Edit this 
                
                 ExecuteNonQuery(
-                    SQLStrings.UPDATE_STAGED_SERVICE_LOCATION_STATUS(regionID, serviceLocationID,  staged, error, status),
+                    SQLStrings.UPDATE_STAGED_SERVICE_LOCATION_STATUS(regionID, serviceLocationID, error, status),
                      "Update  Service Location " + serviceLocationID + " status from New to Completed");
             }
             catch (DatabaseException ex)
@@ -308,6 +308,46 @@ namespace Averitt_RNA.DBAccess
                 _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
             }
             return stagedOrderRecords;
+        }
+
+        public void DeleteDuplicatedServiceLocation(out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_DUPLICATE_SERVICE_LOCATIONS(),
+                     "Delete Duplicate Service Locations from STAGED_SERVICE_LOCATION Table");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public void DeleteDuplicatedOrders(out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_DUPLICATE_ORDERS(),
+                     "Delete Duplicate ORDERS from STAGED_ORDERS Table");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
         }
 
         #endregion

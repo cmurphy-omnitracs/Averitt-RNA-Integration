@@ -96,6 +96,7 @@
       <DependentUpon>Reference.svcmap</DependentUpon>
     </Compile>
     <Compile Include="ApexConsumer.cs" />
+    <Compile Include="Testdata.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

@@ -9,14 +9,14 @@ namespace Averitt_RNA.DBAccess
 
         //GET STAGED ORDERS
         public static string SELECT_STAGED_ORDERS(
-            string regionID, string Staged)
+            string regionID)
         {
             return string.Format(@"
                 SELECT *
                 FROM  [STAGED_ORDERS]
                 WHERE [RegionIdentifier] = '{0}'
-                And [Staged] = '{1}'",
-                regionID, Staged);
+               ",
+                regionID);
         }
 
         //GET STAGED SERVICE LOCATIONS
@@ -72,14 +72,14 @@ namespace Averitt_RNA.DBAccess
                 ", regionID, serviceLocationID, staged);
         }
 
-        public static string UPDATE_STAGED_SERVICE_LOCATION_STATUS(string regionID, string serviceLocationID, string staged, string error, string status)
+        public static string UPDATE_STAGED_SERVICE_LOCATION_STATUS(string regionID, string serviceLocationID, string error, string status)
         {
             return string.Format(@"
                
                 UPDATE STAGED_SERVICE_LOCATIONS
                 SET [Status] = '{0}'
-                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}' AND Staged =  CONVERT(datetime2,'{4}')
-                ", status, error, regionID, serviceLocationID, staged);
+                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}')
+                ", status, error, regionID, serviceLocationID);
         }
 
         public static string UPDATE_STAGED_SERVICE_LOCATION_ERROR(string regionID, string serviceLocationID, string staged, string error, string status)
@@ -170,6 +170,35 @@ namespace Averitt_RNA.DBAccess
                 FROM STAGED_ROUTES
                 WHERE [Status] = '{0}'",
                 status);
+        }
+
+        public static string DELETE_DUPLICATE_SERVICE_LOCATIONS()
+        {
+            return string.Format(@"
+                WITH CTE AS(
+                SELECT  RegionIdentifier, ServiceLocationIdentifier, Description, AddressLine1, AddressLine2, City, 
+                State, PostalCode, WorldTimeZone, DeliveryDays, PhoneNumber, ServiceTimeTypeIdentifier, ServiceWindowTypeIdentifier, [Staged], [Error], [Status], 
+                RN = ROW_NUMBER()OVER(PARTITION BY  RegionIdentifier, ServiceLocationIdentifier, Description, AddressLine1, AddressLine2, City, 
+                State, PostalCode, WorldTimeZone, DeliveryDays, PhoneNumber, ServiceTimeTypeIdentifier, ServiceWindowTypeIdentifier ORDER BY RegionIdentifier)
+                FROM STAGED_SERVICE_LOCATIONS
+                )
+                DELETE FROM CTE WHERE RN > 1");
+        }
+
+        public static string DELETE_DUPLICATE_ORDERS()
+        {
+            return string.Format(@"
+                WITH CTE AS(
+                SELECT  RegionIdentifier, OrderIdentifier, ServiceLocationIdentifier, BeginDate, QuantitySize1, QuantitySize2, QuantitySize3, 
+                PreferredRouteIdentifier, OriginDepotIdentifier, OrderClassIdentifier, SpecialInstructions, ServiceWindowOverride1Start, ServiceWindowOverride1End, ServiceWindowOverride2Start, 
+                ServiceWindowOverride2End, LiftgateOnly, GuaranteedDelivery, Avail, [Delete], [Staged], [Error], [Status], 
+                RN = ROW_NUMBER()OVER(PARTITION BY  RegionIdentifier, OrderIdentifier, ServiceLocationIdentifier, BeginDate, 
+                QuantitySize1, QuantitySize2, QuantitySize3, PreferredRouteIdentifier, OriginDepotIdentifier, OrderClassIdentifier, 
+                SpecialInstructions, ServiceWindowOverride1Start, ServiceWindowOverride1End, ServiceWindowOverride2Start, ServiceWindowOverride2End, LiftgateOnly, GuaranteedDelivery, 
+                Avail, [Delete], [Staged], [Error], [Status] ORDER BY RegionIdentifier)
+                FROM STAGED_ORDERS
+                )
+                DELETE FROM CTE WHERE RN > 1");
         }
     }
 

@@ -19,6 +19,10 @@ namespace Averitt_RNA
         private static DictCache dictCache = new DictCache();
         private static CacheHelper cacheHelper = new CacheHelper();
 
+        public static DateTime lastSuccessfulRunTime = new DateTime();
+        
+
+
         public RegionProcessor(Region region) : base(MethodBase.GetCurrentMethod().DeclaringType, region.Identifier)
         {
             _Region = region;
@@ -39,7 +43,21 @@ namespace Averitt_RNA
                 string errorMessage = string.Empty;
                 string fatalErrorMessage = string.Empty;
                 bool timeOut = false;
-                Logger.Debug("Start Retrieving");
+               
+                string successfullRunCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), String.Format("{0}-SuccessfulRunTimeCache.json", _Region.Identifier));
+                
+                //Get last successfull Rune Time
+                Logger.Info("Retrieve Last Successful Run Time");
+                if (!File.Exists(successfullRunCacheFile))
+                {
+                    Logger.Info("No run time cache file exists");
+                    WriteSuccessfullRunTimeCache(successfullRunCacheFile);
+                } else
+                {
+                    LoadRunTimeCache(successfullRunCacheFile);
+                }
+
+                Logger.Debug("Start Retrieving Region Cache Files");
 
                 //Write cache file if it doesn't exist or if it needs to get refreshed
                 if (((DateTime.Now.Minute % Config.DictServiceTimeRefresh) == 0) || !File.Exists(MainService.dictCacheFile))
@@ -66,13 +84,43 @@ namespace Averitt_RNA
                 {
 
                     //Load Service Locations from Database and save them to RNA
-                    LoadDictCachedData();
 
+                    try
+                    {
+                        Logger.Debug("Starting Loading of Dictionaries");
+                        LoadDictCachedData();
+                        Logger.Debug("Loading Dictionaries Completed Successfully");
+                    }
+
+
+                    catch (Exception ex)
+                    {
+                        Logger.ErrorFormat("Error Loading or Writing Dictionary Cache File: {0}", ex.Message);
+                    }
+                    
+                }
+
+                try
+                {
+                    //Region Processing
+                    Logger.Debug("Start Retrieving Region Processing Files");
+                    //Service location Processing
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                         _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+                    //Orders Processing
+                   // _ApexConsumer.(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
+                  //     _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+                    //Routes Processing
 
 
+                    Logger.Debug("Retrieving Region Processing Completed Successfully");
+                    WriteSuccessfullRunTimeCache(successfullRunCacheFile);
+                } catch(Exception ex)
+                {
+                    Logger.ErrorFormat("Error Processing Region: {0}", ex.Message);
                 }
+
+               
             }
             else
             {
@@ -119,7 +167,7 @@ namespace Averitt_RNA
             }
         }
 
-        public void LoadDictCachedData()
+        private void LoadDictCachedData()
         {
             if (!File.Exists(MainService.dictCacheFile))
             {
@@ -144,6 +192,70 @@ namespace Averitt_RNA
                 }
             }
         }
+
+
+        private void WriteSuccessfullRunTimeCache(string filename)
+        {
+
+
+            
+            string errorMessage = string.Empty;
+
+
+            Logger.InfoFormat("Writing Timestamp of Lasts Successful processing for region {1} Cache file to {0}", filename, _Region.Identifier);
+            try
+            {
+                   
+
+
+                using (StreamWriter writer = new StreamWriter(filename, append: false))
+                {
+                    Newtonsoft.Json.JsonSerializerSettings settings = new Newtonsoft.Json.JsonSerializerSettings
+                    {
+                        PreserveReferencesHandling = Newtonsoft.Json.PreserveReferencesHandling.None,
+                        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+                    };
+
+                    string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(DateTime.Now, Newtonsoft.Json.Formatting.None, settings);
+
+                    writer.Write(jsonData);
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                Logger.ErrorFormat("Error writing Successful Runtime cache file: {0}", ex.Message);
+            }
+        }
+
+        private void LoadRunTimeCache(string filename)
+        {
+            if (!File.Exists(filename))
+            {
+                Logger.Info("No Run Time cache file exists");
+            }
+            else
+            {
+                Logger.InfoFormat("Loading cache file from {0}", filename);
+                try
+                {
+                    string jsonData = File.ReadAllText(filename);
+                    string temp = Newtonsoft.Json.JsonConvert.DeserializeObject<string>(jsonData);
+                    DateTime temp2 = new DateTime();
+                    if (temp != null && DateTime.TryParse(temp, out temp2))
+                    {
+                        lastSuccessfulRunTime = temp2;
+                        Logger.Debug("Run Time successfully loaded from " + filename);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.ErrorFormat("Error opening run time cache file: {0}", ex.Message);
+                }
+            }
+        }
+
 
 
     }
