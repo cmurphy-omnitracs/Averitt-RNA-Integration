@@ -44,6 +44,7 @@ namespace Averitt_RNA
 
                 try
                 {
+                    
                     DeleteExpiredOrders(out errorCaught, out errorMessage);
                     DeleteExpiredServiceLocations(out errorCaught, out errorMessage);
                     DeleteExpiredRoutes(out errorCaught, out errorMessage);
@@ -89,7 +90,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredOrder(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Status, out errorMessage, out errorCaught);
+                                record.Status,record.Staged, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
@@ -113,7 +114,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredOrder(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Status, out errorMessage, out errorCaught);
+                                record.Status, record.Staged , out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
@@ -225,7 +226,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedRoute(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Status, out errorMessage, out errorCaught);
+                                record.Status, record.Staged, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {
@@ -249,7 +250,7 @@ namespace Averitt_RNA
                         if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedRoute(record.RegionIdentifier, record.OrderIdentifier,
-                                record.Status, out errorMessage, out errorCaught);
+                                record.Status, record.Staged, out errorMessage, out errorCaught);
 
                             if (errorCaught)
                             {

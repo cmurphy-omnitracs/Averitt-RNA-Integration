@@ -49,19 +49,19 @@ namespace Averitt_RNA.DBAccess
             return string.Format(@"
                 SELECT *
                 FROM  [STAGED_SERVICE_LOCATIONS] 
-                WHERE [Stagus] = '{0}'",
+                WHERE [Status] = '{0}'",
                 status);
         }
 
         //INSERT STAGED ROUTES
         public static string INSERT_STAGED_ROUTES(
-                    string regionID, string orderId, string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
+                    string regionID,  string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
         {
             return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
+                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
                 VALUES
-                ('{0}', '{1}', '{2}', CONVERT(datetime2,'{3}'), '{4}', {5}, CONVERT(datetime2,'{6}'), '{7}', '{8}')", regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+                ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', {4}, CONVERT(datetime2,'{5}'), '{6}', '{7}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
         }
 
 
@@ -139,27 +139,30 @@ namespace Averitt_RNA.DBAccess
         }
 
         public static string DELETE_EXPIRED_STAGED_ROUTES(
-                  string regionID, string status)
+                  string regionID, string status, string staged, string orderId)
         {
             return string.Format(@"
                 DELETE FROM STAGED_ROUTES
-                WHERE RegionIdentifier = '{0}' AND [Status] ='{1}')
-                ", regionID, status);
+                WHERE RegionIdentifier = '{0}' AND [Status] ='{1}'  AND Staged = CAST('{2}' AS datetime2(7)) AND OrderIdentifier = '{3}'
+                ", regionID, status, staged, orderId);
         }
 
-        public static string DELETE_EXPIRED_STAGED_ORDERS(
-                 string status, string regionID)
+        public static string DELETE_EXPIRED_STAGED_ORDERS(string regionID,
+                  string orderId, string staged, string status)
         {
+            
             return string.Format(@"
                 DELETE FROM STAGED_ORDERS
-                WHERE [Status] = '{0}' AND RegionIdentifier = '{1}
-                ", status, regionID);
+                WHERE [Status] = '{0}' AND RegionIdentifier = '{1}' AND OrderIdentifier = '{2}' AND Staged = CAST('{3}' AS datetime2(7)) 
+                ", status, regionID, orderId, staged);
         }
 
         public static string SELECT_ALL_STAGED_ORDERS_STATUS(string status)
         {
             return string.Format(@"
-                SELECT *
+                SELECT[RegionIdentifier], [OrderIdentifier], [ServiceLocationIdentifier], [BeginDate], [QuantitySize1], [QuantitySize2], [QuantitySize3], [PreferredRouteIdentifier], [OriginDepotIdentifier], [OrderClassIdentifier], [SpecialInstructions],
+                CAST([ServiceWindowOverride1Start] AS varchar) as ServiceWindowOverride1Start , CAST([ServiceWindowOverride1End] AS VARCHAR) as ServiceWindowOverride1End, CAST([ServiceWindowOverride2Start] AS VARCHAR) as ServiceWindowOverride2Start, CAST([ServiceWindowOverride2End] AS VARCHAR) as ServiceWindowOverride2End, 
+                [LiftgateOnly], [GuarenteedDelivery] AS GuarenteedDelivery, [Avail], [Delete], [Staged], [Error], [Status]
                 FROM STAGED_ORDERS
                 WHERE [Status] = '{0}'",
                 status);

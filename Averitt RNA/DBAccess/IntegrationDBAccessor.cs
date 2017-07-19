@@ -52,7 +52,7 @@ namespace Averitt_RNA.DBAccess
                 stagedRouteRecordList =
                     GetList(
                         SQLStrings.SELECT_ALL_STAGED_ROUTES_STATUS(status),
-                        new StagedOrderRecord(),
+                        new StagedRouteRecord(),
                         "Select Staged routes (" + status + ")"
                     ).Cast<StagedRouteRecord>().ToList();
             }
@@ -144,13 +144,13 @@ namespace Averitt_RNA.DBAccess
             return stagedStagedServiceLocationList;
         }
 
-        public void InsertStagedRoute(string regionID, string orderId, string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
+        public void InsertStagedRoute(string regionID,  string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
         {
            
             try
             {
                 ExecuteNonQuery(
-                    SQLStrings.INSERT_STAGED_ROUTES(regionID, orderId, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status),
+                    SQLStrings.INSERT_STAGED_ROUTES(regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status),
                      "Insert Route " + routeId + " into Staged Route table for Region " + regionID);
             }
             catch (DatabaseException ex)
@@ -244,7 +244,7 @@ namespace Averitt_RNA.DBAccess
 
         }
 
-        public void DeleteExpiredOrder(string regionID, string orderId, string status, out string databaseError, out bool databaseErrorCaught)
+        public void DeleteExpiredOrder(string regionID, string orderId, string status, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
@@ -252,7 +252,7 @@ namespace Averitt_RNA.DBAccess
             {
                 //Edit this 
                 ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_ORDERS(regionID, status),
+                    SQLStrings.DELETE_EXPIRED_STAGED_ORDERS(regionID, orderId, staged, status),
                      "Delete expired Order" + orderId + " from STAGE_ORDER Table");
             }
             catch (DatabaseException ex)
@@ -264,7 +264,7 @@ namespace Averitt_RNA.DBAccess
 
         }
 
-        public void DeleteExpiredStagedRoute(string regionID, string orderId, string status, out string databaseError, out bool databaseErrorCaught)
+        public void DeleteExpiredStagedRoute(string regionID, string orderId, string status, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
@@ -272,7 +272,7 @@ namespace Averitt_RNA.DBAccess
             {
                 //Edit this 
                 ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, status),
+                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, status, staged, orderId),
                      "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
             }
             catch (DatabaseException ex)
@@ -315,9 +315,9 @@ namespace Averitt_RNA.DBAccess
 
                 stagedOrderRecords =
                    GetList(
-                       SQLStrings.SELECT_ALL_STAGED_SERVICE_LOCATIONS(status),
-                       new StagedServiceLocationRecord(),
-                       "Select all staged orders based on Status: " + status + " from STAGED_SERVICE_LOCATION Table"
+                       SQLStrings.SELECT_ALL_STAGED_ORDERS_STATUS(status),
+                       new StagedOrderRecord(),
+                       "Select all staged orders based on Status: " + status + " from STAGED_ORDERS Table"
                    ).Cast<StagedOrderRecord>().ToList();
 
                 

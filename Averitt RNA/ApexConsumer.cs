@@ -1454,6 +1454,67 @@ namespace Averitt_RNA
             return notifications;
         }
 
+        public void RetrieveRNARoutesAndOrdersWriteThemToStagingTable(out bool errorRWRoutes, out string errorRWRoutesMessage)
+        {
+            errorRWRoutes = false;
+            errorRWRoutesMessage = string.Empty;
+            ErrorLevel errorLevel = ErrorLevel.None;
+            string fatalErrorMessage = string.Empty;
+            List<Route> modifiedRoutes = new List<Route>();
+            List<Order> unassignedOrders = new List<Order>();
+            DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+
+            try
+            {
+                //Retrieve Routes Modified by RNA
+                _Logger.Debug("Start Retrieving Modified Routes");
+                modifiedRoutes = RetrieveModifiedRNARoute(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
+                if(errorLevel == ErrorLevel.None)
+                {
+                    _Logger.Debug("Completed Retrieving Modified Routes");
+                    _Logger.Debug("Start Retrieving Unassigned Orders");
+                    unassignedOrders = RetrieveRNAUnassignedOrderGroups(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
+
+                    if (errorLevel == ErrorLevel.None)
+                    {
+                        _Logger.Debug("Completed Retrieving Unassigned Orders");
+
+                        //Write Routes and Unassigned Orders to Routing Table
+                        foreach(Route route in modifiedRoutes)
+                        {
+                            DBAccessor.InsertStagedRoute(_Region.Identifier, route.Identifier, route.StartTime.ToString(), route.Description, null, DateTime.Now.ToString(), "", "COMPLETE");
+
+                        }
+
+                        foreach (Order order in unassignedOrders)
+                        {
+                            DBAccessor.InsertStagedUnassignedOrders(_Region.Identifier, order.Identifier, DateTime.Now.ToString(), "", "COMPLETE", out errorRWRoutesMessage, out errorRWRoutes);
+
+                        }
+
+
+
+                    }
+                    else if (errorLevel == ErrorLevel.Fatal)
+                    {
+                        _Logger.Error(fatalErrorMessage);
+                    }
+
+                } else if(errorLevel == ErrorLevel.Fatal)
+                {
+                    _Logger.Error(fatalErrorMessage);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Error Retrieving Routes from RNA and Wrting Routes to Staging Table | " + ex.Message);
+                errorRWRoutes = true;
+                errorRWRoutesMessage = "Error Retrieving Routes from RNA and Wrting Routes to Staging Table | " + ex.Message;
+            }
+
+        }
+
         public List<Route> RetrieveModifiedRNARoute( out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
         {
             List<Route> routes = null;
@@ -1468,15 +1529,14 @@ namespace Averitt_RNA
                     _RegionContext,
                     new RetrievalOptions
                     {
-                        Expression = new NotExpression
-                        {
-                            Expression = new EqualToExpression
+                      
+                            Expression = new GreaterThanExpression
                             {
                                 Left = new PropertyExpression { Name = "ModifiedTime" },
                                 Right = new ValueExpression { Value = lastCycleTime }
-                            }
+                            },
                                                         
-                        },
+                        
                         PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         PropertyOptions = new RoutePropertyOptions
                         {
@@ -1537,6 +1597,144 @@ namespace Averitt_RNA
                 errorLevel = ErrorLevel.Transient;
             }
             return routes;
+        }
+
+        public List<Order> RetrieveRNAUnassignedOrderGroups(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
+        {
+            List<Order> unassignedOrders = null;
+
+
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+                        
+                            Expression = new GreaterThanExpression
+                            {
+                                Left = new PropertyExpression { Name = "ModifiedTime" },
+                                Right = new ValueExpression { Value = lastCycleTime }
+                            },
+
+                        
+                        PropertyInclusionMode = PropertyInclusionMode.All,
+                        
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.UnassignedOrderGroup)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Unassigned Order | Modified after/before " + lastCycleTime.ToLongDateString() + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Unassigned Order  does not exist.";
+                    _Logger.Error("Retrieve Unassigned Order  | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    unassignedOrders = retrievalResults.Items.Cast<Order>().ToList();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Unassigned Order  | Modified after/before " + lastCycleTime.ToLongDateString() + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Unassigned Order  | Modified after/before" + lastCycleTime.ToLongDateString(), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return unassignedOrders;
+        }
+
+        public List<Order> RetrieveCSVOrdersFromRNA(out ErrorLevel errorLevel, out string fatalErrorMessage, string[] identifiers)
+        {
+            List<Order> orders = null;
+
+
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+                       
+                            Expression = new InExpression
+                            {
+                                Left = new PropertyExpression { Name = "Identifier" },
+                                Right = new ValueExpression { Value = identifiers }
+                            },
+
+                        
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new OrderPropertyOptions
+                        {
+                            Identifier = true,
+                            RegionEntityKey = true,
+
+
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Orders | Matching Dummy Pick Up Orders " + identifiers.ToString() + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Orders doe not exist.";
+                    _Logger.Error("Retrieve Orders |  Matching Dummy Pick Up Orders " + identifiers.ToString() + " | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                }
+                else
+                {
+                    orders = retrievalResults.Items.Cast<Order>().ToList();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Orders |  Matching Dummy Pick Up Orders " + identifiers.ToString() + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Orders |  Matching Dummy Pick Up Orders " + identifiers.ToString() , ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return orders;
         }
 
         public List<Order> RetrieveModifiedRNAOrders(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
@@ -1629,7 +1827,7 @@ namespace Averitt_RNA
                     string routeDesc = null;
                     string routeStage= DateTime.UtcNow.ToString(dateTime2Format);
                     string routeError= string.Empty;
-                    string routeStatus = "NEW";
+                    string routeStatus = "COMPLETE";
 
                     if (route.StartTime.Value != null)
                     {
@@ -1673,7 +1871,7 @@ namespace Averitt_RNA
                                 foreach (StopAction order in thisStop.Actions)
                                 {
                                    
-                                    DBAccessor.InsertStagedRoute(regiondId, order.OrderIdentifier, route.Identifier, routeStartTime, routeDesc, stopSequence, routeStage, routeError, routeStatus);
+                                    //DBAccessor.InsertStagedRoute(regiondId, order.OrderIdentifier, route.Identifier, routeStartTime, routeDesc, stopSequence, routeStage, routeError, routeStatus);
                                     _Logger.DebugFormat("Route {0} Sucessfully written into STAGE_ROUTE table", route.Identifier);
 
                                 }
@@ -2594,7 +2792,12 @@ namespace Averitt_RNA
                         if (errorLevel == ErrorLevel.None)
                         {
                             _Logger.Debug("Retreived DailyRoutingSessions Successfully");
-                            saveRoutingSession.Add(temp);
+                            //Create list of daily routing session for tomorrow
+                            foreach(DailyRoutingSession session in tomorrowsRoutingSession)
+                            {
+                                saveRoutingSession.Add(session);
+                            }
+                          
                             //List depots that don't have routing session
                             foreach (String origindepot in originDepotIdentifiers)
                             {
@@ -2764,22 +2967,6 @@ namespace Averitt_RNA
                             }
 
 
-                            SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
-
-                            foreach(SaveResult result in savedOrdersResult)
-                            {
-                                var tempOrder = (Order)result.Object;
-                                if(result.Error.ValidationFailures != null)
-                                {
-                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
-                                } else if (result.Error !=null)
-                                {
-                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-                                } else
-                                {
-                                    _Logger.DebugFormat("Successfully Saved Order {0} to RNA", tempOrder.Identifier);
-                                }
-                            }
 
                         }
                         catch (Exception ex)
@@ -2788,8 +2975,6 @@ namespace Averitt_RNA
                         }
 
                     }
-
-
 
                     else if (rnaOrders.Count == 0) //Orders have not been found, Add Orders to RNA
                     {
@@ -3097,8 +3282,445 @@ namespace Averitt_RNA
             } 
             return null;
         }
-       
-        public List<Order> RetrieveDummyOrdersFromCSV (Dictionary<string, long> originDict, Dictionary<string, long> orderClassDict, string regionId, string staged, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
+
+        public void RetrieveDummyOrdersAndSave(Dictionary<string, long> RetrieveDepotsForRegionDict, Dictionary<string, long> RetrieveOrderClassDict, 
+            string regionId,  out bool errorRetrieveOrdersFromCSV, out string errorRetrieveOrdersFromCSVMessage)
+        {
+
+            errorRetrieveOrdersFromCSV = false;
+            errorRetrieveOrdersFromCSVMessage = string.Empty;
+            List<DBAccess.Records.StagedOrderRecord> retrieveListOrders = new List<DBAccess.Records.StagedOrderRecord>();
+            DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+            List<Order> dummyOrdersFromCSV = new List<Order>();
+            ErrorLevel errorLevel = ErrorLevel.None;
+            List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
+            string fatalErrorMessage = string.Empty;
+            List<Order> rnaOrders = new List<Order>();
+            string[] dummyOrderIDs = new string[] { };
+            
+
+
+
+            try
+            {
+                //Get Dummy Orders
+                dummyOrdersFromCSV = RetrieveDummyOrdersFromCSV(RetrieveDepotsForRegionDict, RetrieveOrderClassDict, regionId, out errorRetrieveOrdersFromCSV, out errorRetrieveOrdersFromCSVMessage);
+                dummyOrderIDs = dummyOrdersFromCSV.Select(x => x.Identifier).ToArray();
+
+                //Get Origin Depot Keys
+                string[] originDepotIdentifiers = dummyOrdersFromCSV.Select(x => RetrieveDepotsForRegionDict.FirstOrDefault(y =>y.Value == x.RequiredRouteOriginEntityKey).Key).ToArray();
+
+                if (errorRetrieveOrdersFromCSV)
+                {
+                    _Logger.Error(errorRetrieveOrdersFromCSVMessage);
+
+                } else
+                {
+
+
+
+                    List<string> sessionsToCreate = new List<string>();
+                    errorLevel = ErrorLevel.None;
+
+                    //Retrieve Tomorrows Routing Session and Create Routing Sessions
+
+                    _Logger.Debug("Start Retrieving DailyRoutingSessions");
+                    DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorLevel, out fatalErrorMessage, DateTime.Now.AddDays(1), originDepotIdentifiers);
+
+                    if (errorLevel == ErrorLevel.None)
+                    {
+                        _Logger.Debug("Retreived DailyRoutingSessions Successfully");
+                        //Create list of daily routing session for tomorrow
+                        foreach (DailyRoutingSession session in tomorrowsRoutingSession)
+                        {
+                            saveRoutingSession.Add(session);
+                        }
+
+                        //List depots that don't have routing session
+                        foreach (String origindepot in originDepotIdentifiers)
+                        {
+                            if (!tomorrowsRoutingSession.Any(x => x.Description == origindepot))
+                            {
+                                sessionsToCreate.Add(origindepot);
+                            }
+
+                        }
+                    }
+                    else if (errorLevel == ErrorLevel.Fatal)
+                    {
+                        _Logger.Error("An error has occured during Retrieving DailyRoutingSession " + fatalErrorMessage);
+                    }
+
+                    //create routing sessions for depots that don't have routing sessions
+
+                    if (sessionsToCreate.Any())
+                    {
+                        try
+                        {
+                            _Logger.DebugFormat(" Start Creating Daily Routing Sessions for Depots");
+                            SaveResult[] newRoutingSessions = SaveDailyRoutingSessions(out errorLevel, out fatalErrorMessage, new DateTime[] { DateTime.Now.AddDays(1) }, sessionsToCreate.ToArray());
+
+                            if (errorLevel == ErrorLevel.None)
+                            {
+
+                                foreach (SaveResult saveResult in newRoutingSessions)
+                                {
+
+
+                                    if (saveResult.Error != null)
+                                    {
+                                        var temp = (DailyRoutingSession)saveResult.Object;
+                                        _Logger.Error("An error has occured while creating session for Depot " + temp.Description + ":" + saveResult.Error.Code + " " + saveResult.Error.Detail);
+                                    }
+                                    else
+                                    {
+                                        var temp = (DailyRoutingSession)saveResult.Object;
+                                        _Logger.Debug("Created Session for session for Depot " + temp.Description);
+                                        saveRoutingSession.Add(temp);
+
+                                    }
+                                }
+                                _Logger.DebugFormat(" Creating Daily Routing Sessions for Depots Ended");
+                            }
+                            else if (errorLevel == ErrorLevel.Fatal)
+                            {
+                                _Logger.Error("A Fatal Error has occured while creating session" + fatalErrorMessage);
+                            }
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during Creating Routing Sessions" + ex.Message);
+                        }
+                    }
+
+                    //Get matching Orders from RNA
+
+                    try
+                    {
+                        _Logger.Debug("Retreiving Modifed Orders Since " + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
+
+                        rnaOrders = RetrieveModifiedRNAOrders(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime).ToList();
+
+                        if (errorLevel == ErrorLevel.None && !rnaOrders.Any())
+                        {
+                            _Logger.DebugFormat(" No Orders Modified Since last execution time");
+                        }
+                        else if (errorLevel == ErrorLevel.Fatal)
+                        {
+                            _Logger.Error(fatalErrorMessage);
+                        }
+
+
+                    }
+                    catch (Exception ex)
+                    {
+                        _Logger.Error("An error has occured retrieving modified orders" + ex.Message);
+                    }
+
+                    List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
+
+                    //Check if Matching orders Exist in RNA
+
+                    rnaOrders = RetrieveCSVOrdersFromRNA(out errorLevel, out fatalErrorMessage, dummyOrderIDs);
+                  
+
+                    if (rnaOrders == null) //Orders return null, Get service location and Add Dummy Orders to RNA
+                    {
+                        List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
+
+
+                        try
+                        {
+
+                            try//Get Region Service Locations
+                            {
+                                long[] regionEntityKey = new long[] { _Region.EntityKey };
+                                _Logger.Debug("Start Retrieved Service Locations for Orders");
+                                serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+                                if (errorLevel == ErrorLevel.None)
+                                {
+                                    _Logger.Debug("Successfully Retrieved Service Locations");
+
+                                }
+                                else if (errorLevel == ErrorLevel.Fatal)
+                                {
+                                    _Logger.Error("Fatal Error Retrieving Service Locations for Orders" + fatalErrorMessage);
+                                }
+                                else
+                                {
+                                    _Logger.Error("Error Retrieving Service Locations for Orders");
+                                }
+
+                            }
+                            catch (Exception ex)
+                            {
+                                _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
+                            }
+
+                            List<Order> ordersToSaveInRNA = new List<Order>();
+                            foreach (Order order in dummyOrdersFromCSV) //Find Order with Matching service Location and convert them to Order Spec
+                            {
+                                Task orderTask = new Task();
+                                ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.Tasks[0].LocationIdentifier.ToUpper());
+                               
+                                if (tempLocation != null) // order service location found in RNA service locations
+                                {
+                                    order.Tasks[0].TaskType_Type = "Pickup";
+                                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == order.RequiredRouteOriginEntityKey).Key;
+
+                                    //Add session entity key to order for routings session with matching depots
+                                    foreach (DailyRoutingSession session in saveRoutingSession)
+                                    {
+                                        if (originDepotForOrder == session.Description)
+                                        {
+                                            order.SessionEntityKey = session.EntityKey;
+                                        }
+                                    }
+
+
+
+                                }
+                                else
+                                {
+                                    _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.Identifier, order.Tasks[0].LocationIdentifier);
+                                }
+                                
+
+
+
+                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            }
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during saving Orders" + ex.Message);
+                        }
+
+                    }
+
+                    else if (rnaOrders.Count == 0) //Orders have not been found that match dummy pickup orders, Add Orders to RNA
+                    {
+
+
+
+                        List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
+
+
+
+                        try
+                        {
+
+                            try//Get Region Service Locations
+                            {
+                                long[] regionEntityKey = new long[] { _Region.EntityKey };
+                                _Logger.Debug("Start Retrieved Service Locations for Orders");
+                                serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+                                if (errorLevel == ErrorLevel.None)
+                                {
+                                    _Logger.Debug("Successfully Retrieved Service Locations");
+
+                                }
+                                else if (errorLevel == ErrorLevel.Fatal)
+                                {
+                                    _Logger.Error("Fatal Error Retrieving Service Locations for Orders" + fatalErrorMessage);
+                                }
+                                else
+                                {
+                                    _Logger.Error("Error Retrieving Service Locations for Orders");
+                                }
+
+                            }
+                            catch (Exception ex)
+                            {
+                                _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
+                            }
+
+                            List<Order> ordersToSaveInRNA = new List<Order>();
+                            foreach (Order order in dummyOrdersFromCSV) //Find Order with Matching service Location and convert them to Order Spec
+                            {
+                                Task orderTask = new Task();
+                                ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.Tasks[0].LocationIdentifier.ToUpper());
+
+                                if (tempLocation != null) // order service location found in RNA service locations
+                                {
+                                    order.Tasks[0].TaskType_Type = "Pickup";
+                                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == order.RequiredRouteOriginEntityKey).Key;
+
+                                    //Add session entity key to order for routings session with matching depots
+                                    foreach (DailyRoutingSession session in saveRoutingSession)
+                                    {
+                                        if (originDepotForOrder == session.Description)
+                                        {
+                                            order.SessionEntityKey = session.EntityKey;
+                                        }
+                                    }
+
+
+
+                                }
+                                else
+                                {
+                                    _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.Identifier, order.Tasks[0].LocationIdentifier);
+                                }
+
+
+
+
+                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            }
+
+
+
+
+                        }
+                        catch (Exception ex)
+                        {
+                            _Logger.Error("An error has occured during saving Orders" + ex.Message);
+                        }
+                    }
+
+                    else  //Orders have a been found in RNA
+                    {
+                        // Order Checked List and Returned RNA List
+                        dummyOrdersFromCSV.OrderBy(x => x.Identifier); // New Orders
+                        rnaOrders.OrderBy(x => x.Identifier); //Orders in RNA
+                        long[] regionEntityKey = new long[] { _Region.EntityKey };
+                        List<Order> updateOrders = new List<Order>(); //Orders to Update in RNA
+                        List<Order> regOrders = new List<Order>(); //Orders to Add to RNA
+                        List<Order> saveOrdersList = new List<Order>();
+                        List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+
+                        foreach (Order rnaOrder in rnaOrders)
+                        {
+                            foreach (Order dummyorder in dummyOrdersFromCSV)
+                            {
+                                if (rnaOrder.Identifier == dummyorder.Identifier) // found matching order in RNA
+                                {
+                                    dummyorder.Action = ActionType.Update;
+                                    if (rnaOrder.Tasks[0].LocationIdentifier != dummyorder.Tasks[0].LocationIdentifier)
+                                    {
+                                        
+                                        dummyorder.Tasks[0].Action = ActionType.Update;
+                                        dummyorder.Tasks[0].TaskType_Type = "Pickup";
+                                      
+                                        
+                                    }
+
+                                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+                                    //Add session entity key to order for routings session with matching depots
+                                    foreach (DailyRoutingSession session in saveRoutingSession)
+                                    {
+                                        if (originDepotForOrder == session.Description)
+                                        {
+                                            dummyorder.SessionEntityKey = session.EntityKey;
+                                        }
+                                    }
+                                    updateOrders.Add(dummyorder);
+
+                                }
+                                else // No matching Order Found. Add location/coordinate to order and save in regOrder List
+                                {
+                                    dummyorder.Action = ActionType.Add;
+                                    dummyorder.Tasks[0].TaskType_Type = "Pickup";
+
+                                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+                                    //Add session entity key to order for routings session with matching depots
+                                    foreach (DailyRoutingSession session in saveRoutingSession)
+                                    {
+                                        if (originDepotForOrder == session.Description)
+                                        {
+                                            dummyorder.SessionEntityKey = session.EntityKey;
+                                        }
+                                    }
+                                    regOrders.Add(dummyorder);
+                                }
+                            }
+                        }
+
+                        //Add Update and Reg orders to a list
+
+                        saveOrdersList = updateOrders.Concat(regOrders).ToList();
+
+                        //Convert Order to OrderSpec
+                        foreach (Order order in saveOrdersList)
+                        {
+
+                            convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                        }
+                    }
+
+                    //Save Dummy Orders to RNA if Matching orders Exist in RNA
+
+                    try
+                    {
+                       
+
+
+                        foreach (OrderSpec order in convertedOrderSpecs)
+                        {
+                            order.RegionEntityKey = _Region.EntityKey;
+                           
+
+                        };
+
+                        SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
+
+
+                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                        {
+                            _Logger.Debug("Fatel Error Occured Saving Dummy Order  : " + fatalErrorMessage);
+                        }
+                        else
+                        {
+
+
+                            foreach (SaveResult result in savedOrdersResult)
+                            {
+                                var tempOrder = (Order)result.Object;
+                                if (result.Error.ValidationFailures != null)
+                                {
+                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
+                                }
+                                else if (result.Error != null)
+                                {
+                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+                                }
+                                else
+                                {
+                                    _Logger.DebugFormat("Successfully Saved Dummy Order  {0} to RNA", tempOrder.Identifier);
+                                }
+                            }
+                            _Logger.Debug("Saving Dummy Order Completed");
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+                        _Logger.Error(ex.Message);
+                        errorRetrieveOrdersFromCSV = true;
+                        errorRetrieveOrdersFromCSVMessage = ex.Message;
+                    }
+
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error(ex.Message);
+            }
+            
+        }
+
+        public List<Order> RetrieveDummyOrdersFromCSV (Dictionary<string, long> originDict, Dictionary<string, long> orderClassDict, string regionId,  out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
         {
 
             errorRetrieveDummyOrdersFromCSV = false;
@@ -3132,6 +3754,8 @@ namespace Averitt_RNA
                             temp.PreferredRouteIdentifier = dummyOrderValue[7];
                             temp.Tasks[0].TaskType_Type = "Pickup";
                             temp.Tasks[0].ServiceWindowOverrides = serviceWindowOverride;
+                            
+                            
                             
 
                             if (originDict.TryGetValue(dummyOrderValue[8], out orderClassEntity))
