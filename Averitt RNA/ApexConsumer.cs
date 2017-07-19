@@ -2304,6 +2304,7 @@ namespace Averitt_RNA
             List<DBAccess.Records.StagedOrderRecord> checkedOrderRecordList = new List<DBAccess.Records.StagedOrderRecord>();
             List<Order> saveOrders = new List<Order>();
             List<Order> rnaOrders = new List<Order>();
+            List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
 
             try
             {
@@ -2593,6 +2594,7 @@ namespace Averitt_RNA
                         if (errorLevel == ErrorLevel.None)
                         {
                             _Logger.Debug("Retreived DailyRoutingSessions Successfully");
+                            saveRoutingSession.Add(temp);
                             //List depots that don't have routing session
                             foreach (String origindepot in originDepotIdentifiers)
                             {
@@ -2622,6 +2624,8 @@ namespace Averitt_RNA
 
                                     foreach (SaveResult saveResult in newRoutingSessions)
                                     {
+                                        
+
                                         if (saveResult.Error != null)
                                         {
                                             var temp = (DailyRoutingSession)saveResult.Object;
@@ -2631,6 +2635,7 @@ namespace Averitt_RNA
                                         {
                                             var temp = (DailyRoutingSession)saveResult.Object;
                                             _Logger.Debug("Created Session for session for Depot " + temp.Description);
+                                            saveRoutingSession.Add(temp);
 
                                         }
                                     }
@@ -2735,6 +2740,14 @@ namespace Averitt_RNA
 
 
                                     };
+                                    foreach (DailyRoutingSession session in saveRoutingSession)
+                                    {
+                                        if (order.OriginDepotIdentifier == session.Description)
+                                        {
+                                            tempOrder.SessionEntityKey = session.EntityKey;
+                                        }
+                                    }
+
 
 
                                 } else
@@ -2892,6 +2905,7 @@ namespace Averitt_RNA
                                             LocationCoordinate = tempLocation.Coordinate,
                                             LocationDescription = tempLocation.Description,
                                              TaskType_Type = "Delivery"
+                                             
                                             }
                                         };
                                         order.Tasks = checkedOrderTask;
@@ -2901,6 +2915,7 @@ namespace Averitt_RNA
                                 else // No matching Order Found. Add location/coordinate to order and save in regOrder List
                                 {
                                     order.Action = ActionType.Add;
+                                    
                                     ServiceLocation tempLocation2 = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == order.Tasks[0].LocationIdentifier); //Find service location that matched order
                                     Task[] checkedOrderTask2 = new Task[]
                                        {
@@ -2927,6 +2942,7 @@ namespace Averitt_RNA
                         //Convert Order to OrderSpec
                         foreach(Order order in saveOrdersList)
                         {
+                            
                             convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
                         }
                     }
@@ -2939,6 +2955,16 @@ namespace Averitt_RNA
                     //Save Orders to RNA
                     try
                     {
+                        DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorLevel, out fatalErrorMessage, DateTime.Now.AddDays(1), originDepotIdentifiers);
+
+
+                        foreach (OrderSpec order in convertedOrderSpecs)
+                        {
+                            order.RegionEntityKey = _Region.EntityKey;
+                            
+                            
+                           
+                        };
 
                         SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
 
@@ -3456,16 +3482,8 @@ namespace Averitt_RNA
                     orderSpecs,
                     new SaveOptions
                     {
-                        InclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                        PropertyOptions = new OrderSpecPropertyOptions
-                        {
-                            BeginDate = true,
-                            CustomProperties = true,
-                            Identifier = true,
-                            ManagedByUserEntityKey = true,
-                            OrderClassEntityKey = true,
-                           
-                        },
+                        IgnoreEntityVersion = true,
+                        InclusionMode = PropertyInclusionMode.All,
                         ReturnSavedItems = true
                        
                     });

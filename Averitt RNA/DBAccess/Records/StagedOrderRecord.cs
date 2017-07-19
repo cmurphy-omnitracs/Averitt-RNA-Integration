@@ -48,13 +48,14 @@ namespace Averitt_RNA.DBAccess.Records
         override public DBAccessUtility.DBRecord Populate(OdbcDataReader reader)
         {
 
-            //string test = reader["GuarenteedDelivery"].ToString();
+            DateTime test = (DateTime)reader["BeginDate"];
+            string beginDate = test.ToString("yyyy-MM-dd");
             return new StagedOrderRecord
             {
                 RegionIdentifier = reader["RegionIdentifier"].ToString(),
                 OrderIdentifier = reader["OrderIdentifier"].ToString(),
                 ServiceLocationIdentifier = reader["ServiceLocationIdentifier"].ToString(),
-                BeginDate = reader["BeginDate"].ToString(),
+                BeginDate = beginDate,
                 QuantitySize1 = reader["QuantitySize1"].ToString(),
                 QuantitySize2 = reader["QuantitySize2"].ToString(),
                 QuantitySize3 = reader["QuantitySize3"].ToString(),
