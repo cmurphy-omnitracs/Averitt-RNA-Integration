@@ -12,7 +12,9 @@ namespace Averitt_RNA.DBAccess
             string regionID)
         {
             return string.Format(@"
-                SELECT *
+                SELECT [RegionIdentifier], [OrderIdentifier], [ServiceLocationIdentifier], [BeginDate], [QuantitySize1], [QuantitySize2], [QuantitySize3], [PreferredRouteIdentifier], [OriginDepotIdentifier], [OrderClassIdentifier], [SpecialInstructions], 
+                CAST([ServiceWindowOverride1Start] AS varchar) as ServiceWindowOverride1Start , CAST([ServiceWindowOverride1End] AS VARCHAR) as ServiceWindowOverride1End, CAST([ServiceWindowOverride2Start] AS VARCHAR) as ServiceWindowOverride2Start, CAST([ServiceWindowOverride2End] AS VARCHAR) as ServiceWindowOverride2End, 
+                [LiftgateOnly], [GuarenteedDelivery] AS GuarenteedDelivery , [Avail], [Delete], [Staged], [Error], [Status] 
                 FROM  [STAGED_ORDERS]
                 WHERE [RegionIdentifier] = '{0}'
                ",
@@ -107,13 +109,13 @@ namespace Averitt_RNA.DBAccess
                 ", status, error, regionID, serviceLocationID, staged, routeDescription, routeStartTime, routeIdentifier, orderIdentifier);
         }
 
-        public static string UPDATE_STAGED_ORDERS_ERROR(string regionID, string orderId, string staged, string error, string status)
+        public static string UPDATE_STAGED_ORDERS_STATUS(string regionID, string orderId, string error, string status)
         {
             return string.Format(@"
                 UPDATE STAGED_ORDERS
                 SET [Status] = '{0}', Error = '{1}'
-                WHERE RegionIdentifier = '{2}' AND OrderIdentifier = '{3}' AND Staged = CONVERT(datetime2,'{4}')
-                ", status, error, regionID, orderId, staged);
+                WHERE RegionIdentifier = '{2}' AND OrderIdentifier = '{3}'
+                ", status, error, regionID, orderId);
         }
 
         public static string UPDATE_STAGED_ROUTES_ERROR(string regionID, string orderId, string staged, string status, string error)
@@ -191,10 +193,10 @@ namespace Averitt_RNA.DBAccess
                 WITH CTE AS(
                 SELECT  RegionIdentifier, OrderIdentifier, ServiceLocationIdentifier, BeginDate, QuantitySize1, QuantitySize2, QuantitySize3, 
                 PreferredRouteIdentifier, OriginDepotIdentifier, OrderClassIdentifier, SpecialInstructions, ServiceWindowOverride1Start, ServiceWindowOverride1End, ServiceWindowOverride2Start, 
-                ServiceWindowOverride2End, LiftgateOnly, GuaranteedDelivery, Avail, [Delete], [Staged], [Error], [Status], 
+                ServiceWindowOverride2End, LiftgateOnly, [GuarenteedDelivery] AS GuarenteedDelivery, Avail, [Delete], [Staged], [Error], [Status],
                 RN = ROW_NUMBER()OVER(PARTITION BY  RegionIdentifier, OrderIdentifier, ServiceLocationIdentifier, BeginDate, 
                 QuantitySize1, QuantitySize2, QuantitySize3, PreferredRouteIdentifier, OriginDepotIdentifier, OrderClassIdentifier, 
-                SpecialInstructions, ServiceWindowOverride1Start, ServiceWindowOverride1End, ServiceWindowOverride2Start, ServiceWindowOverride2End, LiftgateOnly, GuaranteedDelivery, 
+                SpecialInstructions, ServiceWindowOverride1Start, ServiceWindowOverride1End, ServiceWindowOverride2Start, ServiceWindowOverride2End, LiftgateOnly, GuarenteedDelivery, 
                 Avail, [Delete], [Staged], [Error], [Status] ORDER BY RegionIdentifier)
                 FROM STAGED_ORDERS
                 )

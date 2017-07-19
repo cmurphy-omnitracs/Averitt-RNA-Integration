@@ -47,6 +47,8 @@ namespace Averitt_RNA.DBAccess.Records
 
         override public DBAccessUtility.DBRecord Populate(OdbcDataReader reader)
         {
+
+            //string test = reader["GuarenteedDelivery"].ToString();
             return new StagedOrderRecord
             {
                 RegionIdentifier = reader["RegionIdentifier"].ToString(),
@@ -60,12 +62,12 @@ namespace Averitt_RNA.DBAccess.Records
                 OriginDepotIdentifier = reader["OriginDepotIdentifier"].ToString(),
                 OrderClassIdentifier = reader["OrderClassIdentifier"].ToString(),
                 SpecialInstructions = reader["SpecialInstructions"].ToString(),
-                ServiceWindowOverride1Start = reader["ServiceWindowOverride1Start"].ToString(),
-                ServiceWindowOverride1End = reader["ServiceWindowOverride1End"].ToString(),
-                ServiceWindowOverride2Start = reader["ServiceWindowOverride2Start"].ToString(),
-                ServiceWindowOverride2End = reader["ServiceWindowOverride2End"].ToString(),
+                ServiceWindowOverride1Start = (reader["ServiceWindowOverride1Start"]).ToString(),
+                ServiceWindowOverride1End = (reader["ServiceWindowOverride1End"]).ToString(),
+                ServiceWindowOverride2Start = (reader["ServiceWindowOverride2Start"]).ToString(),
+                ServiceWindowOverride2End = (reader["ServiceWindowOverride2End"]).ToString(),
                 LiftgateOnly = reader["LiftgateOnly"].ToString(),
-                GuaranteedDelivery = reader["GuaranteedDelivery"].ToString(),
+                GuaranteedDelivery = reader["GuarenteedDelivery"].ToString(),
                 Avail = reader["Avail"].ToString(),
                 Delete = Convert.ToBoolean(reader["Delete"]),
                 Staged = reader["Staged"].ToString(),
@@ -109,7 +111,7 @@ namespace Averitt_RNA.DBAccess.Records
                 && LiftgateOnly == other.LiftgateOnly
                 && GuaranteedDelivery == other.GuaranteedDelivery
                 && Avail == other.Avail
-                && Convert.ToBoolean(Delete) == Convert.ToBoolean(other.Delete)
+                && (bool)Delete == (bool)other.Delete
                 && Staged == other.Staged
                 && Error == other.Error
                 && Status == other.Status;
@@ -134,42 +136,92 @@ namespace Averitt_RNA.DBAccess.Records
             dict.Add("LiftGateOnly", record.LiftgateOnly);
             dict.Add("GuaranteedDelivery", record.GuaranteedDelivery);
             dict.Add("Avail", record.Avail);
-           
-            TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { };
-            Task[] task = new Task[0];
-            task[0].TaskType_Type = "Delivery";
-           
-              
+
+            TaskServiceWindowOverrideDetail tempServiceWindowOverride = new TaskServiceWindowOverrideDetail();
+            TaskServiceWindowOverrideDetail temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail();
+
+
+
+
             if ((record.ServiceWindowOverride1Start != null && record.ServiceWindowOverride1End != null) && (record.ServiceWindowOverride1Start.Length != 0
                 && record.ServiceWindowOverride1End.Length != 0))
             {
-                serviceWindowOverride[0].DailyTimePeriod.StartTime = record.ServiceWindowOverride1Start;
-                serviceWindowOverride[0].DailyTimePeriod.EndTime = record.ServiceWindowOverride1End;
+                tempServiceWindowOverride = new TaskServiceWindowOverrideDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = record.ServiceWindowOverride1Start, 
+                        EndTime = record.ServiceWindowOverride1End
+                    }
+                };
+                     
+                
+                
+               
                
             } else
             {
-                serviceWindowOverride[0].DailyTimePeriod.StartTime = null;
-                serviceWindowOverride[0].DailyTimePeriod.EndTime = null;
+                tempServiceWindowOverride = new TaskServiceWindowOverrideDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = null,
+                        EndTime = null
+                    }
+                };
 
-            
+
+
             }
             if ((record.ServiceWindowOverride2Start != null && record.ServiceWindowOverride2End != null) && (record.ServiceWindowOverride2Start.Length != 0
                 && record.ServiceWindowOverride2End.Length != 0))
             {
-                serviceWindowOverride[1].DailyTimePeriod.StartTime = record.ServiceWindowOverride2Start;
-                serviceWindowOverride[1].DailyTimePeriod.EndTime = record.ServiceWindowOverride2End;
-            } else
+              
+
+                temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = record.ServiceWindowOverride2Start,
+                        EndTime = record.ServiceWindowOverride2End
+            }
+                };
+
+            }
+            else
             {
-                serviceWindowOverride[1].DailyTimePeriod.StartTime = null;
-                serviceWindowOverride[1].DailyTimePeriod.EndTime = null;
+                temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail
+                {
+                    DailyTimePeriod = new DailyTimePeriod
+                    {
+                        StartTime = null,
+                        EndTime = null
+                    }
+                };
+
             }
 
-            task[0].ServiceWindowOverrides = serviceWindowOverride;
 
+            TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { tempServiceWindowOverride, temp2ServiceWindowOverride };
+            Task[] task = new Task[] {
+                new Task {
+                    TaskType_Type = "Delivery",
+                    LocationIdentifier = record.ServiceLocationIdentifier,
+                    Quantities = new Quantities
+                    {
+                        Size1 = Convert.ToDouble(record.QuantitySize1),
+                        Size2 = Convert.ToDouble(record.QuantitySize2),
+                        Size3 = Convert.ToDouble(record.QuantitySize3)
+
+                    },
+                    ServiceWindowOverrides = serviceWindowOverride
+
+
+                } };
 
             return new Order
             {
-                Identifier = record.ServiceLocationIdentifier,
+                Identifier = record.OrderIdentifier,
                 BeginDate = record.BeginDate,
                 DeliveryQuantities = new Quantities
                 {

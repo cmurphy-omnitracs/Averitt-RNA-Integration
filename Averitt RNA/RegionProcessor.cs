@@ -105,11 +105,11 @@ namespace Averitt_RNA
                     //Region Processing
                     Logger.Debug("Start Retrieving Region Processing Files");
                     //Service location Processing
-                    _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
-                        _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+                    //_ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
+                      //  _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
                     //Orders Processing
-                   // _ApexConsumer.(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
-                  //     _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+                    _ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
+                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
                     //Routes Processing
 
 
@@ -144,6 +144,7 @@ namespace Averitt_RNA
                 dictCache.regionEntityKeyDict = _ApexConsumer.RetrieveRegionEntityKey(out errorLevel, out errorMessage);
                 dictCache.serviceTimeEntityKeyDict = _ApexConsumer.RetrieveServiceTimeEntityKey(out errorLevel, out errorMessage);
                 dictCache.timeWindowEntityKeyDict = _ApexConsumer.RetrieveTimeWindowEntityKey(out errorLevel, out errorMessage);
+                dictCache.depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage);
 
 
                 using (StreamWriter writer = new StreamWriter(MainService.dictCacheFile, append: false))

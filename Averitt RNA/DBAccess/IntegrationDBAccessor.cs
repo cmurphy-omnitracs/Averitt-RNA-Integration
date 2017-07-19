@@ -200,6 +200,27 @@ namespace Averitt_RNA.DBAccess
 
         //}
 
+        public void UpdateOrderStatus(string regionID, string OrderId, string error, string status,
+       out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+
+                ExecuteNonQuery(
+                    SQLStrings.UPDATE_STAGED_ORDERS_STATUS(regionID, OrderId, error, status),
+                     "Update  Service Location " + OrderId + " status from New to Completed");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
 
         public void UpdateServiceLocationStatus(string regionID, string serviceLocationID, string error, string status,
             out string databaseError, out bool databaseErrorCaught)
