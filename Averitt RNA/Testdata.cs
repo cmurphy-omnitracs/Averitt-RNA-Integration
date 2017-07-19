@@ -118,10 +118,13 @@ namespace Averitt_RNA
             };
             public static OrderSpec OrderSpec = new OrderSpec
             {
+                
                 OrderClassEntityKey = 101,
-                Identifier = "TESTORDER1",
+                Identifier = "TESTORDER2",
                 BeginDate = RoutingSessionStartDate.ToString(DateFormat),
-                EndDate = RoutingSessionStartDate.ToString(DateFormat),
+                ManagedByUserEntityKey = 606,
+                RegionEntityKey = 101,
+                SessionEntityKey = 2336,
                 LineItems = new LineItem[]
                 {
                 new LineItem
@@ -132,6 +135,7 @@ namespace Averitt_RNA
                     {
                         Size1 = 50.0
                     }
+
                 },
                 new LineItem
                 {
