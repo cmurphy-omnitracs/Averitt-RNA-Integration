@@ -120,33 +120,53 @@ namespace Averitt_RNA
             {
                 
                 OrderClassEntityKey = 101,
-                Identifier = "TESTORDER2",
+                Identifier = "TESTORDER6",
                 BeginDate = RoutingSessionStartDate.ToString(DateFormat),
                 ManagedByUserEntityKey = 606,
                 RegionEntityKey = 101,
                 SessionEntityKey = 2336,
-                LineItems = new LineItem[]
+                TaskSpec = new DeliveryTaskSpec
                 {
-                new LineItem
-                {
-                    Identifier = "LINEITEM1",
-                    LineItemType_Type = Enum.GetName(typeof(LineItemType), LineItemType.Delivery),
                     Quantities = new Quantities
                     {
-                        Size1 = 50.0
-                    }
-
+                        Size1 = 60
+                    },
+                    RequiredOriginEntityKey = 887,
+                    ServiceLocationEntityKey = 1114,
+                    
                 },
-                new LineItem
-                {
-                    Identifier = "LINEITEM2",
-                    LineItemType_Type = Enum.GetName(typeof(LineItemType), LineItemType.Delivery),
-                    Quantities = new Quantities
-                    {
-                        Size1 = 50.0
-                    }
-                }
-                }
+                //OrderInstance = new DomainInstance
+                //{
+                //    EntityKey = 1923,
+                //    Version = 6
+                //},
+                //LineItems = new LineItem[]
+                //{
+                    
+                //new LineItem
+                //{
+                //    Action = ActionType.Add,
+                //    Identifier = "LINEITEM1",
+                //    LineItemType_Type = Enum.GetName(typeof(LineItemType), LineItemType.Delivery),
+                //    Quantities = new Quantities
+                //    {
+                //        Size1 = 50.0
+                //    },
+                //    SKUEntityKey = 101
+
+                //},
+                //new LineItem
+                //{
+                //     Action = ActionType.Add,
+                //    Identifier = "LINEITEM2",
+                //    LineItemType_Type = Enum.GetName(typeof(LineItemType), LineItemType.Delivery),
+                //    Quantities = new Quantities
+                //    {
+                //        Size1 = 50.0
+                //    },
+                //    SKUEntityKey = 101
+                //}
+                //}
             };
             public static TaskOpenCloseOverrideDetail TaskOpenCloseOverrideDetail = new TaskOpenCloseOverrideDetail
             {
