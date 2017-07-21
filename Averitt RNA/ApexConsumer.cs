@@ -4187,7 +4187,7 @@ namespace Averitt_RNA
                     MainService.SessionRequired = true;
                     errorLevel = ErrorLevel.Transient;
                 }
-                else
+                else  
                 {
                     errorLevel = ErrorLevel.Fatal;
                     fatalErrorMessage = errorMessage;
