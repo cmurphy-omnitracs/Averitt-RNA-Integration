@@ -1477,14 +1477,14 @@ namespace Averitt_RNA
                     _Logger.Debug("Start Retrieving Unassigned Orders");
                     unassignedOrders = RetrieveRNAUnassignedOrderGroups(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
 
-                    if (errorLevel == ErrorLevel.None)
+                    if (errorLevel == ErrorLevel.None )
                     {
                         _Logger.Debug("Completed Retrieving Unassigned Orders");
 
                         //Write Routes and Unassigned Orders to Routing Table
                         foreach(Route route in modifiedRoutes)
                         {
-                            DBAccessor.InsertStagedRoute(_Region.Identifier, route.Identifier, route.StartTime.ToString(), route.Description, null, DateTime.Now.ToString(), "", "COMPLETE");
+                            DBAccessor.InsertStagedRoute(_Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, null, DateTime.Now.ToString(), "", "COMPLETE");
 
                         }
 
@@ -1497,6 +1497,7 @@ namespace Averitt_RNA
 
 
                     }
+                    
                     else if (errorLevel == ErrorLevel.Fatal)
                     {
                         _Logger.Error(fatalErrorMessage);
@@ -1636,7 +1637,8 @@ namespace Averitt_RNA
                 {
                     fatalErrorMessage = "Unassigned Order  does not exist.";
                     _Logger.Error("Retrieve Unassigned Order  | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
-                    errorLevel = ErrorLevel.Fatal;
+                    errorLevel = ErrorLevel.None;
+                    unassignedOrders = retrievalResults.Items.Cast<Order>().ToList();
                 }
                 else
                 {
@@ -2006,260 +2008,87 @@ namespace Averitt_RNA
 
                     //Retrieve service locations with status of New
                     checkedServiceLocationRecordList = checkedServiceLocationRecordList.FindAll(x => x.Status.ToUpper().Equals("NEW"));
-
-                    string[] checkedSLId = checkedServiceLocationRecordList.Select(x => x.ServiceLocationIdentifier).ToArray();
-
-                    //Add serviceTimeType, timeWindowType, and region Entity Keys to Checked Service Locations
-                    foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationRecordList)
+                    string[] checkedSLId = new string[] { };
+                    if (checkedServiceLocationRecordList.Count != 0)
                     {
-                        long serviceTimeTypeEntityKey = 0;
-                        long timeWindowTypeEntityKey = 0;
-                        long[] regionEntityKey = new long[1] { 0 };
-                        var temp = (ServiceLocation)location;
-                       
-                        //Add SerivceTimeType, region and timewindowType entity keys
+                        checkedSLId = checkedServiceLocationRecordList.Select(x => x.ServiceLocationIdentifier).ToArray();
 
-                        if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
+                        //Add serviceTimeType, timeWindowType, and region Entity Keys to Checked Service Locations
+                        foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationRecordList)
                         {
-                            _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
-                            temp.ServiceTimeTypeEntityKey = 0;
-                        }
-                        else
-                        {
-                            temp.ServiceTimeTypeEntityKey = serviceTimeTypeEntityKey;
-                        }
-                        if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
-                        {
-                            _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
-                            temp.ServiceTimeTypeEntityKey = 0;
-                        }
-                        else
-                        {
-                            temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
-                        }
+                            long serviceTimeTypeEntityKey = 0;
+                            long timeWindowTypeEntityKey = 0;
+                            long[] regionEntityKey = new long[1] { 0 };
+                            var temp = (ServiceLocation)location;
 
-                        if (!regionEntityKeyDic.TryGetValue(location.RegionIdentifier, out regionEntityKey[0]))
-                        {
-                            _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
-                            temp.RegionEntityKeys[0] = 0;
-                        }
-                        else
-                        {
-                            temp.RegionEntityKeys = new long[] { };
-                            temp.RegionEntityKeys = regionEntityKey;
-                        }
+                            //Add SerivceTimeType, region and timewindowType entity keys
 
-
-                        checkedServiceLocationList.Add(temp);
-                    }
-
-                    //Retrieve Service Locations from RNA
-                    rnaServiceLocations = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, checkedSLId, false).ToList();
-
-
-                    if (rnaServiceLocations == null) //Service Location return null, Add service locations to RNA
-                    {
-
-                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
-                        //Geocode Address
-
-                        
-                        //Look for best accuracy for geocode result
-
-                        try
-                        {
-                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-
-                            if (timeOut)
+                            if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
                             {
-                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
+                                _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                                temp.ServiceTimeTypeEntityKey = 0;
                             }
                             else
                             {
-                                for (int y = 0; y < checkedServiceLocationList.Count; y++)
+                                temp.ServiceTimeTypeEntityKey = serviceTimeTypeEntityKey;
+                            }
+                            if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
+                            {
+                                _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                                temp.ServiceTimeTypeEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
+                            }
+
+                            if (!regionEntityKeyDic.TryGetValue(location.RegionIdentifier, out regionEntityKey[0]))
+                            {
+                                _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", location.RegionIdentifier);
+                                temp.RegionEntityKeys = new long[1];
+                                temp.RegionEntityKeys[0] = 0;
+                            }
+                            else
+                            {
+                                temp.RegionEntityKeys = new long[] { };
+                                temp.RegionEntityKeys = regionEntityKey;
+                            }
+
+
+                            checkedServiceLocationList.Add(temp);
+                        }
+
+                        //Retrieve Service Locations from RNA
+                        rnaServiceLocations = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, checkedSLId, false).ToList();
+
+
+                        if (rnaServiceLocations == null) //Service Location return null, Add service locations to RNA
+                        {
+
+                            Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                            //Geocode Address
+
+
+                            //Look for best accuracy for geocode result
+
+                            try
+                            {
+                                GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+
+                                if (timeOut)
                                 {
-                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
-
-                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
-                                    {
-
-
-                                        for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
-                                        {
-
-                                            for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                            {
-
-                                                string accuracyGeo = string.Empty;
-
-                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
-                                                {
-                                                    if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
-                                                    {
-
-                                                        bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
-                                                        break;
-                                                    }
-                                                }
-
-
-                                            }
-
-                                        }
-
-                                        //Get Best Coordinate
-                                        Coordinate mostAccurateCordinate = new Coordinate();
-                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                        {
-                                            string accuracyGeo = string.Empty;
-                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
-                                            {
-                                                Coordinate bestGeocodeCordinate = new Coordinate();
-
-                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
-                                                {
-                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
-                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
-
-
-                                                }
-                                            }
-
-
-                                        }
-
-                                        //Add location to save list with BU entity key
-                                        checkedServiceLocationList[y].Action = ActionType.Add;
-                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
-                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
-                                    }
+                                    _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
                                 }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
-                        }
-                       
-                    }
-
-
-
-                    else if (rnaServiceLocations.Count == 0) //Service Locations have not been found, Add service locations to RNA
-                    {
-
-                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
-                        //Geocode Address
-
-                        //Look for best accuracy for geocode result
-                        try
-                        {
-                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-
-                            if (timeOut)
-                            {
-                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
-                            }
-                            else
-                            {
-                              
-                                for( int y=0; y< checkedServiceLocationList.Count; y++)
+                                else
                                 {
-                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
-                                    
-                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
+                                    for (int y = 0; y < checkedServiceLocationList.Count; y++)
                                     {
+                                        Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
 
-
-                                        for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
+                                        if (errorLevel == ApexConsumer.ErrorLevel.None)
                                         {
 
-                                            for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                            {
 
-                                                string accuracyGeo = string.Empty;
-
-                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
-                                                {
-                                                    if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
-                                                    {
-
-                                                        bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
-                                                        break;
-                                                    }
-                                                }
-
-
-                                            }
-
-                                        }
-
-
-
-
-
-                                        //Get Best Coordinate
-                                        Coordinate mostAccurateCordinate = new Coordinate();
-                                        for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                        {
-                                            string accuracyGeo = string.Empty;
-                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
-                                            {
-                                                Coordinate bestGeocodeCordinate = new Coordinate();
-
-                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
-                                                {
-                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
-                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
-
-
-                                                }
-                                            }
-
-
-                                        }
-
-                                        //Add location to save list with BU entity key
-                                        checkedServiceLocationList[y].Action = ActionType.Add;
-                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
-                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
-                        }
-                    }
-               
-                    else  //Service Location Record have a corresponding Service Location in RNA
-                    {
-                        // Order Checked List and Returned RNA List
-                        checkedServiceLocationList.OrderBy(x => x.Identifier);
-                        rnaServiceLocations.OrderBy(x => x.Identifier);
-
-                        //
-                        Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
-                        //Geocode Address
-                        try
-                        {
-                            GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-
-                            if (timeOut)
-                            {
-                                _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
-                            }
-                            else
-                            {
-                                for (int y = 0; y < checkedServiceLocationList.Count; y++)
-                                {
-                                    Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
-
-                                    if (errorLevel == ApexConsumer.ErrorLevel.None)
-                                    {
-
-                                        
                                             for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
                                             {
 
@@ -2282,61 +2111,241 @@ namespace Averitt_RNA
                                                 }
 
                                             }
-                                        
 
-
-
-
-
-                                        //Get Best Coordinate
-                                        Coordinate mostAccurateCordinate = new Coordinate();
-                                        for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                        {
-                                            string accuracyGeo = string.Empty;
-                                            if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
+                                            //Get Best Coordinate
+                                            Coordinate mostAccurateCordinate = new Coordinate();
+                                            for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
                                             {
-                                                Coordinate bestGeocodeCordinate = new Coordinate();
-
-                                                if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                string accuracyGeo = string.Empty;
+                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
                                                 {
-                                                    checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
-                                                    checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+                                                    Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                    if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                    {
+                                                        checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                        checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
 
 
+                                                    }
                                                 }
+
+
                                             }
 
-
+                                            //Add location to save list with BU entity key
+                                            checkedServiceLocationList[y].Action = ActionType.Add;
+                                            checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                            saveServiceLocations.Add(checkedServiceLocationList[y]);
                                         }
-
-                                        //if the service location is in RNA, action is Update
-                                        if (rnaServiceLocations.Contains(checkedServiceLocationList[y]))
-                                        {
-                                           
-                                        }
-                                        else //if not action is add
-                                        {
-                                            checkedServiceLocationList[y].Action = ActionType.Update;
-                                        }
-
-                                        //Add location to save list with BU entity key
-                                        checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
-                                        saveServiceLocations.Add(checkedServiceLocationList[y]);
                                     }
                                 }
                             }
+                            catch (Exception ex)
+                            {
+                                _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                            }
+
                         }
-                        catch (Exception ex)
+
+
+
+                        else if (rnaServiceLocations.Count == 0) //Service Locations have not been found, Add service locations to RNA
                         {
-                            _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+
+                            Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                            //Geocode Address
+
+                            //Look for best accuracy for geocode result
+                            try
+                            {
+                                GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+
+                                if (timeOut)
+                                {
+                                    _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
+                                }
+                                else
+                                {
+
+                                    for (int y = 0; y < checkedServiceLocationList.Count; y++)
+                                    {
+                                        Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
+
+                                        if (errorLevel == ApexConsumer.ErrorLevel.None)
+                                        {
+
+
+                                            for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
+                                            {
+
+                                                for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                                {
+
+                                                    string accuracyGeo = string.Empty;
+
+                                                    if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                                    {
+                                                        if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                        {
+
+                                                            bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
+                                                            break;
+                                                        }
+                                                    }
+
+
+                                                }
+
+                                            }
+
+
+
+
+
+                                            //Get Best Coordinate
+                                            Coordinate mostAccurateCordinate = new Coordinate();
+                                            for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                            {
+                                                string accuracyGeo = string.Empty;
+                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
+                                                {
+                                                    Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                    if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                    {
+                                                        checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                        checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+
+
+                                                    }
+                                                }
+
+
+                                            }
+
+                                            //Add location to save list with BU entity key
+                                            checkedServiceLocationList[y].Action = ActionType.Add;
+                                            checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                            saveServiceLocations.Add(checkedServiceLocationList[y]);
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                            }
                         }
-                            
+
+                        else  //Service Location Record have a corresponding Service Location in RNA
+                        {
+                            // Order Checked List and Returned RNA List
+                            checkedServiceLocationList.OrderBy(x => x.Identifier);
+                            rnaServiceLocations.OrderBy(x => x.Identifier);
+
+                            //
+                            Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
+                            //Geocode Address
+                            try
+                            {
+                                GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
+
+                                if (timeOut)
+                                {
+                                    _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
+                                }
+                                else
+                                {
+                                    for (int y = 0; y < checkedServiceLocationList.Count; y++)
+                                    {
+                                        Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
+
+                                        if (errorLevel == ApexConsumer.ErrorLevel.None)
+                                        {
+
+
+                                            for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
+                                            {
+
+                                                for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                                {
+
+                                                    string accuracyGeo = string.Empty;
+
+                                                    if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
+                                                    {
+                                                        if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
+                                                        {
+
+                                                            bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
+                                                            break;
+                                                        }
+                                                    }
+
+
+                                                }
+
+                                            }
+
+
+
+
+
+
+                                            //Get Best Coordinate
+                                            Coordinate mostAccurateCordinate = new Coordinate();
+                                            for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
+                                            {
+                                                string accuracyGeo = string.Empty;
+                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
+                                                {
+                                                    Coordinate bestGeocodeCordinate = new Coordinate();
+
+                                                    if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
+                                                    {
+                                                        checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
+                                                        checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
+
+
+                                                    }
+                                                }
+
+
+                                            }
+
+                                            //if the service location is in RNA, action is Update
+                                            if (rnaServiceLocations.Contains(checkedServiceLocationList[y]))
+                                            {
+
+                                            }
+                                            else //if not action is add
+                                            {
+                                                checkedServiceLocationList[y].Action = ActionType.Update;
+                                            }
+
+                                            //Add location to save list with BU entity key
+                                            checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
+                                            saveServiceLocations.Add(checkedServiceLocationList[y]);
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
+                            }
+
                             //Look for best accuracy for geocode result
 
-                        
+
+                        }
+
+
+                    } else
+                    {
+                        saveServiceLocations = new List<ServiceLocation>();
                     }
-
-
 
 
                    
@@ -2344,121 +2353,129 @@ namespace Averitt_RNA
                     //Save servicelocations list to RNA
                     try
                     {
-                        
-                        SaveResult[] saveLocationResults = SaveServiceLocations(out errorLevel, out fatalErrorMessage,  saveServiceLocations.ToArray() );
-
-                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                        if (saveServiceLocations.Count != 0)
                         {
-                            _Logger.Debug("Fatal Error Occured Saving Service Locations: " + fatalErrorMessage);
+                            SaveResult[] saveLocationResults = SaveServiceLocations(out errorLevel, out fatalErrorMessage, saveServiceLocations.ToArray());
 
-                        }
-                        else if(errorLevel == ApexConsumer.ErrorLevel.Partial || errorLevel == ApexConsumer.ErrorLevel.Transient)
-                        {
-                            
-                           
-
-                            foreach(SaveResult saveResult in saveLocationResults)
+                            if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
                             {
-                                if(saveResult.Error != null)
+                                _Logger.Debug("Fatal Error Occured Saving Service Locations: " + fatalErrorMessage);
+
+
+                            }
+                            else if (errorLevel == ApexConsumer.ErrorLevel.Partial || errorLevel == ApexConsumer.ErrorLevel.Transient)
+                            {
+
+
+
+                                foreach (SaveResult saveResult in saveLocationResults)
                                 {
-                                    var temp = (ServiceLocation)saveResult.Object;
-                                    bool errorUpdatingServiceLocation = false;
-                                    string errorUpdatingServiceLocationMessage = string.Empty;
-                                    var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
-                                    
-
-
-                                    if (saveResult.Error.ValidationFailures != null)
+                                    if (saveResult.Error != null)
                                     {
-                                        foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                        var temp = (ServiceLocation)saveResult.Object;
+                                        bool errorUpdatingServiceLocation = false;
+                                        string errorUpdatingServiceLocationMessage = string.Empty;
+                                        var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
+
+
+
+                                        if (saveResult.Error.ValidationFailures != null)
                                         {
-                                            _Logger.Debug("A Validation Error Occured While Saving Service Location. The " + validFailure.Property + " Property for Service Location " + temp.Identifier + " is not Valid");
+                                            foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                            {
+                                                _Logger.Debug("A Validation Error Occured While Saving Service Location. The " + validFailure.Property + " Property for Service Location " + temp.Identifier + " is not Valid");
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
+                                                DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                                if (errorUpdatingServiceLocation)
+                                                {
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+
+                                                }
+                                                else
+                                                {
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                                }
+                                            }
+                                        }
+                                        else if (saveResult.Error.Code.ErrorCode_Status == "DuplicateData")
+                                        {
+                                            _Logger.Debug("A Duplicate Save Data Error Occured While Saving Service Location " + temp.Identifier);
                                             _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
-                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Duplicate Save Data Error Occured While Saving Service Location ", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                             if (errorUpdatingServiceLocation)
                                             {
                                                 _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
-                                                
+
                                             }
                                             else
                                             {
                                                 _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
                                             }
                                         }
-                                    }
-                                    else if (saveResult.Error.Code.ErrorCode_Status == "DuplicateData")
-                                    {
-                                        _Logger.Debug("A Duplicate Save Data Error Occured While Saving Service Location " + temp.Identifier);
-                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
-                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Duplicate Save Data Error Occured While Saving Service Location ", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                        if (errorUpdatingServiceLocation)
+                                        else if (saveResult.Error.Code.ErrorCode_Status == "NoResultsFound| ")
                                         {
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
-                                            
-                                        }
-                                        else
-                                        {
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
-                                        }
-                                    }
-                                    else if (saveResult.Error.Code.ErrorCode_Status == "NoResultsFound| ")
-                                    {
-                                        _Logger.Debug("An Update Error Occured While Saving Service Location " + temp.Identifier + ". The Updated Information Is The Same Information Found In RNA");
-                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "An Update Error Occured While Saving Service Location. The Updated Information Is The Same Information Found In RNA", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                        if (errorUpdatingServiceLocation)
-                                        {
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+                                            _Logger.Debug("An Update Error Occured While Saving Service Location " + temp.Identifier + ". The Updated Information Is The Same Information Found In RNA");
+                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "An Update Error Occured While Saving Service Location. The Updated Information Is The Same Information Found In RNA", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                            if (errorUpdatingServiceLocation)
+                                            {
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
 
+                                            }
+                                            else
+                                            {
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                            }
                                         }
                                         else
                                         {
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                            var temp3 = "An Error Occured While Saving Service Location. " + saveResult.Error.Code.ErrorCode_Status + " " + saveResult.Error.Detail;
+                                            _Logger.Debug("An Error Occured While Saving Service Location " + temp.Identifier + ". The Error is the Following: " + saveResult.Error.Code.ErrorCode_Status + "| " + saveResult.Error.Detail);
+                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, temp3, "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                            if (errorUpdatingServiceLocation)
+                                            {
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+
+                                            }
+                                            else
+                                            {
+                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                            }
                                         }
+
+
+
+
+                                    }
+                                }
+                            }
+                            else if (errorLevel == ApexConsumer.ErrorLevel.None)
+                            {
+                                foreach (SaveResult saveResult in saveLocationResults)
+                                {
+                                    var temp = (ServiceLocation)saveResult.Object;
+                                    bool errorUpdatingServiceLocation = false;
+                                    string errorUpdatingServiceLocationMessage = string.Empty;
+                                    _Logger.Debug("Service Location " + temp.Identifier + " Saved Successfully");
+
+                                    var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
+                                    DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+
+                                    if (errorUpdatingServiceLocation)
+                                    {
+                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
                                     }
                                     else
                                     {
-                                        var temp3 = "An Error Occured While Saving Service Location. " + saveResult.Error.Code.ErrorCode_Status + " " + saveResult.Error.Detail;
-                                        _Logger.Debug("An Error Occured While Saving Service Location " + temp.Identifier + ". The Error is the Following: " + saveResult.Error.Code.ErrorCode_Status + "| " + saveResult.Error.Detail);
-                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, temp3, "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                        if (errorUpdatingServiceLocation)
-                                        {
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
-
-                                        }
-                                        else
-                                        {
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
-                                        }
+                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete Succesfull");
                                     }
-
-
-                                   
-
-                                } 
-                            }
-                        }
-                        else if (errorLevel == ApexConsumer.ErrorLevel.None)
-                        {
-                            foreach (SaveResult saveResult in saveLocationResults)
-                            {
-                                var temp = (ServiceLocation)saveResult.Object;
-                                bool errorUpdatingServiceLocation = false;
-                                string errorUpdatingServiceLocationMessage = string.Empty;
-                                _Logger.Debug("Service Location " + temp.Identifier + " Saved Successfully");
-                               
-                                var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
-                                DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-
-                                if (errorUpdatingServiceLocation)
-                                {
-                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
-                                } else
-                                {
-                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete Succesfull");
                                 }
+
                             }
-                            
+                        } else
+                        {
+                            _Logger.Debug("No Service Location in Database to Update");
                         }
+
                     }
                     catch (Exception ex)
                     {
@@ -2579,216 +2596,226 @@ namespace Averitt_RNA
                     string[] originDepotIdentifiers = checkedOrderRecordList.Select(x => x.OriginDepotIdentifier).ToArray();
 
 
-                 
 
-                    //Add OrderClass, OrginDepot, and region Entity Keys to Orders
-                    foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList)
+
+                    //Add OrderClass, OrginDepot, and region Entity Keys to Orders if New Orders Exist
+                    if (checkedOrderRecordList.Count != 0)
                     {
-                        long orderClassEntity = 0;
-                        long originDepotKey = 0;
-                        long[] regionEntityKey = new long[] { 0 };
-                        var temp = (Order)order;
-
-                        //Add SerivceTimeType, region and timewindowType entity keys
-
-                        if (!orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntity))
+                        foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList)
                         {
-                            _Logger.ErrorFormat("No match found for Order Class with identifier {0} in RNA", order.OrderClassIdentifier);
-                            temp.OrderClassEntityKey = 0;
-                        }
-                        else
-                        {
-                            temp.OrderClassEntityKey = orderClassEntity;
-                        }
-                        if (!orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out originDepotKey))
-                        {
-                            _Logger.ErrorFormat("No match found for Origin Depot with identifier {0} in RNA", order.OriginDepotIdentifier);
-                            temp.RequiredRouteOriginEntityKey = 0;
-                        }
-                        else
-                        {
-                            temp.RequiredRouteOriginEntityKey = originDepotKey;
-                        }
+                            long orderClassEntity = 0;
+                            long originDepotKey = 0;
+                            long[] regionEntityKey = new long[] { 0 };
+                            var temp = (Order)order;
 
-                        if (!regionEntityKeyDic.TryGetValue(order.RegionIdentifier, out regionEntityKey[0]))
-                        {
-                            _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", order.RegionIdentifier);
-                            temp.RegionEntityKey = 0;
+                            //Add SerivceTimeType, region and timewindowType entity keys
+
+                            if (!orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntity))
+                            {
+                                _Logger.ErrorFormat("No match found for Order Class with identifier {0} in RNA", order.OrderClassIdentifier);
+                                temp.OrderClassEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.OrderClassEntityKey = orderClassEntity;
+                            }
+                            if (!orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out originDepotKey))
+                            {
+                                _Logger.ErrorFormat("No match found for Origin Depot with identifier {0} in RNA", order.OriginDepotIdentifier);
+                                temp.RequiredRouteOriginEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.RequiredRouteOriginEntityKey = originDepotKey;
+                            }
+
+                            if (!regionEntityKeyDic.TryGetValue(order.RegionIdentifier, out regionEntityKey[0]))
+                            {
+                                _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", order.RegionIdentifier);
+                                temp.RegionEntityKey = 0;
+                            }
+                            else
+                            {
+                                temp.RegionEntityKey = new long();
+                                temp.RegionEntityKey = regionEntityKey[0];
+                            }
+
+
+                            checkedOrdersList.Add(temp);
                         }
-                        else
-                        {
-                            temp.RegionEntityKey = new long();
-                            temp.RegionEntityKey = regionEntityKey[0];
-                        }
-
-
-                        checkedOrdersList.Add(temp);
-                    }
-                    
-
-                    foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
-                    {
-                        var temp = (Order)order;
-                        temp.Action = ActionType.Delete;
-                        deleteOrderList.Add(temp);
-                        
                     }
 
-                    //Unassign and Delete Orders
-                    if (deleteOrderList.Any())
+                    //Delete orders if Delete orders exist
+                    if (deleteOrderRecordList.Count != 0)
                     {
-                        _Logger.DebugFormat("Start Unassigning and Deleting Orders");
-                        try
+                        foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
                         {
-                            errorLevel = ErrorLevel.None;
-                            _Logger.DebugFormat(" Start Unassigning Orders");
-                            string[] unassignOrderIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
-                            Order[] unassignOrdersInRna = new Order[] { };
-                            
-                            ManipulationResult unassignOrders = new ManipulationResult();
-                            string regularErrorMessage = string.Empty;
+                            var temp = (Order)order;
+                            temp.Action = ActionType.Delete;
+                            deleteOrderList.Add(temp);
+
+                        }
+
+                        //Unassign and Delete Orders
+                        if (deleteOrderList.Any())
+                        {
+                            _Logger.DebugFormat("Start Unassigning and Deleting Orders");
                             try
                             {
-                                unassignOrdersInRna = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, unassignOrderIdentifiers);
+                                errorLevel = ErrorLevel.None;
+                                _Logger.DebugFormat(" Start Unassigning Orders");
+                                string[] unassignOrderIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
+                                Order[] unassignOrdersInRna = new Order[] { };
 
-
-                                if (errorLevel == ErrorLevel.None) //Getting list of orders to unassign that are in RNA Successfull
-                                {
-                                    try
-                                    {
-                                        //Unassign Orders
-                                        Order[] ordersToUnassign = unassignOrdersInRna.Where(x => !x.UnassignedOrderGroupEntityKey.HasValue).ToArray();
-
-                                        if (ordersToUnassign.Any())
-                                        {
-                                            unassignOrders = UnassignOrders2(out errorLevel, out fatalErrorMessage, ordersToUnassign.ToArray());
-
-                                            if (errorLevel == ErrorLevel.None)
-                                            {
-                                                _Logger.DebugFormat("Orders Unassign in RNA Successfully");
-                                            }
-                                            else if (errorLevel == ErrorLevel.Fatal)
-                                            {
-                                                _Logger.Error(fatalErrorMessage);
-                                            } 
-
-                                        } else
-                                        {
-                                            _Logger.DebugFormat("No Orders to Unassign in RNA");
-                                        }
-                                       
-
-                                    } catch(Exception ex)
-                                    {
-                                        _Logger.Error("An error has occured Unassigning Orders" + ex.Message);
-                                    }
-
-                                } else if (errorLevel != ErrorLevel.Fatal)
-                                {
-                                    _Logger.Error(regularErrorMessage);
-                                } else
-                                {
-                                    _Logger.Error(fatalErrorMessage);
-                                }
-                               
-                            }
-                            catch (Exception ex)
-                            {
-                                _Logger.Error("An error has occured during Retrieve Delete Orders Entity Keys" + ex.Message);
-                            }
-
-                           
-
-                            if (errorLevel != ErrorLevel.Fatal)
-                            {
-                                _Logger.DebugFormat("Unassigning Orders Successful.");
-                               
-                                //Get list of Delete Orders in RNA with Entity Keys
-                                 string[] orderToDeleteIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
+                                ManipulationResult unassignOrders = new ManipulationResult();
+                                string regularErrorMessage = string.Empty;
                                 try
                                 {
-                                    Order[] orderToDelWithEntityKeys = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, orderToDeleteIdentifiers);
+                                    unassignOrdersInRna = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, unassignOrderIdentifiers);
 
-                                    if (errorLevel == ErrorLevel.None)
+
+                                    if (errorLevel == ErrorLevel.None) //Getting list of orders to unassign that are in RNA Successfull
                                     {
-                                        _Logger.DebugFormat(" Start Deleting Orders");
-                                        SaveResult[] deleteOrdersResult = DeleteOrders(out errorLevel, out fatalErrorMessage, orderToDelWithEntityKeys);
+                                        try
+                                        {
+                                            //Unassign Orders
+                                            Order[] ordersToUnassign = unassignOrdersInRna.Where(x => !x.UnassignedOrderGroupEntityKey.HasValue).ToArray();
 
-                                        if (errorLevel == ErrorLevel.None)
-                                        {
-                                            _Logger.DebugFormat("Deleting Orders Successful");
-                                        }
-                                        else
-                                        {
-                                            foreach (SaveResult saveResult in deleteOrdersResult)
+                                            if (ordersToUnassign.Any())
                                             {
-                                                var temp = (Order)saveResult.Object;
-                                                _Logger.ErrorFormat("Error Deleting Order {0} | {1}: {2} ", temp.Identifier, saveResult.Error.Code, saveResult.Error.Detail.ToString());
-                                            }
+                                                unassignOrders = UnassignOrders2(out errorLevel, out fatalErrorMessage, ordersToUnassign.ToArray());
 
-                                        }
-                                    }
-                                    else if (errorLevel == ErrorLevel.Transient)
-                                    {
-                                        _Logger.DebugFormat(" No Orders to Delete from RNA. Orders do not Exist in RNA");
-                                        foreach (String orderId in orderToDeleteIdentifiers)
-                                        {
-                                            string databaseErrorMessage = string.Empty;
-                                            bool datbaseErrorCaught = false;
-                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage,out datbaseErrorCaught);
+                                                if (errorLevel == ErrorLevel.None)
+                                                {
+                                                    _Logger.DebugFormat("Orders Unassign in RNA Successfully");
+                                                }
+                                                else if (errorLevel == ErrorLevel.Fatal)
+                                                {
+                                                    _Logger.Error(fatalErrorMessage);
+                                                }
 
-                                            if (datbaseErrorCaught == false)
-                                            {
-                                                _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
                                             }
                                             else
                                             {
-                                                
-                                                    _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
-                                              
-
+                                                _Logger.DebugFormat("No Orders to Unassign in RNA");
                                             }
+
+
                                         }
+                                        catch (Exception ex)
+                                        {
+                                            _Logger.Error("An error has occured Unassigning Orders" + ex.Message);
+                                        }
+
+                                    }
+                                    else if (errorLevel != ErrorLevel.Fatal)
+                                    {
+                                        _Logger.Error(regularErrorMessage);
                                     }
                                     else
                                     {
                                         _Logger.Error(fatalErrorMessage);
-                                        foreach (String orderId in orderToDeleteIdentifiers)
-                                        {
-                                            string databaseErrorMessage = string.Empty;
-                                            bool datbaseErrorCaught = false;
-                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, fatalErrorMessage, "ERROR", out databaseErrorMessage, out datbaseErrorCaught);
-
-                                            if (datbaseErrorCaught == false)
-                                            {
-                                                _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
-                                            }
-                                            else
-                                            {
-
-                                                _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
-
-
-                                            }
-                                        }
                                     }
+
                                 }
                                 catch (Exception ex)
                                 {
-                                    _Logger.Error("An error has occured during delete Orders" + ex.Message);
+                                    _Logger.Error("An error has occured during Retrieve Delete Orders Entity Keys" + ex.Message);
                                 }
-                            } else
-                            {
-                                _Logger.ErrorFormat("Fatal Error Unassigning Orders: " + fatalErrorMessage);
+
+
+
+                                if (errorLevel != ErrorLevel.Fatal)
+                                {
+                                    _Logger.DebugFormat("Unassigning Orders Successful.");
+
+                                    //Get list of Delete Orders in RNA with Entity Keys
+                                    string[] orderToDeleteIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
+                                    try
+                                    {
+                                        Order[] orderToDelWithEntityKeys = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, orderToDeleteIdentifiers);
+
+                                        if (errorLevel == ErrorLevel.None)
+                                        {
+                                            _Logger.DebugFormat(" Start Deleting Orders");
+                                            SaveResult[] deleteOrdersResult = DeleteOrders(out errorLevel, out fatalErrorMessage, orderToDelWithEntityKeys);
+
+                                            if (errorLevel == ErrorLevel.None)
+                                            {
+                                                _Logger.DebugFormat("Deleting Orders Successful");
+                                            }
+                                            else
+                                            {
+                                                foreach (SaveResult saveResult in deleteOrdersResult)
+                                                {
+                                                    var temp = (Order)saveResult.Object;
+                                                    _Logger.ErrorFormat("Error Deleting Order {0} | {1}: {2} ", temp.Identifier, saveResult.Error.Code, saveResult.Error.Detail.ToString());
+                                                }
+
+                                            }
+                                        }
+                                        else if (errorLevel == ErrorLevel.Transient)
+                                        {
+                                            _Logger.DebugFormat(" No Orders to Delete from RNA. Orders do not Exist in RNA");
+                                            foreach (String orderId in orderToDeleteIdentifiers)
+                                            {
+                                                string databaseErrorMessage = string.Empty;
+                                                bool datbaseErrorCaught = false;
+                                                DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage, out datbaseErrorCaught);
+
+                                                if (datbaseErrorCaught == false)
+                                                {
+                                                    _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
+                                                }
+                                                else
+                                                {
+
+                                                    _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
+
+
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            _Logger.Error(fatalErrorMessage);
+                                            foreach (String orderId in orderToDeleteIdentifiers)
+                                            {
+                                                string databaseErrorMessage = string.Empty;
+                                                bool datbaseErrorCaught = false;
+                                                DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, fatalErrorMessage, "ERROR", out databaseErrorMessage, out datbaseErrorCaught);
+
+                                                if (datbaseErrorCaught == false)
+                                                {
+                                                    _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
+                                                }
+                                                else
+                                                {
+
+                                                    _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
+
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _Logger.Error("An error has occured during delete Orders" + ex.Message);
+                                    }
+                                }
+                                else
+                                {
+                                    _Logger.ErrorFormat("Fatal Error Unassigning Orders: " + fatalErrorMessage);
+                                }
+
                             }
-                            
-                        }
-                        catch (Exception ex)
-                        {
-                            _Logger.Error("An error has occured during Unassigning and Deleting Orders" + ex.Message);
+                            catch (Exception ex)
+                            {
+                                _Logger.Error("An error has occured during Unassigning and Deleting Orders" + ex.Message);
+                            }
                         }
                     }
-
                   
                    
                      try
@@ -2874,7 +2901,7 @@ namespace Averitt_RNA
                     }
                     catch (Exception ex)
                     {
-                        _Logger.Error("An error has occured during delete Orders" + ex.Message);
+                        _Logger.Error("An error has occured during Retrieving DailyRoutingSessions" + ex.Message);
                     }
 
                     try
@@ -2899,7 +2926,7 @@ namespace Averitt_RNA
                         _Logger.Error("An error has occured retrieving modified orders" + ex.Message);
                     }
 
-                    List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
+                      List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
 
 
                     if (rnaOrders == null) //Orders return null, Get service location and Add Orders to RNA
@@ -2935,51 +2962,78 @@ namespace Averitt_RNA
                             }
 
                             List<Order> ordersToSaveInRNA = new List<Order>();
-                            foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
+                            if (checkedOrderRecordList.Count != 0)
                             {
-                                ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
-                                Order tempOrder = new Order();
-                                Task orderTask = new Task();
-                                if (tempLocation != null) // order service location found in RNA service locations
+                                foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
                                 {
-                                    orderTask = new Task
+                                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
+                                    Order tempOrder = new Order();
+                                    Task orderTask = new Task();
+                                    if (tempLocation != null) // order service location found in RNA service locations
                                     {
-                                        Action = ActionType.Add,
-                                        LocationAddress = tempLocation.Address,
-                                        LocationPhoneNumber = tempLocation.PhoneNumber,
-                                        LocationEntityKey = tempLocation.EntityKey,
-                                        LocationCoordinate = tempLocation.Coordinate,
-                                        LocationDescription = tempLocation.Description,
-                                        LocationStandardInstructions = tempLocation.StandardInstructions,
-                                        TaskType_Type = "Delivery"
-
-
-                                    };
-                                    foreach (DailyRoutingSession session in saveRoutingSession)
-                                    {
-                                        if (order.OriginDepotIdentifier == session.Description)
+                                        orderTask = new Task
                                         {
-                                            tempOrder.SessionEntityKey = session.EntityKey;
+                                            Action = ActionType.Add,
+                                            LocationAddress = tempLocation.Address,
+                                            LocationPhoneNumber = tempLocation.PhoneNumber,
+                                            LocationEntityKey = tempLocation.EntityKey,
+                                            LocationCoordinate = tempLocation.Coordinate,
+                                            LocationDescription = tempLocation.Description,
+                                            LocationStandardInstructions = tempLocation.StandardInstructions,
+                                            TaskType_Type = "Delivery"
+
+
+                                        };
+                                        foreach (DailyRoutingSession session in saveRoutingSession)
+                                        {
+                                            if (order.OriginDepotIdentifier == session.Description)
+                                            {
+                                                tempOrder.SessionEntityKey = session.EntityKey;
+                                            }
                                         }
+
+
+
+                                    }
+                                    else
+                                    {
+                                        _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
+                                    }
+                                    tempOrder = (Order)order;
+                                    tempOrder.Action = ActionType.Add;
+                                    tempOrder.Tasks = new Task[] { orderTask };
+                                    long orderClassEntityKey = 0;
+                                    if (orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntityKey))
+                                    {
+                                        tempOrder.OrderClassEntityKey = Convert.ToInt64(orderClassEntityKey);
+                                    }
+                                    else
+                                    {
+                                        _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
                                     }
 
+                                    ordersToSaveInRNA.Add(tempOrder);
 
 
-                                } else
-                                {
-                                    _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA",order.OrderIdentifier, order.ServiceLocationIdentifier);
+
+
                                 }
-                                tempOrder = (Order)order;
-                                tempOrder.Action = ActionType.Add;
-                                tempOrder.Tasks = new Task[] { orderTask };
 
+                                foreach (Order orderSave in ordersToSaveInRNA)
+                                {
+                                    if (orderSave.Action == ActionType.Update)
+                                    {
+                                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
+                                    }
+                                    else if (orderSave.Action == ActionType.Add)
+                                    {
+                                        var temp = ConvertOrderToOrderSpec(orderSave);
+                                        temp.OrderInstance = null;
+                                        convertedOrderSpecs.Add(temp);
+                                    }
 
-
-                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(tempOrder));
-                            }
-
-
-
+                                }
+                            } 
                         }
                         catch (Exception ex)
                         {
@@ -3026,44 +3080,97 @@ namespace Averitt_RNA
                             }
 
                             List<Order> ordersToSaveInRNA = new List<Order>();
-                            foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
+
+                            if (checkedOrderRecordList.Count != 0)
                             {
-                                ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
-                                Order tempOrder = new Order();
-                                Task orderTask = new Task();
-                                if (tempLocation != null) // order service location found in RNA service locations
+                                foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
                                 {
-                                    orderTask = new Task
+                                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
+                                    Order tempOrder = new Order();
+                                    Task orderTask = new Task();
+
+                                    if (tempLocation == null) // order service location found in RNA service locations
                                     {
-                                        Action = ActionType.Add,
-                                        LocationAddress = tempLocation.Address,
-                                        LocationPhoneNumber = tempLocation.PhoneNumber,
-                                        LocationEntityKey = tempLocation.EntityKey,
-                                        LocationCoordinate = tempLocation.Coordinate,
-                                        LocationDescription = tempLocation.Description,
-                                        LocationStandardInstructions = tempLocation.StandardInstructions,
-                                        TaskType_Type = "Delivery"
-
-                                    };
+                                        _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
 
 
+                                    }
+                                    else
+                                    {
+                                        orderTask = new Task
+                                        {
+                                            Action = ActionType.Add,
+                                            LocationAddress = tempLocation.Address,
+                                            LocationPhoneNumber = tempLocation.PhoneNumber,
+                                            LocationEntityKey = tempLocation.EntityKey,
+                                            LocationCoordinate = tempLocation.Coordinate,
+                                            LocationDescription = tempLocation.Description,
+                                            LocationStandardInstructions = tempLocation.StandardInstructions,
+                                            TaskType_Type = "Delivery"
+
+                                        };
+
+
+
+                                        tempOrder = (Order)order;
+                                        tempOrder.Action = ActionType.Add;
+                                        tempOrder.Tasks = new Task[] { orderTask };
+                                        long orderClassEntityKey = 0;
+                                        long origionDepotEntityKey = 0;
+
+                                        if (orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntityKey))
+                                        {
+                                            tempOrder.OrderClassEntityKey = Convert.ToInt64(orderClassEntityKey);
+                                        }
+                                        else
+                                        {
+                                            _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
+                                        }
+
+
+
+                                        if (orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out origionDepotEntityKey))
+                                        {
+                                            tempOrder.RequiredRouteOriginEntityKey = Convert.ToInt64(origionDepotEntityKey);
+                                        }
+                                        else
+                                        {
+                                            _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
+                                        }
+
+                                        //Add session entity key to order for routings session with matching depots
+                                        foreach (DailyRoutingSession session in saveRoutingSession)
+                                        {
+                                            if (order.OriginDepotIdentifier == session.Description)
+                                            {
+                                                tempOrder.SessionEntityKey = session.EntityKey;
+                                                tempOrder.BeginDate = session.StartDate.ToString();
+                                            }
+                                        }
+
+
+                                        ordersToSaveInRNA.Add(tempOrder);
+
+                                    }
                                 }
-                                else
+
+
+                                foreach (Order orderSave in ordersToSaveInRNA)
                                 {
-                                    _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
+                                    if (orderSave.Action == ActionType.Update)
+                                    {
+                                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
+                                    }
+                                    else if (orderSave.Action == ActionType.Add)
+                                    {
+                                        var temp = ConvertOrderToOrderSpec(orderSave);
+                                        temp.OrderInstance = null;
+                                        convertedOrderSpecs.Add(temp);
+                                    }
+
                                 }
-                                tempOrder = (Order)order;
-                                tempOrder.Action = ActionType.Add;
-                                tempOrder.Tasks = new Task[] { orderTask };
 
-
-
-                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(tempOrder));
                             }
-
-
-                          
-
                         }
                         catch (Exception ex)
                         {
@@ -3082,67 +3189,99 @@ namespace Averitt_RNA
                         List<Order> saveOrdersList = new List<Order>();
                         List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
 
-                        foreach (Order rnaOrder in rnaOrders)
+                        List<Order> ordersInRnaOrders = checkedOrdersList.Where(x => rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+                        List<Order> ordersNotInRnaOrders = checkedOrdersList.Where(x => !rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+
+
+                        foreach (Order orderInRNA in ordersInRnaOrders)// found matching order in RNA
                         {
-                            foreach(Order order in checkedOrdersList)
+                            Order tempOrder = rnaOrders.FirstOrDefault(x => x.Identifier == orderInRNA.Identifier);
+                            orderInRNA.Action = ActionType.Update;
+                            orderInRNA.Tasks[0].TaskType_Type = "Delivery";
+                            orderInRNA.EntityKey = tempOrder.EntityKey;
+                            orderInRNA.Version = tempOrder.Version;
+
+                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.EntityKey == orderInRNA.Tasks[0].LocationEntityKey); //Find service location that matched order
+
+                            if (tempLocation != null) // order service location found in RNA service locations
                             {
-                                if(rnaOrder.Identifier == order.Identifier) // found matching order in RNA
+                                orderInRNA.Tasks[0].Action = ActionType.Update;
+                                orderInRNA.Tasks[0].LocationAddress = tempLocation.Address;
+                                orderInRNA.Tasks[0].LocationPhoneNumber = tempLocation.PhoneNumber;
+                                orderInRNA.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+                                orderInRNA.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+                                orderInRNA.Tasks[0].LocationDescription = tempLocation.Description;
+                            }
+
+                            string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Key;
+                            orderInRNA.RequiredRouteOriginEntityKey = Convert.ToInt64(originDepotForOrder);
+
+
+                            //Add session entity key to order for routings session with matching depots
+                            foreach (DailyRoutingSession session in saveRoutingSession)
+                            {
+                                if (originDepotForOrder == session.Description)
                                 {
-                                    order.Action = ActionType.Update;
-                                    if(rnaOrder.Tasks[0].LocationEntityKey != order.Tasks[0].LocationEntityKey)
-                                    {
-                                        ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.EntityKey == order.Tasks[0].LocationEntityKey); //Find service location that matched order
-                                        Task[] checkedOrderTask = new Task[]
-                                        {
-                                            new Task{
-                                            Action = ActionType.Update,
-                                            LocationAddress = tempLocation.Address,
-                                            LocationPhoneNumber = tempLocation.PhoneNumber,
-                                            LocationEntityKey = tempLocation.EntityKey,
-                                            LocationCoordinate = tempLocation.Coordinate,
-                                            LocationDescription = tempLocation.Description,
-                                             TaskType_Type = "Delivery"
-                                             
-                                            }
-                                        };
-                                        order.Tasks = checkedOrderTask;
-                                    }
-                                    updateOrders.Add(order);
-                                }
-                                else // No matching Order Found. Add location/coordinate to order and save in regOrder List
-                                {
-                                    order.Action = ActionType.Add;
-                                    
-                                    ServiceLocation tempLocation2 = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == order.Tasks[0].LocationIdentifier); //Find service location that matched order
-                                    Task[] checkedOrderTask2 = new Task[]
-                                       {
-                                            new Task{
-                                            Action = ActionType.Add,
-                                            LocationAddress = tempLocation2.Address,
-                                            LocationPhoneNumber = tempLocation2.PhoneNumber,
-                                            LocationEntityKey = tempLocation2.EntityKey,
-                                            LocationCoordinate = tempLocation2.Coordinate,
-                                            LocationDescription = tempLocation2.Description,
-                                            LocationStandardInstructions = tempLocation2.StandardInstructions
-                                            }
-                                       };
-                                    order.Tasks = checkedOrderTask2;
-                                    regOrders.Add(order);
+                                    orderInRNA.SessionEntityKey = session.EntityKey;
+                                    orderInRNA.BeginDate = session.StartDate.ToString();
                                 }
                             }
+                            updateOrders.Add(orderInRNA);
                         }
+                        foreach (Order orderNotInRNAs in ordersNotInRnaOrders) // No matching Order Found. Add location/coordinate to order and save in regOrder List
+                        {
+                            orderNotInRNAs.Action = ActionType.Add;
+
+                            ServiceLocation tempLocation2 = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderNotInRNAs.Tasks[0].LocationIdentifier); //Find service location that matched order
+
+                            if (tempLocation2 != null) // order service location found in RNA service locations
+                            {
+                                orderNotInRNAs.Tasks[0].Action = ActionType.Add;
+                                orderNotInRNAs.Tasks[0].LocationAddress = tempLocation2.Address;
+                                orderNotInRNAs.Tasks[0].LocationPhoneNumber = tempLocation2.PhoneNumber;
+                                orderNotInRNAs.Tasks[0].LocationEntityKey = tempLocation2.EntityKey;
+                                orderNotInRNAs.Tasks[0].LocationCoordinate = tempLocation2.Coordinate;
+                                orderNotInRNAs.Tasks[0].LocationDescription = tempLocation2.Description;
+                                orderNotInRNAs.Tasks[0].LocationStandardInstructions = tempLocation2.StandardInstructions;
+                            }
+
+                            string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Key;
+                            orderNotInRNAs.RequiredRouteOriginEntityKey = Convert.ToInt64(originDepotForOrder);
+
+                            //Add session entity key to order for routings session with matching depots
+                            foreach (DailyRoutingSession session in saveRoutingSession)
+                            {
+                                if (originDepotForOrder == session.Description)
+                                {
+                                    orderNotInRNAs.SessionEntityKey = session.EntityKey;
+                                    orderNotInRNAs.BeginDate = session.StartDate.ToString();
+                                }
+                            }
+                            regOrders.Add(orderNotInRNAs);
+                        }
+
+
 
                         //Add Update and Reg orders to a list
 
                         saveOrdersList = updateOrders.Concat(regOrders).ToList();
-                        
+
                         //Convert Order to OrderSpec
-                        foreach(Order order in saveOrdersList)
+                        foreach (Order order in saveOrdersList)
                         {
-                            
-                            convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            if (order.Action == ActionType.Update)
+                            {
+                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            }
+                            else if (order.Action == ActionType.Add)
+                            {
+                                var temp = ConvertOrderToOrderSpec(order);
+                                temp.OrderInstance = null;
+                                convertedOrderSpecs.Add(temp);
+                            }
+
                         }
-                    }
+                    } //matching orders found in rna
 
 
 
@@ -3152,47 +3291,56 @@ namespace Averitt_RNA
                     //Save Orders to RNA
                     try
                     {
-                        DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorLevel, out fatalErrorMessage, DateTime.Now.AddDays(1), originDepotIdentifiers);
-
-
+                        
                         foreach (OrderSpec order in convertedOrderSpecs)
                         {
                             order.RegionEntityKey = _Region.EntityKey;
-                            
-                            
-                           
+                            order.ManagedByUserEntityKey = MainService.User.EntityKey;
+
+
+
                         };
-
-                        SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
-
-
-                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                        if (convertedOrderSpecs.Count != 0)
                         {
-                            _Logger.Debug("Fatel Error Occured Saving Orders : " + fatalErrorMessage);
-                        }
-                        else
-                        {
-                         
+                            SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
 
-                            foreach (SaveResult result in savedOrdersResult)
+
+                            if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
                             {
-                                var tempOrder = (Order)result.Object;
-                                if (result.Error.ValidationFailures != null)
-                                {
-                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
-                                }
-                                else if (result.Error != null)
-                                {
-                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-                                }
-                                else
-                                {
-                                    _Logger.DebugFormat("Successfully Saved Order {0} to RNA", tempOrder.Identifier);
-                                }
+                                _Logger.Debug("Fatel Error Occured Saving Orders : " + fatalErrorMessage);
                             }
-                            _Logger.Debug("Saving  Order Completed");
-                        }
+                            else
+                            {
+                                string errorUpdatingOrderStatusMessage = string.Empty;
+                                bool errorUpdatingOrderStatus = false;
 
+                                foreach (SaveResult result in savedOrdersResult)
+                                {
+                                    var tempOrder = (Order)result.Object;
+                                     if(result.Error == null)
+                                    {
+                                        _Logger.DebugFormat("Successfully Saved Order {0} to RNA", tempOrder.Identifier);
+                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Successfully Saved Order", "COMPLETE", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                    }
+                                    else if (result.Error != null)
+                                    {
+                                        _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Error Occured See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                    }
+                                    else if (result.Error.ValidationFailures != null)
+                                    {
+                                        _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
+                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Validation Error For Properties " + result.Error.ValidationFailures[0].Property + "See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                    }
+                                   
+                                   
+                                }
+                                _Logger.Debug("Saving  Order Completed");
+                            }
+                        } else
+                        {
+                            _Logger.Debug("No Orders to Save to RNA");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -3319,10 +3467,8 @@ namespace Averitt_RNA
             {
                 //Get Dummy Orders
                 dummyOrdersFromCSV = RetrieveDummyOrdersFromCSV(RetrieveDepotsForRegionDict, RetrieveOrderClassDict, regionId, out errorRetrieveOrdersFromCSV, out errorRetrieveOrdersFromCSVMessage);
-                dummyOrderIDs = dummyOrdersFromCSV.Select(x => x.Identifier).ToArray();
 
-                //Get Origin Depot Keys
-                string[] originDepotIdentifiers = dummyOrdersFromCSV.Select(x => RetrieveDepotsForRegionDict.FirstOrDefault(y =>y.Value == x.RequiredRouteOriginEntityKey).Key).ToArray();
+               
 
                 if (errorRetrieveOrdersFromCSV)
                 {
@@ -3331,7 +3477,10 @@ namespace Averitt_RNA
                 } else
                 {
 
+                    dummyOrderIDs = dummyOrdersFromCSV.Select(x => x.Identifier).ToArray();
 
+                    //Get Origin Depot Keys
+                    string[] originDepotIdentifiers = dummyOrdersFromCSV.Select(x => RetrieveDepotsForRegionDict.FirstOrDefault(y => y.Value == x.RequiredRouteOriginEntityKey).Key).ToArray();
 
                     List<string> sessionsToCreate = new List<string>();
                     errorLevel = ErrorLevel.None;
@@ -3519,13 +3668,27 @@ namespace Averitt_RNA
                                 }
 
 
-
-                                order.Action = ActionType.Add;
-                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                                ordersToSaveInRNA.Add(order);
+                               
+                               
+                               
                             }
 
 
+                            foreach (Order orderSave in ordersToSaveInRNA)
+                            {
+                                if (orderSave.Action == ActionType.Update)
+                                {
+                                    convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
+                                }
+                                else if (orderSave.Action == ActionType.Add)
+                                {
+                                    var temp = ConvertOrderToOrderSpec(orderSave);
+                                    temp.OrderInstance = null;
+                                    convertedOrderSpecs.Add(temp);
+                                }
 
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -3602,7 +3765,7 @@ namespace Averitt_RNA
                                         }
                                     }
 
-
+                                    ordersToSaveInRNA.Add(order);
 
                                 }
                                 else
@@ -3612,8 +3775,21 @@ namespace Averitt_RNA
 
 
 
+                                foreach (Order orderSave in ordersToSaveInRNA)
+                                {
+                                    if (orderSave.Action == ActionType.Update)
+                                    {
+                                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
+                                    }
+                                    else if (orderSave.Action == ActionType.Add)
+                                    {
+                                        var temp = ConvertOrderToOrderSpec(orderSave);
+                                        temp.OrderInstance = null;
+                                        convertedOrderSpecs.Add(temp);
+                                    }
 
-                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                                }
+                               
                             }
 
 
@@ -3635,91 +3811,92 @@ namespace Averitt_RNA
                         List<Order> updateOrders = new List<Order>(); //Orders to Update in RNA
                         List<Order> regOrders = new List<Order>(); //Orders to Add to RNA
                         List<Order> saveOrdersList = new List<Order>();
+
                         List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
 
-                        foreach (Order rnaOrder in rnaOrders)
+                        List<Order> dummyOrdersInRnaOrders = dummyOrdersFromCSV.Where(x => rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+                        List<Order> dummyOrdersNotInRnaOrders = dummyOrdersFromCSV.Where(x => !rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+
+                        foreach (Order dummyorder in dummyOrdersInRnaOrders)
                         {
-                            foreach (Order dummyorder in dummyOrdersFromCSV)
+                            Order tempOrder = rnaOrders.FirstOrDefault(x => x.Identifier == dummyorder.Identifier);
+                            dummyorder.Action = ActionType.Update;
+                            dummyorder.Tasks[0].TaskType_Type = "Pickup";
+                            dummyorder.EntityKey = tempOrder.EntityKey;
+                            dummyorder.Version = tempOrder.Version;
+
+                            if(tempOrder.Tasks[0].ServiceWindowOverrides == null || tempOrder.Tasks[0].ServiceWindowOverrides.Length == 0)
                             {
-                                if (rnaOrder.Identifier == dummyorder.Identifier) // found matching order in RNA
+                                dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Add;
+                                
+
+                            } else
+                            {
+                                dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+                                dummyorder.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+                            }
+                           
+                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
+
+                            if (tempLocation != null) // order service location found in RNA service locations
+                            {
+                                dummyorder.Coordinate = tempLocation.Coordinate;
+                                dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+                                dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
+                                dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
+                                dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+                            }
+
+
+                            string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+                            //Add session entity key to order for routings session with matching depots
+                            foreach (DailyRoutingSession session in saveRoutingSession)
+                            {
+                                if (originDepotForOrder == session.Description)
                                 {
-                                    dummyorder.Action = ActionType.Update;
-                                    if (rnaOrder.Tasks[0].LocationIdentifier != dummyorder.Tasks[0].LocationIdentifier)
-                                    {
-                                        
-                                        dummyorder.Tasks[0].Action = ActionType.Update;
-                                        dummyorder.Tasks[0].TaskType_Type = "Pickup";
-                                        
-
-                                    }
-
-                                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
-
-                                    if (tempLocation != null) // order service location found in RNA service locations
-                                    {
-
-                                        dummyorder.Tasks = new Task[]
-                                       {
-                                        new Task
-                                        {
-                                            LocationEntityKey = tempLocation.EntityKey,
-                                            LocationIdentifier = tempLocation.Identifier,
-                                           
-                                        }
-                                       };
-                                    }
-
-
-                                        string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
-
-                                    //Add session entity key to order for routings session with matching depots
-                                    foreach (DailyRoutingSession session in saveRoutingSession)
-                                    {
-                                        if (originDepotForOrder == session.Description)
-                                        {
-                                            dummyorder.SessionEntityKey = session.EntityKey;
-                                            dummyorder.BeginDate = session.StartDate.ToString();
-                                        }
-                                    }
-                                    updateOrders.Add(dummyorder);
-
-                                }
-                                else // No matching Order Found. Add location/coordinate to order and save in regOrder List
-                                {
-                                    dummyorder.Action = ActionType.Add;
-                                    dummyorder.Tasks[0].TaskType_Type = "Pickup";
-
-                                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
-
-                                    //Add session entity key to order for routings session with matching depots
-                                    foreach (DailyRoutingSession session in saveRoutingSession)
-                                    {
-                                        if (originDepotForOrder == session.Description)
-                                        {
-                                            dummyorder.SessionEntityKey = session.EntityKey;
-                                            dummyorder.BeginDate = session.StartDate.ToString();
-                                        }
-                                    }
-
-                                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
-
-                                        if (tempLocation != null) // order service location found in RNA service locations
-                                        {
-
-                                            dummyorder.Tasks = new Task[]
-                                           {
-                                        new Task
-                                        {
-                                            LocationEntityKey = tempLocation.EntityKey,
-                                            LocationIdentifier = tempLocation.Identifier,
-                                            TaskType_Type = "Pickup"
-                                        }
-                                           };
-                                        }
-                                            regOrders.Add(dummyorder);
+                                    dummyorder.SessionEntityKey = session.EntityKey;
+                                    dummyorder.BeginDate = session.StartDate.ToString();
                                 }
                             }
+                            updateOrders.Add(dummyorder);
+
                         }
+                        foreach (Order dummyorder in dummyOrdersNotInRnaOrders)
+                        {
+                            dummyorder.Action = ActionType.Add;
+                            dummyorder.Tasks[0].TaskType_Type = "Pickup";
+                            dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Add;
+
+                            string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+                            //Add session entity key to order for routings session with matching depots
+                            foreach (DailyRoutingSession session in saveRoutingSession)
+                            {
+                                if (originDepotForOrder == session.Description)
+                                {
+                                    dummyorder.SessionEntityKey = session.EntityKey;
+                                    dummyorder.BeginDate = session.StartDate.ToString();
+                                }
+                            }
+
+                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
+
+                            if (tempLocation != null) // order service location found in RNA service locations
+                            {
+
+                                dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+                                dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
+                                dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
+                                dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+
+
+
+                            }
+                            regOrders.Add(dummyorder);
+
+                        }
+                        
 
                         //Add Update and Reg orders to a list
 
@@ -3728,8 +3905,17 @@ namespace Averitt_RNA
                         //Convert Order to OrderSpec
                         foreach (Order order in saveOrdersList)
                         {
-
-                            convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            if(order.Action == ActionType.Update)
+                            {
+                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+                            }
+                            else if (order.Action == ActionType.Add)
+                            {
+                                var temp = ConvertOrderToOrderSpec(order);
+                                temp.OrderInstance = null;
+                                convertedOrderSpecs.Add(temp);
+                            }
+                            
                         }
                     }
 
@@ -3745,15 +3931,13 @@ namespace Averitt_RNA
                             order.RegionEntityKey = _Region.EntityKey;
                             order.ManagedByUserEntityKey = MainService.User.EntityKey;
                             
-
                             
-
                         };
 
                         
 
 
-                        SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, new OrderSpec[] { convertedOrderSpecs.ToArray()[0] /*Testdata.TestData.OrderSpec*/ } );
+                        SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage,  convertedOrderSpecs.ToArray()  );
 
 
                         if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
@@ -3767,18 +3951,19 @@ namespace Averitt_RNA
                             foreach (SaveResult result in savedOrdersResult)
                             {
                                 var tempOrder = (Order)result.Object;
-                                if (result.Error.ValidationFailures != null)
-                                {
-                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
-                                }
-                                else if (result.Error != null)
-                                {
-                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-                                }
-                                else
+                                if(result.Error == null)
                                 {
                                     _Logger.DebugFormat("Successfully Saved Dummy Order  {0} to RNA", tempOrder.Identifier);
                                 }
+                                else if(result.Error.ValidationFailures != null)
+                                {
+                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
+                                }
+                                else if(result.Error != null)
+                                {
+                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+                                }
+                                
                             }
                             _Logger.Debug("Saving Dummy Order Completed");
                         }
@@ -3826,6 +4011,7 @@ namespace Averitt_RNA
                             TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[0];
                             long orderClassEntity;
                             long routeOriginEntityKey;
+                            temp.Action = ActionType.Add;
                             temp.Identifier = dummyOrderValue[0];
                             temp.PlannedPickupQuantities = new Quantities
                             {
@@ -3851,8 +4037,11 @@ namespace Averitt_RNA
                                     {
                                         DailyTimePeriod = new DailyTimePeriod
                                         {
+                                            DayOfWeekFlags_DaysOfWeek = "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
                                             StartTime = dummyOrderValue[5],
-                                            EndTime = dummyOrderValue[6]
+                                            EndTime = dummyOrderValue[6],
+                                            
+                                            
                                         }
                                     }
                                 },
@@ -4533,10 +4722,11 @@ namespace Averitt_RNA
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
                     MainService.SessionHeader,
-                    new MultipleRegionContext
+                    new SingleRegionContext
                     {
                         BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
-                        Mode = MultipleRegionMode.All
+                        RegionEntityKey = _Region.EntityKey
+                         
                     },
                     new RetrievalOptions
                     {

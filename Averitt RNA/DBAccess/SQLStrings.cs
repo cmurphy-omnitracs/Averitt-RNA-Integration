@@ -57,11 +57,21 @@ namespace Averitt_RNA.DBAccess
         public static string INSERT_STAGED_ROUTES(
                     string regionID,  string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
         {
-            return string.Format(@"
+            if (stopSeq == null)
+            {
+                return string.Format(@"
+                INSERT INTO STAGED_ROUTES
+                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
+                VALUES
+                ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', NULL, CONVERT(datetime2,'{5}'), '{6}', '{7}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+            } else
+            {
+                return string.Format(@"
                 INSERT INTO STAGED_ROUTES
                 (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
                 VALUES
                 ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', {4}, CONVERT(datetime2,'{5}'), '{6}', '{7}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+            }
         }
 
 
@@ -80,7 +90,7 @@ namespace Averitt_RNA.DBAccess
                
                 UPDATE STAGED_SERVICE_LOCATIONS
                 SET [Status] = '{0}'
-                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}')
+                WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}'
                 ", status, error, regionID, serviceLocationID);
         }
 

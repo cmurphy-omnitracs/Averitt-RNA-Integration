@@ -224,7 +224,7 @@ namespace Averitt_RNA.DBAccess.Records
             {
                 Identifier = record.OrderIdentifier,
                 BeginDate = record.BeginDate,
-                DeliveryQuantities = new Quantities
+                PlannedDeliveryQuantities = new Quantities
                 {
                     Size1 = Convert.ToDouble(record.QuantitySize1),
                     Size2 = Convert.ToDouble(record.QuantitySize2),

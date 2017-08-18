@@ -11,7 +11,7 @@ namespace Averitt_RNA
         public static class TestData
         {
             public static ActionType OrderTestMode = ActionType.Add;
-            public static string RegionIdentifier = "R1";
+            public static string RegionIdentifier = "R2";
             public static string NotificationRecipientIdentifier = "INTEGRATION";
             public static NotificationSubscriptionType[] NotificationSubscriptionTypes = new NotificationSubscriptionType[]
             {
@@ -123,16 +123,16 @@ namespace Averitt_RNA
                 Identifier = "TESTORDER6",
                 BeginDate = RoutingSessionStartDate.ToString(DateFormat),
                 ManagedByUserEntityKey = 606,
-                RegionEntityKey = 101,
-                SessionEntityKey = 2336,
+                RegionEntityKey = 606,
+                SessionEntityKey = 2529,
                 TaskSpec = new DeliveryTaskSpec
                 {
                     Quantities = new Quantities
                     {
                         Size1 = 60
                     },
-                    RequiredOriginEntityKey = 887,
-                    ServiceLocationEntityKey = 1114,
+                    RequiredOriginEntityKey = 1216,
+                    ServiceLocationEntityKey = 1215,
                     
                 },
                 //OrderInstance = new DomainInstance

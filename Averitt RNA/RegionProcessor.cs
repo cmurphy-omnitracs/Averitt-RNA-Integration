@@ -18,7 +18,7 @@ namespace Averitt_RNA
         private IntegrationDBAccessor _IntegrationDBAccessor;
         private static DictCache dictCache = new DictCache();
         private static CacheHelper cacheHelper = new CacheHelper();
-
+        private string dictCacheFile = string.Empty;
         public static DateTime lastSuccessfulRunTime = new DateTime();
         
 
@@ -28,8 +28,9 @@ namespace Averitt_RNA
             _Region = region;
             _ApexConsumer = new ApexConsumer(region, Logger);
             _IntegrationDBAccessor = new IntegrationDBAccessor(Logger);
-            
-            
+            dictCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dicts_" + _Region.Identifier +".json");
+
+
         }
 
        
@@ -60,7 +61,7 @@ namespace Averitt_RNA
                 Logger.Debug("Start Retrieving Region Cache Files");
 
                 //Write cache file if it doesn't exist or if it needs to get refreshed
-                if (((DateTime.Now.Minute % Config.DictServiceTimeRefresh) == 0) || !File.Exists(MainService.dictCacheFile))
+                if (((DateTime.Now.Minute % Config.DictServiceTimeRefresh) == 0) || !File.Exists(dictCacheFile))
                 {
                     try
                     {
@@ -105,15 +106,13 @@ namespace Averitt_RNA
                     //Region Processing
                     Logger.Debug("Start Retrieving Region Processing Files");
                     //Service location Processing
-                    //_ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
-                    //  _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+                    _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
+                      _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
-                     //Orders Processing
-                    //_ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
-                    //   _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
-
-                    //Pick Up Dummy Order Processing
-                    _ApexConsumer.RetrieveDummyOrdersAndSave(dictCache.depotsForRegionDict, dictCache.orderClassesDict, _Region.Identifier, out errorCaught, out errorMessage);
+                     //Orders Processing * correct Save Order Result from dummy csv
+                     
+                    _ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
+                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
                     //Pick Up Dummy Order Processing
                     _ApexConsumer.RetrieveDummyOrdersAndSave(dictCache.depotsForRegionDict, dictCache.orderClassesDict, _Region.Identifier, out errorCaught, out errorMessage);
@@ -145,7 +144,7 @@ namespace Averitt_RNA
             string errorMessage = string.Empty;
 
            
-            Logger.InfoFormat("Writing Dictionary Cache file to {0}", MainService.dictCacheFile.ToString());
+            Logger.InfoFormat("Writing Dictionary Cache file to {0}", dictCacheFile);
             try
             {
                 dictCache.orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
@@ -155,7 +154,7 @@ namespace Averitt_RNA
                 dictCache.depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage);
 
 
-                using (StreamWriter writer = new StreamWriter(MainService.dictCacheFile, append: false))
+                using (StreamWriter writer = new StreamWriter(dictCacheFile, append: false))
                 {
                     Newtonsoft.Json.JsonSerializerSettings settings = new Newtonsoft.Json.JsonSerializerSettings
                     {
@@ -178,21 +177,21 @@ namespace Averitt_RNA
 
         private void LoadDictCachedData()
         {
-            if (!File.Exists(MainService.dictCacheFile))
+            if (!File.Exists(dictCacheFile))
             {
                 Logger.Info("No cache file exists");
             }
             else
             {
-               Logger.InfoFormat("Loading cache file from {0}", MainService.dictCacheFile);
+               Logger.InfoFormat("Loading cache file from {0}", dictCacheFile);
                 try
                 {
-                    string jsonData = File.ReadAllText(MainService.dictCacheFile);
+                    string jsonData = File.ReadAllText(dictCacheFile);
                     DictCache temp = Newtonsoft.Json.JsonConvert.DeserializeObject<DictCache>(jsonData);
                     if (temp != null)
                     {
                         dictCache = temp;
-                       Logger.Debug("Dicts loaded from " + MainService.dictCacheFile);
+                       Logger.Debug("Dicts loaded from " + dictCacheFile);
                     }
                 }
                 catch (Exception ex)
