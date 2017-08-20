@@ -164,7 +164,7 @@ namespace Averitt_RNA.DBAccess.Records
                     Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
-                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Monday, DayOfWeekFlags.Wednesday, DayOfWeekFlags.Friday }),
+                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.All.ToString(),
                         EndTime = new TimeSpan(17, 0, 0).ToString(TimeFormat),
                         StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
                     },
@@ -175,7 +175,7 @@ namespace Averitt_RNA.DBAccess.Records
                     Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
-                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Tuesday, DayOfWeekFlags.Thursday }),
+                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.All.ToString(),
                         EndTime = new TimeSpan(20, 0, 0).ToString(TimeFormat),
                         StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
                     },
@@ -189,7 +189,7 @@ namespace Averitt_RNA.DBAccess.Records
                     Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
-                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.WeekDays.ToString(),
+                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.All.ToString(),
                         EndTime = new TimeSpan(12, 0, 0).ToString(TimeFormat),
                         StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
                     },
@@ -200,7 +200,7 @@ namespace Averitt_RNA.DBAccess.Records
                     Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
-                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Monday, DayOfWeekFlags.Wednesday, DayOfWeekFlags.Friday }),
+                        DayOfWeekFlags_DaysOfWeek =  DayOfWeekFlags.All.ToString(),
                         EndTime = new TimeSpan(17, 0, 0).ToString(TimeFormat),
                         StartTime = new TimeSpan(13, 0, 0).ToString(TimeFormat)
                     },
@@ -211,7 +211,7 @@ namespace Averitt_RNA.DBAccess.Records
                     Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
-                        DayOfWeekFlags_DaysOfWeek = string.Join(",", new DayOfWeekFlags[] { DayOfWeekFlags.Tuesday, DayOfWeekFlags.Thursday }),
+                        DayOfWeekFlags_DaysOfWeek =  DayOfWeekFlags.All.ToString(),
                         EndTime = new TimeSpan(20, 0, 0).ToString(TimeFormat),
                         StartTime = new TimeSpan(13, 0, 0).ToString(TimeFormat)
                     },

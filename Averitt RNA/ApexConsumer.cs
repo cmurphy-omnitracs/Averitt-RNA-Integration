@@ -148,6 +148,7 @@ namespace Averitt_RNA
                 SpecialInstructions = order.SpecialInstructions,
                 TakenBy = order.TakenBy,
                 UploadSelector = order.UploadSelector
+                
             };
             TaskSpecType taskSpecType = TaskSpecType.None;
             if (order.LineItems == null || order.LineItems.Length == 0)
@@ -1751,6 +1752,72 @@ namespace Averitt_RNA
             return orders;
         }
 
+        public List<Order> RetrieveOrdersFromRNA(out ErrorLevel errorLevel, out string fatalErrorMessage, string[] identifiers)
+        {
+            List<Order> orders = null;
+
+
+            errorLevel = ErrorLevel.None;
+            fatalErrorMessage = string.Empty;
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+
+                        Expression = new InExpression
+                        {
+                            Left = new PropertyExpression { Name = "Identifier" },
+                            Right = new ValueExpression { Value = identifiers }
+                        },
+
+
+                        PropertyInclusionMode = PropertyInclusionMode.All,
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Orders | Matching Orders" + identifiers.ToString() + " | Failed with a null result.");
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    fatalErrorMessage = "Orders doe not exist.";
+                    _Logger.Error("Retrieve Orders |  Matching Orders " + identifiers.ToString() + " | " + fatalErrorMessage);
+                    errorLevel = ErrorLevel.Fatal;
+                    orders = retrievalResults.Items.Cast<Order>().ToList();
+                }
+                else
+                {
+                    orders = retrievalResults.Items.Cast<Order>().ToList();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Orders |  Matching Orders " + identifiers.ToString() + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorLevel = ErrorLevel.Transient;
+                }
+                else
+                {
+                    errorLevel = ErrorLevel.Fatal;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Retrieve Orders |  Matching Orders " + identifiers.ToString(), ex);
+                errorLevel = ErrorLevel.Transient;
+            }
+            return orders;
+        }
+
         public List<Order> RetrieveModifiedRNAOrders(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
         {
             List<Order> orders = null;
@@ -2531,6 +2598,7 @@ namespace Averitt_RNA
             List<DBAccess.Records.StagedOrderRecord> checkedOrderRecordList = new List<DBAccess.Records.StagedOrderRecord>();
             List<Order> saveOrders = new List<Order>();
             List<Order> rnaOrders = new List<Order>();
+          
             List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
 
             try
@@ -2735,6 +2803,11 @@ namespace Averitt_RNA
                                     {
                                         Order[] orderToDelWithEntityKeys = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, orderToDeleteIdentifiers);
 
+                                        foreach(Order order in orderToDelWithEntityKeys)
+                                        {
+                                            order.Action = ActionType.Delete;
+                                        }
+
                                         if (errorLevel == ErrorLevel.None)
                                         {
                                             _Logger.DebugFormat(" Start Deleting Orders");
@@ -2743,6 +2816,24 @@ namespace Averitt_RNA
                                             if (errorLevel == ErrorLevel.None)
                                             {
                                                 _Logger.DebugFormat("Deleting Orders Successful");
+                                                foreach (String orderId in orderToDeleteIdentifiers)
+                                                {
+                                                    string databaseErrorMessage = string.Empty;
+                                                    bool datbaseErrorCaught = false;
+                                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage, out datbaseErrorCaught);
+
+                                                    if (datbaseErrorCaught == false)
+                                                    {
+                                                        _Logger.DebugFormat("Update Staged Orders Table for order " + orderId);
+                                                    }
+                                                    else
+                                                    {
+
+                                                        _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
+
+
+                                                    }
+                                                }
                                             }
                                             else
                                             {
@@ -2906,9 +2997,13 @@ namespace Averitt_RNA
 
                     try
                     {
-                        _Logger.Debug("Retreiving Modifed Orders Since " + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
-                    
-                        rnaOrders = RetrieveModifiedRNAOrders(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime).ToList();
+                        _Logger.Debug("Retreiving Matching Orders In RNA Since" + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
+
+                        //Retrive Modified and Matching Orders
+
+                        string[] orderIDDatabase = checkedOrderRecordList.Select(x => x.OrderIdentifier).ToArray();
+                       
+                        rnaOrders = RetrieveOrdersFromRNA(out errorLevel, out fatalErrorMessage, orderIDDatabase);
 
                         if (errorLevel == ErrorLevel.None && !rnaOrders.Any())
                         {
@@ -3088,7 +3183,45 @@ namespace Averitt_RNA
                                     ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
                                     Order tempOrder = new Order();
                                     Task orderTask = new Task();
+                                    List<TaskServiceWindowOverrideDetail> serviceWindowOverides = new List<TaskServiceWindowOverrideDetail>();
+                                   
 
+                                    if (order.ServiceWindowOverride1End.Any() && order.ServiceWindowOverride1Start.Any())
+                                    {
+                                        var temp = new TaskServiceWindowOverrideDetail
+                                        {
+                                            Action = ActionType.Add,
+                                            DailyTimePeriod = new DailyTimePeriod
+                                            {
+                                                DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+                                                StartTime = order.ServiceWindowOverride1Start,
+                                                EndTime = order.ServiceWindowOverride1End
+
+
+                                            }
+                                            
+                                        };
+
+                                        serviceWindowOverides.Add(temp);
+                                    }
+                                    if (order.ServiceWindowOverride2End.Any() && order.ServiceWindowOverride2Start.Any())
+                                    {
+                                        var temp = new TaskServiceWindowOverrideDetail
+                                        {
+                                             
+                                            Action = ActionType.Add,
+                                            DailyTimePeriod = new DailyTimePeriod
+                                            {
+                                                DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+                                                StartTime = order.ServiceWindowOverride2Start,
+                                                EndTime = order.ServiceWindowOverride2End,
+                                                
+                                            },
+                                            
+                                             
+                                        };
+                                        serviceWindowOverides.Add(temp);
+                                    }
                                     if (tempLocation == null) // order service location found in RNA service locations
                                     {
                                         _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
@@ -3106,13 +3239,17 @@ namespace Averitt_RNA
                                             LocationCoordinate = tempLocation.Coordinate,
                                             LocationDescription = tempLocation.Description,
                                             LocationStandardInstructions = tempLocation.StandardInstructions,
-                                            TaskType_Type = "Delivery"
+                                            ServiceWindowOverrides = serviceWindowOverides.ToArray(),
+                                            TaskType_Type = "Delivery",
+                                           
+                                            
 
                                         };
 
 
 
                                         tempOrder = (Order)order;
+                                        tempOrder.PreferredRouteIdentifierOverride = tempOrder.PreferredRouteIdentifier;
                                         tempOrder.Action = ActionType.Add;
                                         tempOrder.Tasks = new Task[] { orderTask };
                                         long orderClassEntityKey = 0;
@@ -3200,8 +3337,47 @@ namespace Averitt_RNA
                             orderInRNA.Tasks[0].TaskType_Type = "Delivery";
                             orderInRNA.EntityKey = tempOrder.EntityKey;
                             orderInRNA.Version = tempOrder.Version;
+                            orderInRNA.PreferredRouteIdentifierOverride = orderInRNA.PreferredRouteIdentifier;
 
-                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.EntityKey == orderInRNA.Tasks[0].LocationEntityKey); //Find service location that matched order
+                            //Change Service Windows entity Keys
+                            if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length)
+                            {
+                                for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
+                                {
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
+
+                                }
+                            }
+                            else if (tempOrder.Tasks[0].ServiceWindowOverrides.Length ==0)
+                            {
+                                for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
+                                {
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
+                                  
+
+                                }
+                            } else
+                            {
+                                if(orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 1 && tempOrder.Tasks[0].ServiceWindowOverrides.Length ==2)
+                                {
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[1].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[1].EntityKey;
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Delete;
+
+                                } else if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 2 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 1)
+                                {
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Add;
+                                   
+                                }
+                              
+
+                            }
+
+
+                            //orderInRNA.Tasks[0].ServiceWindowOverrides[0].
+                            
+                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderInRNA.Tasks[0].LocationIdentifier); //Find service location that matched order
 
                             if (tempLocation != null) // order service location found in RNA service locations
                             {
@@ -3214,7 +3390,7 @@ namespace Averitt_RNA
                             }
 
                             string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Key;
-                            orderInRNA.RequiredRouteOriginEntityKey = Convert.ToInt64(originDepotForOrder);
+                            orderInRNA.RequiredRouteOriginEntityKey = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Value;
 
 
                             //Add session entity key to order for routings session with matching depots
@@ -3246,7 +3422,7 @@ namespace Averitt_RNA
                             }
 
                             string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Key;
-                            orderNotInRNAs.RequiredRouteOriginEntityKey = Convert.ToInt64(originDepotForOrder);
+                            orderNotInRNAs.RequiredRouteOriginEntityKey = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Value;
 
                             //Add session entity key to order for routings session with matching depots
                             foreach (DailyRoutingSession session in saveRoutingSession)
@@ -3953,15 +4129,15 @@ namespace Averitt_RNA
                                 var tempOrder = (Order)result.Object;
                                 if(result.Error == null)
                                 {
-                                    _Logger.DebugFormat("Successfully Saved Dummy Order  {0} to RNA", tempOrder.Identifier);
+                                    _Logger.DebugFormat("Successfully Saved/Updated Dummy Order  {0} to RNA", tempOrder.Identifier);
                                 }
                                 else if(result.Error.ValidationFailures != null)
                                 {
-                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
+                                    _Logger.ErrorFormat("An error has occured during saving/updating Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
                                 }
                                 else if(result.Error != null)
                                 {
-                                    _Logger.ErrorFormat("An error has occured during saving Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+                                    _Logger.ErrorFormat("An error has occured during saving/updating Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
                                 }
                                 
                             }

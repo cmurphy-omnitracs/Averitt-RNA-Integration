@@ -151,8 +151,9 @@ namespace Averitt_RNA.DBAccess.Records
                 {
                     DailyTimePeriod = new DailyTimePeriod
                     {
-                        StartTime = record.ServiceWindowOverride1Start, 
-                        EndTime = record.ServiceWindowOverride1End
+                        StartTime = record.ServiceWindowOverride1Start,
+                        EndTime = record.ServiceWindowOverride1End,
+                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"
                     }
                 };
                      
@@ -184,8 +185,9 @@ namespace Averitt_RNA.DBAccess.Records
                     DailyTimePeriod = new DailyTimePeriod
                     {
                         StartTime = record.ServiceWindowOverride2Start,
-                        EndTime = record.ServiceWindowOverride2End
-            }
+                        EndTime = record.ServiceWindowOverride2End,
+                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"
+                    }
                 };
 
             }
