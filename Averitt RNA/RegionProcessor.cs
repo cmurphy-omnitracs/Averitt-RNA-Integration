@@ -5,7 +5,7 @@ using System.Reflection;
 using Averitt_RNA.Apex;
 using Averitt_RNA.DBAccess;
 using WindowsServiceUtility;
-
+using System.Threading;
 using System.IO;
 
 namespace Averitt_RNA
@@ -16,7 +16,7 @@ namespace Averitt_RNA
         private Region _Region;
         private ApexConsumer _ApexConsumer;
         private IntegrationDBAccessor _IntegrationDBAccessor;
-        private static DictCache dictCache = new DictCache();
+        private DictCache dictCache = new DictCache();
         private static CacheHelper cacheHelper = new CacheHelper();
         private string dictCacheFile = string.Empty;
         public static DateTime lastSuccessfulRunTime = new DateTime();
@@ -65,10 +65,15 @@ namespace Averitt_RNA
                 {
                     try
                     {
+                        Object thisLock = new Object();
+                        
                         Logger.Debug("Starting Writing and Loading of Dictionaries");
-                        dictCache.resetCache();
-                        WriteDictCachedData();
-                        LoadDictCachedData();
+                        lock (thisLock)
+                        {
+                            dictCache.resetCache();
+                            WriteDictCachedData();
+                            LoadDictCachedData();
+                        }
                         Logger.Debug("Writing and Loading Dictionaries Completed Successfully");
                     }
 
@@ -137,42 +142,53 @@ namespace Averitt_RNA
 
         }
        private void WriteDictCachedData()
-        { 
+        {
 
+           
 
             ApexConsumer.ErrorLevel errorLevel = ApexConsumer.ErrorLevel.None;
             string errorMessage = string.Empty;
 
            
             Logger.InfoFormat("Writing Dictionary Cache file to {0}", dictCacheFile);
+           
+
             try
-            {
-                dictCache.orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
-                dictCache.regionEntityKeyDict = _ApexConsumer.RetrieveRegionEntityKey(out errorLevel, out errorMessage);
-                dictCache.serviceTimeEntityKeyDict = _ApexConsumer.RetrieveServiceTimeEntityKey(out errorLevel, out errorMessage);
-                dictCache.timeWindowEntityKeyDict = _ApexConsumer.RetrieveTimeWindowEntityKey(out errorLevel, out errorMessage);
-                dictCache.depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage);
-
-
-                using (StreamWriter writer = new StreamWriter(dictCacheFile, append: false))
                 {
-                    Newtonsoft.Json.JsonSerializerSettings settings = new Newtonsoft.Json.JsonSerializerSettings
-                    {
-                        PreserveReferencesHandling = Newtonsoft.Json.PreserveReferencesHandling.None,
-                        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
-                    };
+                    dictCache.depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage, _Region.EntityKey);
+                    dictCache.orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
+                    dictCache.regionEntityKeyDict = _ApexConsumer.RetrieveRegionEntityKey(out errorLevel, out errorMessage);
+                    dictCache.serviceTimeEntityKeyDict = _ApexConsumer.RetrieveServiceTimeEntityKey(out errorLevel, out errorMessage);
+                    dictCache.timeWindowEntityKeyDict = _ApexConsumer.RetrieveTimeWindowEntityKey(out errorLevel, out errorMessage);
 
-                    string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(dictCache, Newtonsoft.Json.Formatting.None, settings);
-                    
-                    writer.Write(jsonData);
+                Newtonsoft.Json.JsonSerializerSettings settings = new Newtonsoft.Json.JsonSerializerSettings
+                {
+                    PreserveReferencesHandling = Newtonsoft.Json.PreserveReferencesHandling.Objects,
+                    ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+
+                };
+
+
+
+                string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(dictCache, Newtonsoft.Json.Formatting.None, settings);
+
+
+               // StreamWriter writer = new StreamWriter(dictCacheFile, append: false);
+                System.IO.File.WriteAllText(dictCacheFile, jsonData);
+
+
+
+               // writer.Write(jsonData);
+                
                 }
 
 
-            }
-            catch (Exception ex)
-            {
-                Logger.ErrorFormat("Error writing cache file: {0}", ex.Message);
-            }
+                catch (Exception ex)
+                {
+                    Logger.ErrorFormat("Error writing cache file: {0}", ex.Message);
+                }
+            
+            
         }
 
         private void LoadDictCachedData()

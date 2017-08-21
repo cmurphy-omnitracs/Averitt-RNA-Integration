@@ -6,6 +6,7 @@ using Averitt_RNA.Apex;
 using System.IO;
 using System.Runtime.Caching;
 using System.ServiceModel;
+using System.Threading;
 
 namespace Averitt_RNA
 {
@@ -21,7 +22,6 @@ namespace Averitt_RNA
         private MappingServiceClient _MappingServiceClient;
         private RoutingServiceClient _RoutingServiceClient;
         private CacheHelper dictCache = new CacheHelper();
-
         #endregion
 
         #region Public Members
@@ -42,7 +42,7 @@ namespace Averitt_RNA
 
             regionEntityKeyDict = new Dictionary<string, long>();
             serviceTimeEntityKeyDict = new Dictionary<string, long>();
-            timeWindowEntityKeyDict= new Dictionary<string, long>();
+            timeWindowEntityKeyDict = new Dictionary<string, long>();
             depotsForRegionDict = new Dictionary<string, long>();
             orderClassesDict = new Dictionary<string, long>();
 

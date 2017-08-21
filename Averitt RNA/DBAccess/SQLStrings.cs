@@ -9,16 +9,16 @@ namespace Averitt_RNA.DBAccess
 
         //GET STAGED ORDERS
         public static string SELECT_STAGED_ORDERS(
-            string regionID)
+            string regionID, string deleteBit)
         {
             return string.Format(@"
                 SELECT [RegionIdentifier], [OrderIdentifier], [ServiceLocationIdentifier], [BeginDate], [QuantitySize1], [QuantitySize2], [QuantitySize3], [PreferredRouteIdentifier], [OriginDepotIdentifier], [OrderClassIdentifier], [SpecialInstructions], 
                 CAST([ServiceWindowOverride1Start] AS varchar) as ServiceWindowOverride1Start , CAST([ServiceWindowOverride1End] AS VARCHAR) as ServiceWindowOverride1End, CAST([ServiceWindowOverride2Start] AS VARCHAR) as ServiceWindowOverride2Start, CAST([ServiceWindowOverride2End] AS VARCHAR) as ServiceWindowOverride2End, 
                 [LiftgateOnly], [GuarenteedDelivery] AS GuarenteedDelivery , [Avail], [Delete], [Staged], [Error], [Status] 
                 FROM  [STAGED_ORDERS]
-                WHERE [RegionIdentifier] = '{0}'
+                WHERE [RegionIdentifier] = '{0}' AND [Delete] = '{1}'
                ",
-                regionID);
+                regionID, deleteBit);
         }
 
         //GET STAGED SERVICE LOCATIONS

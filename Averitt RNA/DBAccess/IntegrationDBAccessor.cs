@@ -24,16 +24,16 @@ namespace Averitt_RNA.DBAccess
             _Logger = logger;
         }
 
-        public List<StagedOrderRecord> SelectStagedOrders(string regionID)
+        public List<StagedOrderRecord> SelectStagedOrders(string regionID, string deleteBit)
         {
             List<StagedOrderRecord> stagedOrderRecordList = null;
             try
             {
                 stagedOrderRecordList =
                     GetList(
-                        SQLStrings.SELECT_STAGED_ORDERS(regionID),
+                        SQLStrings.SELECT_STAGED_ORDERS(regionID, deleteBit),
                         new StagedOrderRecord(),
-                        "Select Staged Orders (" + regionID + ")"
+                        "Select Staged Orders (" + regionID + " " + deleteBit+")"
                     ).Cast<StagedOrderRecord>().ToList();
             }
             catch (DatabaseException ex)
