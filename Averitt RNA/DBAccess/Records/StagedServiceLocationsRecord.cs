@@ -157,7 +157,7 @@ namespace Averitt_RNA.DBAccess.Records
                 Action = ActionType.Add,
               
                 
-                OpenCloseOverrides = new ServiceLocationOpenCloseDetail[]
+                /*OpenCloseOverrides = new ServiceLocationOpenCloseDetail[]
                 {
                 new ServiceLocationOpenCloseDetail
                 {
@@ -170,19 +170,9 @@ namespace Averitt_RNA.DBAccess.Records
                     },
                     OrderClassEntityKey = 101
                 },
-                new ServiceLocationOpenCloseDetail
-                {
-                    Action = ActionType.Add,
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.All.ToString(),
-                        EndTime = new TimeSpan(20, 0, 0).ToString(TimeFormat),
-                        StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
-                    },
-                    OrderClassEntityKey = 101
-                }
-                },
-                ServiceWindowOverrides = new ServiceLocationServiceWindowDetail[]
+               
+                },*/
+                /*ServiceWindowOverrides = new ServiceLocationServiceWindowDetail[]
                 {
                 new ServiceLocationServiceWindowDetail
                 {
@@ -195,29 +185,7 @@ namespace Averitt_RNA.DBAccess.Records
                     },
                     OrderClassEntityKey = 101
                 },
-                new ServiceLocationServiceWindowDetail
-                {
-                    Action = ActionType.Add,
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        DayOfWeekFlags_DaysOfWeek =  DayOfWeekFlags.All.ToString(),
-                        EndTime = new TimeSpan(17, 0, 0).ToString(TimeFormat),
-                        StartTime = new TimeSpan(13, 0, 0).ToString(TimeFormat)
-                    },
-                    OrderClassEntityKey = 101
-                },
-                new ServiceLocationServiceWindowDetail
-                {
-                    Action = ActionType.Add,
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        DayOfWeekFlags_DaysOfWeek =  DayOfWeekFlags.All.ToString(),
-                        EndTime = new TimeSpan(20, 0, 0).ToString(TimeFormat),
-                        StartTime = new TimeSpan(13, 0, 0).ToString(TimeFormat)
-                    },
-                    OrderClassEntityKey = 101
-                }
-                },
+                },*/
                 StandingDeliveryQuantities = new Quantities { },
                 StandingPickupQuantities = new Quantities { },
 

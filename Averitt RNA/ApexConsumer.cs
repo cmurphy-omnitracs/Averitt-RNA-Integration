@@ -2026,24 +2026,21 @@ namespace Averitt_RNA
 
             try
             {
-                //Get Service Location Records from database
+                //Get New Service Location Records from database
                 retrieveList = DBAccessor.SelectAllStagedServiceLocations(regionId);
-                List<DBAccess.Records.StagedServiceLocationRecord> checkedServiceLocationRecordList = DBAccessor.SelectStagedServiceLocations(regionId);
+                List<DBAccess.Records.StagedServiceLocationRecord> checkedServiceLocationRecordList = retrieveList;
 
                 if (retrieveList == null)// Database Service Locations Table Null
                 {
                     errorRetrieveSLFromStagingTable = true;
-                    _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
-
-
+                    _Logger.ErrorFormat("Error Retrieving New Locations from Database");
                 }
                 else if (retrieveList.Count == 0)//  Database Service Locations Table Empty
                 {
                     errorRetrieveSLFromStagingTable = true;
                     errorRetrieveSLFromStagingTableMessage = String.Format("No New Staged Service Locations found in Staged Service Locations Table for {0}", regionId);
                     _Logger.ErrorFormat(errorRetrieveSLFromStagingTableMessage);
-
-
+                                       
                 }
                 else
                 {
@@ -2056,7 +2053,6 @@ namespace Averitt_RNA
                         string errorDeletingDuplicateServiceLocationsMessage = string.Empty;
                         //filter out duplicates
                         _Logger.DebugFormat("Duplicate Service Locations Found, Deleting them from Staged Service Locations Table");
-
                         checkedServiceLocationRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
                         DBAccessor.DeleteDuplicatedServiceLocation(out errorDeletingDuplicateServiceLocationsMessage, out errorDeletingDuplicateServiceLocations);
                         if (errorDeletingDuplicateServiceLocations == true)
@@ -2092,7 +2088,7 @@ namespace Averitt_RNA
 
                             if (!servicetimeTypes.TryGetValue(location.ServiceTimeTypeIdentifier, out serviceTimeTypeEntityKey))
                             {
-                                _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                                _Logger.ErrorFormat("No match found for Service Time Type with identifier {0} in RNA, Using Default Service Time Type", location.ServiceTimeTypeIdentifier);
                                 temp.ServiceTimeTypeEntityKey = 0;
                             }
                             else
@@ -2101,7 +2097,7 @@ namespace Averitt_RNA
                             }
                             if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
                             {
-                                _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA", location.ServiceTimeTypeIdentifier);
+                                _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA, Using Default Time Window Type", location.ServiceTimeTypeIdentifier);
                                 temp.ServiceTimeTypeEntityKey = 0;
                             }
                             else
@@ -2128,8 +2124,9 @@ namespace Averitt_RNA
                         //Retrieve Service Locations from RNA
                         rnaServiceLocations = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, checkedSLId, false).ToList();
 
+                        
 
-                        if (rnaServiceLocations == null) //Service Location return null, Add service locations to RNA
+                        if (rnaServiceLocations == null || rnaServiceLocations.Count == 0) //No new Service Locations found, Add all service locations to RNA
                         {
 
                             Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
@@ -2217,97 +2214,14 @@ namespace Averitt_RNA
 
 
 
-                        else if (rnaServiceLocations.Count == 0) //Service Locations have not been found, Add service locations to RNA
-                        {
-
-                            Address[] newAddress = checkedServiceLocationList.Select(x => x.Address).ToArray();
-                            //Geocode Address
-
-                            //Look for best accuracy for geocode result
-                            try
-                            {
-                                GeocodeResult[] newAddressGeocodeResult = Geocode(out errorLevel, out fatalErrorMessage, out timeOut, newAddress);
-
-                                if (timeOut)
-                                {
-                                    _Logger.Error("Geocoding Addresses for Service Location Records has Timed Out");
-                                }
-                                else
-                                {
-
-                                    for (int y = 0; y < checkedServiceLocationList.Count; y++)
-                                    {
-                                        Dictionary<string, Coordinate> bestGeoCodeForLocation = new Dictionary<string, Coordinate>();
-
-                                        if (errorLevel == ApexConsumer.ErrorLevel.None)
-                                        {
-
-
-                                            for (int j = 0; j < newAddressGeocodeResult[y].Results.Length; j++) //for the corresponding GeocodeCandidate for a location
-                                            {
-
-                                                for (int i = 0; i < GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                                {
-
-                                                    string accuracyGeo = string.Empty;
-
-                                                    if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code from rank
-                                                    {
-                                                        if (accuracyGeo == newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality) // does candidate accuracy match ranked accuracy code?
-                                                        {
-
-                                                            bestGeoCodeForLocation.Add(newAddressGeocodeResult[y].Results[j].GeocodeAccuracy_Quality, newAddressGeocodeResult[y].Results[j].Coordinate);
-                                                            break;
-                                                        }
-                                                    }
-
-
-                                                }
-
-                                            }
-
-
-
-
-
-                                            //Get Best Coordinate
-                                            Coordinate mostAccurateCordinate = new Coordinate();
-                                            for (int i = 0; i <= GeocodeAccuracyDict.Count; i++) //Check all entries in Geocode Accuracy Dict in order
-                                            {
-                                                string accuracyGeo = string.Empty;
-                                                if (GeocodeAccuracyDict.TryGetValue(i, out accuracyGeo)) //Get dict accuracy code in order
-                                                {
-                                                    Coordinate bestGeocodeCordinate = new Coordinate();
-
-                                                    if (bestGeoCodeForLocation.TryGetValue(accuracyGeo, out bestGeocodeCordinate)) // get coordinate with the highest accuracy
-                                                    {
-                                                        checkedServiceLocationList[y].Coordinate = bestGeocodeCordinate;
-                                                        checkedServiceLocationList[y].GeocodeAccuracy_GeocodeAccuracy = accuracyGeo;
-
-
-                                                    }
-                                                }
-
-
-                                            }
-
-                                            //Add location to save list with BU entity key
-                                            checkedServiceLocationList[y].Action = ActionType.Add;
-                                            checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
-                                            saveServiceLocations.Add(checkedServiceLocationList[y]);
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _Logger.Error("An error has occured during Geocoding Service Locations" + ex.Message);
-                            }
-                        }
+                      
 
                         else  //Service Location Record have a corresponding Service Location in RNA
                         {
                             // Order Checked List and Returned RNA List
+                            //List<ServiceLocation> newLocations = checkedServiceLocationList.Where(l => !rnaServiceLocations.Any(l2 => l2.Identifier == l.Identifier)).ToList();
+
+
                             checkedServiceLocationList.OrderBy(x => x.Identifier);
                             rnaServiceLocations.OrderBy(x => x.Identifier);
 
@@ -2382,13 +2296,14 @@ namespace Averitt_RNA
                                             }
 
                                             //if the service location is in RNA, action is Update
-                                            if (rnaServiceLocations.Contains(checkedServiceLocationList[y]))
+                                            if (rnaServiceLocations.Any(l=> l.Identifier == checkedServiceLocationList[y].Identifier))
                                             {
-
+                                                checkedServiceLocationList[y].Action = ActionType.Update;
+                                                checkedServiceLocationList[y].EntityKey = rnaServiceLocations.Where(l => l.Identifier == checkedServiceLocationList[y].Identifier).First().EntityKey;
                                             }
                                             else //if not action is add
                                             {
-                                                checkedServiceLocationList[y].Action = ActionType.Update;
+                                                checkedServiceLocationList[y].Action = ActionType.Add;
                                             }
 
                                             //Add location to save list with BU entity key
@@ -2422,37 +2337,55 @@ namespace Averitt_RNA
                     {
                         if (saveServiceLocations.Count != 0)
                         {
-                            SaveResult[] saveLocationResults = SaveServiceLocations(out errorLevel, out fatalErrorMessage, saveServiceLocations.ToArray());
-
-                            if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                            foreach (ServiceLocation saveLocation in saveServiceLocations)
                             {
-                                _Logger.Debug("Fatal Error Occured Saving Service Locations: " + fatalErrorMessage);
+                                SaveResult[] saveLocationResults = SaveServiceLocations(out errorLevel, out fatalErrorMessage, new ServiceLocation[] { saveLocation } );
 
-
-                            }
-                            else if (errorLevel == ApexConsumer.ErrorLevel.Partial || errorLevel == ApexConsumer.ErrorLevel.Transient)
-                            {
-
-
-
-                                foreach (SaveResult saveResult in saveLocationResults)
+                                if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
                                 {
-                                    if (saveResult.Error != null)
+                                    _Logger.Debug("Fatal Error Occured Saving Service Locations: " + fatalErrorMessage);
+
+
+                                }
+                                else if (errorLevel == ApexConsumer.ErrorLevel.Partial || errorLevel == ApexConsumer.ErrorLevel.Transient)
+                                {
+
+
+
+                                    foreach (SaveResult saveResult in saveLocationResults)
                                     {
-                                        var temp = (ServiceLocation)saveResult.Object;
-                                        bool errorUpdatingServiceLocation = false;
-                                        string errorUpdatingServiceLocationMessage = string.Empty;
-                                        var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
-
-
-
-                                        if (saveResult.Error.ValidationFailures != null)
+                                        if (saveResult.Error != null)
                                         {
-                                            foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                            var temp = (ServiceLocation)saveResult.Object;
+                                            bool errorUpdatingServiceLocation = false;
+                                            string errorUpdatingServiceLocationMessage = string.Empty;
+                                            //var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
+
+
+
+                                            if (saveResult.Error.ValidationFailures != null)
                                             {
-                                                _Logger.Debug("A Validation Error Occured While Saving Service Location. The " + validFailure.Property + " Property for Service Location " + temp.Identifier + " is not Valid");
+                                                foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                                {
+                                                    _Logger.Debug("A Validation Error Occured While Saving Service Location. The " + validFailure.Property + " Property for Service Location " + temp.Identifier + " is not Valid");
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
+                                                    DBAccessor.UpdateServiceLocationStatus(_Region.Identifier, temp.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                                    if (errorUpdatingServiceLocation)
+                                                    {
+                                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+
+                                                    }
+                                                    else
+                                                    {
+                                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                                    }
+                                                }
+                                            }
+                                            else if (saveResult.Error.Code.ErrorCode_Status == "DuplicateData")
+                                            {
+                                                _Logger.Debug("A Duplicate Save Data Error Occured While Saving Service Location " + temp.Identifier);
                                                 _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
-                                                DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                                DBAccessor.UpdateServiceLocationStatus(_Region.Identifier, temp.Identifier, "Duplicate Save Data Error Occured While Saving Service Location ", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                                 if (errorUpdatingServiceLocation)
                                                 {
                                                     _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
@@ -2463,78 +2396,64 @@ namespace Averitt_RNA
                                                     _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
                                                 }
                                             }
-                                        }
-                                        else if (saveResult.Error.Code.ErrorCode_Status == "DuplicateData")
-                                        {
-                                            _Logger.Debug("A Duplicate Save Data Error Occured While Saving Service Location " + temp.Identifier);
-                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Error");
-                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "Duplicate Save Data Error Occured While Saving Service Location ", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                            if (errorUpdatingServiceLocation)
+                                            else if (saveResult.Error.Code.ErrorCode_Status == "NoResultsFound| ")
                                             {
-                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+                                                _Logger.Debug("An Update Error Occured While Saving Service Location " + temp.Identifier + ". The Updated Information Is The Same Information Found In RNA");
+                                                DBAccessor.UpdateServiceLocationStatus(_Region.Identifier, temp.Identifier, "An Update Error Occured While Saving Service Location. The Updated Information Is The Same Information Found In RNA", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                                if (errorUpdatingServiceLocation)
+                                                {
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
 
+                                                }
+                                                else
+                                                {
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                                }
                                             }
                                             else
                                             {
-                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
-                                            }
-                                        }
-                                        else if (saveResult.Error.Code.ErrorCode_Status == "NoResultsFound| ")
-                                        {
-                                            _Logger.Debug("An Update Error Occured While Saving Service Location " + temp.Identifier + ". The Updated Information Is The Same Information Found In RNA");
-                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "An Update Error Occured While Saving Service Location. The Updated Information Is The Same Information Found In RNA", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                            if (errorUpdatingServiceLocation)
-                                            {
-                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
+                                                var temp3 = "An Error Occured While Saving Service Location. " + saveResult.Error.Code.ErrorCode_Status + " " + saveResult.Error.Detail;
+                                                _Logger.Debug("An Error Occured While Saving Service Location " + temp.Identifier + ". The Error is the Following: " + saveResult.Error.Code.ErrorCode_Status + "| " + saveResult.Error.Detail);
+                                                DBAccessor.UpdateServiceLocationStatus(_Region.Identifier, temp.Identifier, temp3, "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                                if (errorUpdatingServiceLocation)
+                                                {
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
 
+                                                }
+                                                else
+                                                {
+                                                    _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
+                                                }
                                             }
-                                            else
-                                            {
-                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
-                                            }
+
+
+
+
+                                        }
+                                    }
+                                }
+                                else if (errorLevel == ApexConsumer.ErrorLevel.None)
+                                {
+                                    foreach (SaveResult saveResult in saveLocationResults)
+                                    {
+                                        var temp = (ServiceLocation)saveResult.Object;
+                                        bool errorUpdatingServiceLocation = false;
+                                        string errorUpdatingServiceLocationMessage = string.Empty;
+                                        _Logger.Debug("Service Location " + temp.Identifier + " Saved Successfully");
+
+                                        var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
+                                        DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+
+                                        if (errorUpdatingServiceLocation)
+                                        {
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
                                         }
                                         else
                                         {
-                                            var temp3 = "An Error Occured While Saving Service Location. " + saveResult.Error.Code.ErrorCode_Status + " " + saveResult.Error.Detail;
-                                            _Logger.Debug("An Error Occured While Saving Service Location " + temp.Identifier + ". The Error is the Following: " + saveResult.Error.Code.ErrorCode_Status + "| " + saveResult.Error.Detail);
-                                            DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, temp3, "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                            if (errorUpdatingServiceLocation)
-                                            {
-                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
-
-                                            }
-                                            else
-                                            {
-                                                _Logger.Debug("Updating Service Location " + temp.Identifier + " Status Succesfull");
-                                            }
+                                            _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete Succesfull");
                                         }
-
-
-
-
                                     }
-                                }
-                            }
-                            else if (errorLevel == ApexConsumer.ErrorLevel.None)
-                            {
-                                foreach (SaveResult saveResult in saveLocationResults)
-                                {
-                                    var temp = (ServiceLocation)saveResult.Object;
-                                    bool errorUpdatingServiceLocation = false;
-                                    string errorUpdatingServiceLocationMessage = string.Empty;
-                                    _Logger.Debug("Service Location " + temp.Identifier + " Saved Successfully");
 
-                                    var regionIdent = regionEntityKeyDic.Where(pair => pair.Value == temp.RegionEntityKeys[0]).Select(pair => pair.Key).FirstOrDefault();
-                                    DBAccessor.UpdateServiceLocationStatus(regionIdent, temp.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-
-                                    if (errorUpdatingServiceLocation)
-                                    {
-                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete failed | " + errorUpdatingServiceLocationMessage);
-                                    }
-                                    else
-                                    {
-                                        _Logger.Debug("Updating Service Location " + temp.Identifier + " Status To Complete Succesfull");
-                                    }
                                 }
 
                             }
@@ -4674,7 +4593,7 @@ namespace Averitt_RNA
                     new SaveOptions
                     {
                         //TODO
-                        InclusionMode = PropertyInclusionMode.All, ReturnSavedItems = true
+                        InclusionMode = PropertyInclusionMode.All, ReturnSavedItems = true,IgnoreEntityVersion= true
                         //PropertyOptions = new ServiceLocationPropertyOptions
                         //{
                         //    BusinessUnitEntityKey = true,

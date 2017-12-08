@@ -98,7 +98,7 @@ namespace Averitt_RNA.DBAccess
             {
                 stagedStagedServiceLocationList =
                     GetList(
-                        SQLStrings.SELECT_ALL_STAGED_SERVICE_LOCATIONS(regionID),
+                        SQLStrings.SELECT_ALL_NEW_STAGED_SERVICE_LOCATIONS(regionID),
                         new StagedServiceLocationRecord(),
                         "Select Staged Service Location (" + regionID + ")"
                     ).Cast<StagedServiceLocationRecord>().ToList();

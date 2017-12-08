@@ -30,7 +30,7 @@ namespace Averitt_RNA
             _IntegrationDBAccessor = new IntegrationDBAccessor(Logger);
             dictCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dicts_" + _Region.Identifier +".json");
 
-
+           
         }
 
        
@@ -89,7 +89,7 @@ namespace Averitt_RNA
                 else
                 {
 
-                    //Load Service Locations from Database and save them to RNA
+                    //Load Caches
 
                     try
                     {
@@ -109,7 +109,7 @@ namespace Averitt_RNA
                 try
                 {
                     //Region Processing
-                    Logger.Debug("Start Retrieving Region Processing Files");
+                    Logger.Debug("Start Retrieving and Saving Region "+ _Region.Identifier +" Service Locations");
                     //Service location Processing
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);

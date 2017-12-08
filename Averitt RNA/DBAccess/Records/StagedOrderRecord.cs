@@ -68,7 +68,7 @@ namespace Averitt_RNA.DBAccess.Records
                 ServiceWindowOverride2Start = (reader["ServiceWindowOverride2Start"]).ToString(),
                 ServiceWindowOverride2End = (reader["ServiceWindowOverride2End"]).ToString(),
                 LiftgateOnly = reader["LiftgateOnly"].ToString(),
-                GuaranteedDelivery = reader["GuarenteedDelivery"].ToString(),
+                GuaranteedDelivery = reader["GuaranteedDelivery"].ToString(),
                 Avail = reader["Avail"].ToString(),
                 Delete = Convert.ToBoolean(reader["Delete"]),
                 Staged = reader["Staged"].ToString(),
