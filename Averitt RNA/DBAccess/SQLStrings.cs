@@ -54,23 +54,23 @@ namespace Averitt_RNA.DBAccess
         }
 
         //INSERT STAGED ROUTES
-        public static string INSERT_STAGED_ROUTES(
+        public static string INSERT_STAGED_ROUTES(string orderNumber,
                     string regionID,  string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
         {
             if (stopSeq == null)
             {
                 return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
+                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status], OrderIdentifier)
                 VALUES
-                ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', NULL, CONVERT(datetime2,'{5}'), '{6}', '{7}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+                ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', NULL, CONVERT(datetime2,'{5}'), '{6}', '{7}', '{8}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status, orderNumber);
             } else
             {
                 return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
+                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status],  OrderIdentifier)
                 VALUES
-                ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', {4}, CONVERT(datetime2,'{5}'), '{6}', '{7}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status);
+                ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', {4}, CONVERT(datetime2,'{5}'), '{6}', '{7}', '{8}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status, orderNumber);
             }
         }
 
@@ -143,9 +143,9 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, [Status])
+                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, [Status], Error)
                 VALUES
-                ( '{0}', '{1}', '{2}', CONVERT(datetime2,'{3}'), '{4}', {5}, CONVERT(datetime2,'{6}'), '{7}')", regionID, orderId, null, null, null, null, staged, status);
+                ( '{0}', '{1}', '{2}', CONVERT(datetime2,'{3}'), '{4}', '{5}', CONVERT(datetime2,'{6}'), '{7}', '')", regionID, orderId, null, null, null, null, staged, status);
         }
 
         public static string DELETE_EXPIRED_STAGED_ROUTES(

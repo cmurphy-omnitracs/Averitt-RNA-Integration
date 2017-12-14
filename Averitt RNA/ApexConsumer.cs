@@ -1483,16 +1483,33 @@ namespace Averitt_RNA
                         _Logger.Debug("Completed Retrieving Unassigned Orders");
 
                         //Write Routes and Unassigned Orders to Routing Table
-                        foreach(Route route in modifiedRoutes)
+                        foreach (Route route in modifiedRoutes)
                         {
-                            DBAccessor.InsertStagedRoute(_Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, null, DateTime.Now.ToString(), "", "COMPLETE");
-
+                            if (route.Stops.Count() != 0)
+                            {
+                                foreach (Stop stop in route.Stops)
+                                {
+                                    if (stop is ServiceableStop)
+                                    {
+                                        var tempStop = (ServiceableStop)stop;
+                                        foreach (StopAction action in tempStop.Actions)
+                                        {
+                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, null, DateTime.Now.ToString(), "", "NEW");
+                                        }
+                                    }
+                                }
+                            } else
+                            {
+                                _Logger.DebugFormat("Route {0} contains no stops. No Information was Added to the route table information ", route.Identifier );
+                            }
                         }
-
-                        foreach (Order order in unassignedOrders)
+                        if (unassignedOrders.Count != 0)
                         {
-                            DBAccessor.InsertStagedUnassignedOrders(_Region.Identifier, order.Identifier, DateTime.Now.ToString(), "", "COMPLETE", out errorRWRoutesMessage, out errorRWRoutes);
+                            foreach (Order order in unassignedOrders)
+                            {
+                                DBAccessor.InsertStagedUnassignedOrders(_Region.Identifier, order.Identifier, DateTime.Now.ToString(), "", "NEW", out errorRWRoutesMessage, out errorRWRoutes);
 
+                            }
                         }
 
 
@@ -1551,7 +1568,7 @@ namespace Averitt_RNA
                             Stops = true,
                             StopsOptions = new StopPropertyOptions
                             {
-                               
+                                Actions = true,
                                 SequenceNumber = true,
                                 ActionsOptions = new StopActionPropertyOptions
                                 {
@@ -1627,7 +1644,7 @@ namespace Averitt_RNA
                         
                         PropertyInclusionMode = PropertyInclusionMode.All,
                         
-                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.UnassignedOrderGroup)
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
                     });
                 if (retrievalResults.Items == null)
                 {
@@ -1779,18 +1796,21 @@ namespace Averitt_RNA
                     });
                 if (retrievalResults.Items == null)
                 {
-                    _Logger.Error("Retrieve Orders | Matching Orders" + identifiers.ToString() + " | Failed with a null result.");
+                    string identifiersString = string.Join(" ", identifiers);
+                    _Logger.Error("Retrieve Orders | Matching Orders " + identifiersString + " | Failed with a null result.");
                     errorLevel = ErrorLevel.Transient;
                 }
                 else if (retrievalResults.Items.Length == 0)
                 {
-                    fatalErrorMessage = "Orders doe not exist.";
-                    _Logger.Error("Retrieve Orders |  Matching Orders " + identifiers.ToString() + " | " + fatalErrorMessage);
+                    string identifiersString = string.Join(" ", identifiers);
+                    _Logger.Error("Retrieve Orders |  Orders Not Found for " + identifiersString + " | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.Fatal;
                     orders = retrievalResults.Items.Cast<Order>().ToList();
                 }
                 else
                 {
+                    string identifiersString = string.Join(" ", identifiers);
+                    _Logger.Error("Retrieve Orders |  Matching Orders Found For " + identifiersString + " | " + fatalErrorMessage);
                     orders = retrievalResults.Items.Cast<Order>().ToList();
                 }
             }
@@ -1908,7 +1928,7 @@ namespace Averitt_RNA
                     string routeDesc = null;
                     string routeStage= DateTime.UtcNow.ToString(dateTime2Format);
                     string routeError= string.Empty;
-                    string routeStatus = "COMPLETE";
+                    //string routeStatus = "COMPLETE";
 
                     if (route.StartTime.Value != null)
                     {
@@ -2201,6 +2221,10 @@ namespace Averitt_RNA
                                             checkedServiceLocationList[y].Action = ActionType.Add;
                                             checkedServiceLocationList[y].BusinessUnitEntityKey = _BusinessUnitEntityKey;
                                             saveServiceLocations.Add(checkedServiceLocationList[y]);
+                                        }
+                                        else
+                                        {
+                                            _Logger.Error("Error Occured Geocoding Addresses");
                                         }
                                     }
                                 }
@@ -2527,14 +2551,14 @@ namespace Averitt_RNA
                 List<DBAccess.Records.StagedOrderRecord> checkedStagedOrdersList = retrieveList;
                 List<DBAccess.Records.StagedOrderRecord> deleteOrderRecordList = DBAccessor.SelectStagedOrders(regionId, "True");
 
-                if (retrieveList == null & deleteOrderRecordList == null)// Database Staged Orders Table Null
+                if (retrieveList == null & deleteOrderRecordList == null)// Database Staged Orders Table Null Might Delete this 
                 {
                     errorRetrieveAndSavingOrdersFromStagingTable = true;
                     _Logger.ErrorFormat(errorRetrieveAndSavingOrdersFromStagingTableMessage);
 
 
                 }
-                else if (retrieveList.Count == 0 && deleteOrderRecordList.Count == 0)//  Database Service Locations Table Empty
+                else if (retrieveList.Count == 0 && deleteOrderRecordList.Count == 0)//  Database Orders Table Empty
                 {
                     errorRetrieveAndSavingOrdersFromStagingTable = true;
                     errorRetrieveAndSavingOrdersFromStagingTableMessage = String.Format("No Orders found in Staged Orders table for {0}", regionId);
@@ -2917,7 +2941,7 @@ namespace Averitt_RNA
 
                     try
                     {
-                        _Logger.Debug("Retreiving Matching Orders In RNA Since" + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
+                        _Logger.Debug("Retreiving Matching Orders In RNA Since " + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
 
                         //Retrive Modified and Matching Orders
 
@@ -2927,7 +2951,7 @@ namespace Averitt_RNA
 
                         if (errorLevel == ErrorLevel.None && !rnaOrders.Any())
                         {
-                            _Logger.DebugFormat(" No Orders Modified Since last execution time");
+                            _Logger.DebugFormat("No Orders Modified Since last execution time");
                         }
                         else if (errorLevel == ErrorLevel.Fatal)
                         {
@@ -3012,7 +3036,7 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
+                                        _Logger.DebugFormat("Service Location {1} For Order {0} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
                                     }
                                     tempOrder = (Order)order;
                                     tempOrder.Action = ActionType.Add;
@@ -3171,7 +3195,7 @@ namespace Averitt_RNA
                                     }
                                     if (tempLocation == null) // order service location found in RNA service locations
                                     {
-                                        _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
+                                        _Logger.DebugFormat(" Service Location {1} for Order {0} not Found in RNA ", order.OrderIdentifier, order.ServiceLocationIdentifier);
 
 
                                     }
@@ -3220,7 +3244,7 @@ namespace Averitt_RNA
                                         }
                                         else
                                         {
-                                            _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
+                                            _Logger.Debug("Error Getting Entity Key For Orgin Depot " + order.OriginDepotIdentifier);
                                         }
 
                                         //Add session entity key to order for routings session with matching depots
@@ -3288,7 +3312,7 @@ namespace Averitt_RNA
                             orderInRNA.PreferredRouteIdentifierOverride = orderInRNA.PreferredRouteIdentifier;
                            
                             //Change Service Windows entity Keys
-                            if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length)
+                            if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null)
                             {
                                 for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
                                 {
@@ -3296,11 +3320,18 @@ namespace Averitt_RNA
 
                                 }
                             }
-                            else if (tempOrder.Tasks[0].ServiceWindowOverrides.Length ==0)
+                            else if (tempOrder.Tasks[0].ServiceWindowOverrides.Length ==0 && orderInRNA.Tasks[0].ServiceWindowOverrides.Length !=0)
                             {
                                 for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
                                 {
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
+                                    if (orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey != 0)
+                                    {
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
+                                   } else
+                                   {
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i] = new TaskServiceWindowOverrideDetail();
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
+                                    }
                                   
 
                                 }
@@ -3427,40 +3458,43 @@ namespace Averitt_RNA
                         
                         if (convertedOrderSpecs.Count != 0)
                         {
-                            SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
-
-
-                            if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+                            foreach (OrderSpec orderSpec in convertedOrderSpecs)
                             {
-                                _Logger.Debug("Fatel Error Occured Saving Orders : " + fatalErrorMessage);
-                            }
-                            else
-                            {
-                                string errorUpdatingOrderStatusMessage = string.Empty;
-                                bool errorUpdatingOrderStatus = false;
+                                SaveResult[] savedOrdersResult = new SaveResult[] { };
+                                savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, new OrderSpec[] { orderSpec });
 
-                                foreach (SaveResult result in savedOrdersResult)
+                                if (errorLevel == ApexConsumer.ErrorLevel.Fatal || savedOrdersResult == null)
                                 {
-                                    var tempOrder = (Order)result.Object;
-                                     if(result.Error == null)
-                                    {
-                                        _Logger.DebugFormat("Successfully Saved Order {0} to RNA", tempOrder.Identifier);
-                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Successfully Saved Order", "COMPLETE", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-                                    }
-                                    else if (result.Error != null)
-                                    {
-                                        _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Error Occured See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-                                    }
-                                    else if (result.Error.ValidationFailures != null)
-                                    {
-                                        _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
-                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Validation Error For Properties " + result.Error.ValidationFailures[0].Property + "See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-                                    }
-                                   
-                                   
+                                    _Logger.Debug("Fatel Error Occured Saving Orders : " + fatalErrorMessage);
                                 }
-                                _Logger.Debug("Saving  Order Completed");
+                                else
+                                {
+                                    string errorUpdatingOrderStatusMessage = string.Empty;
+                                    bool errorUpdatingOrderStatus = false;
+
+                                    foreach (SaveResult result in savedOrdersResult)
+                                    {
+                                        var tempOrder = (Order)result.Object;
+                                        if (result.Error == null) 
+                                        {
+                                            _Logger.DebugFormat("Successfully Saved Order {0} to RNA", orderSpec.Identifier);
+                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Successfully Saved Order", "COMPLETE", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                        }
+                                        else if ((result.Error != null || tempOrder != null) && result.Error.ValidationFailures == null)
+                                        {
+                                            _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", orderSpec.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Error Occured See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                        }
+                                        else if (result.Error.ValidationFailures != null)
+                                        {
+                                            _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", orderSpec.Identifier, result.Error.ValidationFailures[0].Property);
+                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Validation Error For Properties " + result.Error.ValidationFailures[0].Property + "See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                        }
+
+
+                                    }
+                                    _Logger.Debug("Saving  Order Completed");
+                                }
                             }
                         } else
                         {
@@ -3591,6 +3625,7 @@ namespace Averitt_RNA
             try
             {
                 //Get Dummy Orders
+                _Logger.Debug("Start Retrieving Dummy Orders");
                 dummyOrdersFromCSV = RetrieveDummyOrdersFromCSV(RetrieveDepotsForRegionDict, RetrieveOrderClassDict, regionId, out errorRetrieveOrdersFromCSV, out errorRetrieveOrdersFromCSVMessage);
 
                
@@ -3599,9 +3634,13 @@ namespace Averitt_RNA
                 {
                     _Logger.Error(errorRetrieveOrdersFromCSVMessage);
 
-                } else
+                } else if (dummyOrdersFromCSV == null || dummyOrdersFromCSV.Count == 0)
                 {
-
+                    _Logger.Debug("Dummy Orders Retrieved Successfully");
+                    _Logger.Debug("No Dummy Orders Found in Dummy Order File");
+                }
+                else {
+                    _Logger.Debug("Dummy Orders Retrieved Successfully");
                     dummyOrderIDs = dummyOrdersFromCSV.Select(x => x.Identifier).ToArray();
 
                     //Get Origin Depot Keys

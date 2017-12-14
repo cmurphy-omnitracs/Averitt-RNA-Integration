@@ -114,7 +114,7 @@ namespace Averitt_RNA
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
-                     //Orders Processing * correct Save Order Result from dummy csv
+                     //Orders Processing * correct Save Order Result
                      
                     _ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
                        _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
@@ -271,6 +271,7 @@ namespace Averitt_RNA
                     {
                         lastSuccessfulRunTime = temp2;
                         Logger.Debug("Run Time successfully loaded from " + filename);
+                        Logger.Debug("Last Successful Run Time " + lastSuccessfulRunTime.ToString());
                     }
                 }
                 catch (Exception ex)
