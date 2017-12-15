@@ -144,8 +144,8 @@ namespace Averitt_RNA.DBAccess.Records
 
 
 
-            if ((record.ServiceWindowOverride1Start != null && record.ServiceWindowOverride1End != null) && (record.ServiceWindowOverride1Start.Length != 0
-                && record.ServiceWindowOverride1End.Length != 0))
+            if ((record.ServiceWindowOverride1Start != null && record.ServiceWindowOverride1End != null) && (record.ServiceWindowOverride1Start != string.Empty
+                && record.ServiceWindowOverride1End != string.Empty))
             {
                 tempServiceWindowOverride = new TaskServiceWindowOverrideDetail
                 {
@@ -160,21 +160,13 @@ namespace Averitt_RNA.DBAccess.Records
                                     
             } else
             {
-                tempServiceWindowOverride = new TaskServiceWindowOverrideDetail
-                {
-                    Action = ActionType.Add,
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        StartTime = null,
-                        EndTime = null
-                    }
-                };
+                tempServiceWindowOverride = null;
 
 
 
             }
-            if ((record.ServiceWindowOverride2Start != null && record.ServiceWindowOverride2End != null) && (record.ServiceWindowOverride2Start.Length != 0
-                && record.ServiceWindowOverride2End.Length != 0))
+            if ((record.ServiceWindowOverride2Start != null && record.ServiceWindowOverride2End != null) && (record.ServiceWindowOverride2Start != string.Empty
+                && record.ServiceWindowOverride2End != string.Empty))
             {
               
 
@@ -191,19 +183,24 @@ namespace Averitt_RNA.DBAccess.Records
             }
             else
             {
-                temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail
-                {
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        StartTime = null,
-                        EndTime = null
-                    }
-                };
+                temp2ServiceWindowOverride = null;
 
             }
+            TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { };
+            if (tempServiceWindowOverride != null)
+            {
+                if (temp2ServiceWindowOverride != null)
+                {
+                    serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { tempServiceWindowOverride, temp2ServiceWindowOverride };
+                } else
+                {
+                    serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { tempServiceWindowOverride };
+                }
+                    
+            }
+            
 
 
-            TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { tempServiceWindowOverride, temp2ServiceWindowOverride };
             Task[] task = new Task[] {
                 new Task {
                     TaskType_Type = "Delivery",

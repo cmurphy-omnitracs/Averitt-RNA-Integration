@@ -3,6 +3,7 @@ using System.Linq;
 using System.ServiceModel;
 using Averitt_RNA.Apex;
 using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using System.ComponentModel;
 using System.Reflection;
@@ -2672,10 +2673,12 @@ namespace Averitt_RNA
                     {
                         foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
                         {
-                            var temp = (Order)order;
-                            temp.Action = ActionType.Delete;
-                            deleteOrderList.Add(temp);
-
+                            if (order.Status.ToUpper().Contains("NEW"))
+                            {
+                                var temp = (Order)order;
+                                temp.Action = ActionType.Delete;
+                                deleteOrderList.Add(temp);
+                            }
                         }
 
                         //Unassign and Delete Orders
@@ -3210,10 +3213,13 @@ namespace Averitt_RNA
                             orderInRNA.Version = tempOrder.Version;
                             orderInRNA.PreferredRouteIdentifierOverride = orderInRNA.PreferredRouteIdentifier;
 
+
                             //Change Service Windows entity Keys
                             //if rna order has service windows overrides and database orders have service window overrides
-                            
-                                if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null)
+
+                           
+
+                            if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null && orderInRNA.Tasks[0].ServiceWindowOverrides.Length != 0)
                                 {
                                     for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
                                     {
@@ -3240,9 +3246,11 @@ namespace Averitt_RNA
                                 }
                                 else
                                 {
+                                    
                                     if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 1 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 2)
                                     {
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+                                        
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
                                         orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
                                         orderInRNA.Tasks[0].ServiceWindowOverrides[1].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[1].EntityKey;
                                         orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Delete;
@@ -3250,6 +3258,7 @@ namespace Averitt_RNA
                                     }
                                     else if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 2 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 1)
                                     {
+                                       
                                         orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
                                         orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
                                         orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Add;
