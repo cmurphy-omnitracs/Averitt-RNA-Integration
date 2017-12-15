@@ -114,13 +114,15 @@ namespace Averitt_RNA
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
-                     //Orders Processing * correct Save Order Result
-                     
+                    //Pick Up Dummy Order Processing
+                    _ApexConsumer.RetrieveDummyOrdersAndSave(dictCache.depotsForRegionDict, dictCache.orderClassesDict, _Region.Identifier, out errorCaught, out errorMessage);
+
+                    //Orders Processing * correct Save Order Result
+
                     _ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
                        _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
-                    //Pick Up Dummy Order Processing
-                    _ApexConsumer.RetrieveDummyOrdersAndSave(dictCache.depotsForRegionDict, dictCache.orderClassesDict, _Region.Identifier, out errorCaught, out errorMessage);
+                    
 
                     //Write Routes and Unassigned
                     _ApexConsumer.RetrieveRNARoutesAndOrdersWriteThemToStagingTable(out errorCaught, out errorMessage);
