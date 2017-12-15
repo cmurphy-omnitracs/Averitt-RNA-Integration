@@ -149,6 +149,7 @@ namespace Averitt_RNA.DBAccess.Records
             {
                 tempServiceWindowOverride = new TaskServiceWindowOverrideDetail
                 {
+                    Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
                         StartTime = record.ServiceWindowOverride1Start,
@@ -156,15 +157,12 @@ namespace Averitt_RNA.DBAccess.Records
                         DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"
                     }
                 };
-                     
-                
-                
-               
-               
+                                    
             } else
             {
                 tempServiceWindowOverride = new TaskServiceWindowOverrideDetail
                 {
+                    Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
                         StartTime = null,

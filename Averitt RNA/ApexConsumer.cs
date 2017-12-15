@@ -2978,120 +2978,9 @@ namespace Averitt_RNA
                       List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
 
 
-                    if (rnaOrders == null) //Orders return null, Get service location and Add Orders to RNA
-                    {
-                        List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
+                   
 
-
-                        try
-                        {
-                            
-                            try//Get Region Service Locations
-                            {
-                                long[] regionEntityKey = new long[] { _Region.EntityKey };
-                                _Logger.Debug("Start Retrieved Service Locations for Orders");
-                                serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
-                                if(errorLevel == ErrorLevel.None)
-                                {
-                                    _Logger.Debug("Successfully Retrieved Service Locations");
-
-                                } else if (errorLevel == ErrorLevel.Fatal)
-                                {
-                                    _Logger.Error("Fatal Error Retrieving Service Locations for Orders" + fatalErrorMessage);
-                                }
-                                else 
-                                {
-                                    _Logger.Error("Error Retrieving Service Locations for Orders");
-                                }
-
-                            }
-                            catch (Exception ex)
-                            {
-                                _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
-                            }
-
-                            List<Order> ordersToSaveInRNA = new List<Order>();
-                            if (checkedOrderRecordList.Count != 0)
-                            {
-                                foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
-                                {
-                                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
-                                    Order tempOrder = new Order();
-                                    Task orderTask = new Task();
-                                    if (tempLocation != null) // order service location found in RNA service locations
-                                    {
-                                        orderTask = new Task
-                                        {
-                                            Action = ActionType.Add,
-                                            LocationAddress = tempLocation.Address,
-                                            LocationPhoneNumber = tempLocation.PhoneNumber,
-                                            LocationEntityKey = tempLocation.EntityKey,
-                                            LocationCoordinate = tempLocation.Coordinate,
-                                            LocationDescription = tempLocation.Description,
-                                            LocationStandardInstructions = tempLocation.StandardInstructions,
-                                            TaskType_Type = "Delivery"
-
-
-                                        };
-                                        foreach (DailyRoutingSession session in saveRoutingSession)
-                                        {
-                                            if (order.OriginDepotIdentifier == session.Description)
-                                            {
-                                                tempOrder.SessionEntityKey = session.EntityKey;
-                                            }
-                                        }
-
-
-
-                                    }
-                                    else
-                                    {
-                                        _Logger.DebugFormat("Service Location {1} For Order {0} not Found in RNA", order.OrderIdentifier, order.ServiceLocationIdentifier);
-                                    }
-                                    tempOrder = (Order)order;
-                                    tempOrder.Action = ActionType.Add;
-                                    tempOrder.Tasks = new Task[] { orderTask };
-                                    long orderClassEntityKey = 0;
-                                    if (orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntityKey))
-                                    {
-                                        tempOrder.OrderClassEntityKey = Convert.ToInt64(orderClassEntityKey);
-                                    }
-                                    else
-                                    {
-                                        _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
-                                    }
-
-                                    ordersToSaveInRNA.Add(tempOrder);
-
-
-
-
-                                }
-
-                                foreach (Order orderSave in ordersToSaveInRNA)
-                                {
-                                    if (orderSave.Action == ActionType.Update)
-                                    {
-                                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
-                                    }
-                                    else if (orderSave.Action == ActionType.Add)
-                                    {
-                                        var temp = ConvertOrderToOrderSpec(orderSave);
-                                        temp.OrderInstance = null;
-                                        convertedOrderSpecs.Add(temp);
-                                    }
-
-                                }
-                            } 
-                        }
-                        catch (Exception ex)
-                        {
-                            _Logger.Error("An error has occured during saving Orders" + ex.Message);
-                        }
-
-                    }
-
-                    else if (rnaOrders.Count == 0) //Orders have not been found, Add Orders to RNA
+                    if (rnaOrders.Count == 0 || rnaOrders == null) //Orders have not been found, Add Orders to RNA
                     {
 
 
@@ -3320,53 +3209,58 @@ namespace Averitt_RNA
                             orderInRNA.EntityKey = tempOrder.EntityKey;
                             orderInRNA.Version = tempOrder.Version;
                             orderInRNA.PreferredRouteIdentifierOverride = orderInRNA.PreferredRouteIdentifier;
-                           
+
                             //Change Service Windows entity Keys
-                            if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null)
-                            {
-                                for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
-                                {
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
-
-                                }
-                            }
-                            else if (tempOrder.Tasks[0].ServiceWindowOverrides.Length ==0 && orderInRNA.Tasks[0].ServiceWindowOverrides.Length !=0)
-                            {
-                                for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
-                                {
-                                    if (orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey != 0)
-                                    {
-                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
-                                   } else
-                                   {
-                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i] = new TaskServiceWindowOverrideDetail();
-                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
-                                    }
-                                  
-
-                                }
-                            } else
-                            {
-                                if(orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 1 && tempOrder.Tasks[0].ServiceWindowOverrides.Length ==2)
-                                {
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[1].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[1].EntityKey;
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Delete;
-
-                                } else if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 2 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 1)
-                                {
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
-                                    orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Add;
-                                   
-                                }
-                              
-
-                            }
-
-
-                           
+                            //if rna order has service windows overrides and database orders have service window overrides
                             
-                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderInRNA.Tasks[0].LocationIdentifier); //Find service location that matched order
+                                if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null)
+                                {
+                                    for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
+                                    {
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
+                                    }
+                                }
+                                else if ((tempOrder.Tasks[0].ServiceWindowOverrides == null || tempOrder.Tasks[0].ServiceWindowOverrides.Length == 0) && orderInRNA.Tasks[0].ServiceWindowOverrides.Length != 0)
+                                {
+                                    for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
+                                    {
+                                        if (orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey == 0)
+                                        {
+                                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
+                                        }
+                                        else
+                                        {
+                                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
+                                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
+                                        }
+
+
+                                    }
+                                }
+                                else
+                                {
+                                    if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 1 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 2)
+                                    {
+                                    orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[1].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[1].EntityKey;
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Delete;
+
+                                    }
+                                    else if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 2 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 1)
+                                    {
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+                                        orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Add;
+
+                                    }
+
+
+                                }
+                            
+                           
+                                ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderInRNA.Tasks[0].LocationIdentifier); //Find service location that matched order
 
                             if (tempLocation != null) // order service location found in RNA service locations
                             {
@@ -3493,7 +3387,7 @@ namespace Averitt_RNA
                                         else if ((result.Error != null || tempOrder != null) && result.Error.ValidationFailures == null)
                                         {
                                             _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", orderSpec.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Error Occured See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Error Occured: " + result.Error.Code.ErrorCode_Status, "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
                                         }
                                         else if (result.Error.ValidationFailures != null)
                                         {
@@ -3501,9 +3395,9 @@ namespace Averitt_RNA
                                             DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Validation Error For Properties " + result.Error.ValidationFailures[0].Property + "See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
                                         }
 
-
+                                        _Logger.DebugFormat("Saving Order {0} Completed", tempOrder.Identifier);
                                     }
-                                    _Logger.Debug("Saving  Order Completed");
+                                    
                                 }
                             }
                         } else
