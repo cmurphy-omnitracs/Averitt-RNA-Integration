@@ -122,7 +122,7 @@ namespace Averitt_RNA
                     _ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
                        _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
-                    
+                   
 
                     //Write Routes and Unassigned
                     _ApexConsumer.RetrieveRNARoutesAndOrdersWriteThemToStagingTable(out errorCaught, out errorMessage);

@@ -1465,24 +1465,19 @@ namespace Averitt_RNA
             ErrorLevel errorLevel = ErrorLevel.None;
             string fatalErrorMessage = string.Empty;
             List<Route> modifiedRoutes = new List<Route>();
-            List<Order> unassignedOrders = new List<Order>();
+            List<UnassignedOrderGroup> unassignedOrders = new List<UnassignedOrderGroup>();
             DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
 
             try
             {
                 //Retrieve Routes Modified by RNA
                 _Logger.Debug("Start Retrieving Modified Routes");
+               
                 modifiedRoutes = RetrieveModifiedRNARoute(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
                 if(errorLevel == ErrorLevel.None)
                 {
                     _Logger.Debug("Completed Retrieving Modified Routes");
-                    _Logger.Debug("Start Retrieving Unassigned Orders");
-                    unassignedOrders = RetrieveRNAUnassignedOrderGroups(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
-
-                    if (errorLevel == ErrorLevel.None )
-                    {
-                        _Logger.Debug("Completed Retrieving Unassigned Orders");
-
+                   
                         //Write Routes and Unassigned Orders to Routing Table
                         foreach (Route route in modifiedRoutes)
                         {
@@ -1504,29 +1499,40 @@ namespace Averitt_RNA
                                 _Logger.DebugFormat("Route {0} contains no stops. No Information was Added to the route table information ", route.Identifier );
                             }
                         }
-                        if (unassignedOrders.Count != 0)
-                        {
-                            foreach (Order order in unassignedOrders)
-                            {
-                                DBAccessor.InsertStagedUnassignedOrders(_Region.Identifier, order.Identifier, DateTime.Now.ToString(), "", "NEW", out errorRWRoutesMessage, out errorRWRoutes);
-
-                            }
-                        }
-
-
-
-                    }
+                       
+                                        
                     
-                    else if (errorLevel == ErrorLevel.Fatal)
-                    {
-                        _Logger.Error(fatalErrorMessage);
-                    }
+
+                   
 
                 } else if(errorLevel == ErrorLevel.Fatal)
                 {
                     _Logger.Error(fatalErrorMessage);
                 }
 
+                _Logger.Debug("Start Retrieving Unassigned Orders");
+                unassignedOrders = RetrieveRNAUnassignedOrderGroups(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
+                if (errorLevel == ErrorLevel.None)
+                {
+                    _Logger.Debug("Completed Retrieving Unassigned Orders");
+
+                    
+                    if (unassignedOrders.Count != 0)
+                    {
+                        foreach (UnassignedOrderGroup orderGroup in unassignedOrders)
+                        {
+                            foreach (String orderIdentifier in orderGroup.OrderIdentifiers)
+                            {
+                                DBAccessor.InsertStagedUnassignedOrders(_Region.Identifier, orderIdentifier, DateTime.Now.ToString(), "", "NEW", out errorRWRoutesMessage, out errorRWRoutes);
+
+                            }
+                        }
+                    }
+                }
+                else if (errorLevel == ErrorLevel.Fatal)
+                {
+                    _Logger.Error(fatalErrorMessage);
+                }
             }
             catch (Exception ex)
             {
@@ -1621,10 +1627,10 @@ namespace Averitt_RNA
             return routes;
         }
 
-        public List<Order> RetrieveRNAUnassignedOrderGroups(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
+        public List<UnassignedOrderGroup> RetrieveRNAUnassignedOrderGroups(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
         {
-            List<Order> unassignedOrders = null;
-
+            List<UnassignedOrderGroup> unassignedOrders = null;
+            long x = -1;
 
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
@@ -1636,16 +1642,24 @@ namespace Averitt_RNA
                     new RetrievalOptions
                     {
                         
-                            Expression = new GreaterThanExpression
+                        Expression = new AndExpression
+                        {
+                            Expressions = new SimpleExpressionBase[]
                             {
-                                Left = new PropertyExpression { Name = "ModifiedTime" },
-                                Right = new ValueExpression { Value = lastCycleTime }
-                            },
+                                new GreaterThanExpression
+                                {
+                                    Left = new PropertyExpression { Name = "ModifiedTime" },
+                                    Right = new ValueExpression { Value = lastCycleTime },
+                                },
+
+
+                            }
+                        },
 
                         
                         PropertyInclusionMode = PropertyInclusionMode.All,
                         
-                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.UnassignedOrderGroup)
                     });
                 if (retrievalResults.Items == null)
                 {
@@ -1657,11 +1671,11 @@ namespace Averitt_RNA
                     fatalErrorMessage = "Unassigned Order  does not exist.";
                     _Logger.Error("Retrieve Unassigned Order  | Modified after/before" + lastCycleTime.ToLongDateString() + " | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.None;
-                    unassignedOrders = retrievalResults.Items.Cast<Order>().ToList();
+                    unassignedOrders = retrievalResults.Items.Cast<UnassignedOrderGroup>().ToList();
                 }
                 else
                 {
-                    unassignedOrders = retrievalResults.Items.Cast<Order>().ToList();
+                    unassignedOrders = retrievalResults.Items.Cast<UnassignedOrderGroup>().ToList();
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
@@ -2075,6 +2089,7 @@ namespace Averitt_RNA
                 }
                 else
                 {
+
                     List<ServiceLocation> serviceLocationsInRna = new List<ServiceLocation>();
 
                     //Check for Duplicates Records in Table

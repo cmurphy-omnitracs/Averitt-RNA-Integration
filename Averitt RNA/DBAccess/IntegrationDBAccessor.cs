@@ -111,7 +111,7 @@ namespace Averitt_RNA.DBAccess
 
 
 
-            _Logger.Debug("Sucessfully Retrieved Service Locations from Staged_Service_Location Table");
+            _Logger.DebugFormat("Sucessfully Retrieved {0} Service Locations from Staged_Service_Location Table", stagedStagedServiceLocationList.Count);
             return stagedStagedServiceLocationList;
         }
 
