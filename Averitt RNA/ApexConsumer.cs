@@ -2113,9 +2113,36 @@ namespace Averitt_RNA
                         checkedServiceLocationRecordList = retrieveList;
 
                     }
+                    //Check if address fields are blank
+                    List<DBAccess.Records.StagedServiceLocationRecord> noneblankFieldRecords = new List<DBAccess.Records.StagedServiceLocationRecord>();
+                    foreach(DBAccess.Records.StagedServiceLocationRecord record in checkedServiceLocationRecordList)
+                    {
+                        if(record.AddressLine1.Length == 0 || record.AddressLine1 == null || record.City.Length == 0 || record.City == null ||
+                            record.State.Length == 0 || record.State == null || record.PostalCode.Length == 0 || record.PostalCode == null)
+                        {
+                            //This record has blanks. Add error and switch status to error 
+                            string errorUpdatingServiceLocationMessage = string.Empty;
+                            bool errorUpdatingServiceLocation = false;
+                            _Logger.DebugFormat("Serviec location record {0} in region {1} has blank address fields. Error will be added to service location", record.ServiceLocationIdentifier, record.RegionIdentifier);
+                            DBAccessor.UpdateServiceLocationStatus(record.RegionIdentifier, record.ServiceLocationIdentifier, "Service location has blank address fields", 
+                                "Error", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                            if (!errorUpdatingServiceLocation)
+                            {
+                                _Logger.DebugFormat("Location record {0} in region {1} updated successfully", record.ServiceLocationIdentifier, record.RegionIdentifier);
+                            }else
+                            {
+                                _Logger.DebugFormat("Error Updating Location record {0} in region {1}: {2}", record.ServiceLocationIdentifier, record.RegionIdentifier, errorUpdatingServiceLocationMessage);
+                            }
+
+                        } else
+                        {
+                            noneblankFieldRecords.Add(record);
+                        }
+                    }
+
 
                     //Retrieve service locations with status of New
-                    checkedServiceLocationRecordList = checkedServiceLocationRecordList.FindAll(x => x.Status.ToUpper().Equals("NEW"));
+                    checkedServiceLocationRecordList = noneblankFieldRecords.FindAll(x => x.Status.ToUpper().Equals("NEW"));
                     string[] checkedSLId = new string[] { };
                     if (checkedServiceLocationRecordList.Count != 0)
                     {
@@ -2631,8 +2658,35 @@ namespace Averitt_RNA
 
                     }
 
+                    //check for blank order identififer fields
+                    List<DBAccess.Records.StagedOrderRecord> noneblankFieldRecords = new List<DBAccess.Records.StagedOrderRecord>();
+                    foreach (DBAccess.Records.StagedOrderRecord record in checkedOrderRecordList)
+                    {
+                        if (record.OrderIdentifier == null || record.OrderIdentifier.Length == 0)
+                        {
+                            //This record has blanks. Add error and switch status to error 
+                            string errorUpdatingOrderStatusMessage = string.Empty;
+                            bool errorUpdatingOrderStatus = false;
+                            _Logger.DebugFormat("Order record {0} in region {1} has a blank Order Identifier field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
+                            DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank order identifier field",
+                                "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+                            if (!errorUpdatingOrderStatus)
+                            {
+                                _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
+                            }
+                            else
+                            {
+                                _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
+                            }
+
+                        }
+                        else
+                        {
+                            noneblankFieldRecords.Add(record);
+                        }
+                    }
                     //Retrieve Orders with status of New
-                    checkedOrderRecordList = checkedOrderRecordList.FindAll(x => x.Status.ToUpper().Equals("NEW"));
+                    checkedOrderRecordList = noneblankFieldRecords.FindAll(x => x.Status.ToUpper().Equals("NEW"));
 
                     //Retrieve Orders with Delete bit set
                     
