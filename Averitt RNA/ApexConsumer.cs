@@ -1490,7 +1490,7 @@ namespace Averitt_RNA
                                         var tempStop = (ServiceableStop)stop;
                                         foreach (StopAction action in tempStop.Actions)
                                         {
-                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, null, DateTime.Now.ToString(), "", "NEW");
+                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, stop.Index.ToString(), DateTime.Now.ToString(), "", "NEW");
                                         }
                                     }
                                 }
@@ -2123,7 +2123,7 @@ namespace Averitt_RNA
                             //This record has blanks. Add error and switch status to error 
                             string errorUpdatingServiceLocationMessage = string.Empty;
                             bool errorUpdatingServiceLocation = false;
-                            _Logger.DebugFormat("Serviec location record {0} in region {1} has blank address fields. Error will be added to service location", record.ServiceLocationIdentifier, record.RegionIdentifier);
+                            _Logger.DebugFormat("Service location record {0} in region {1} has blank address fields. Error will be added to service location", record.ServiceLocationIdentifier, record.RegionIdentifier);
                             DBAccessor.UpdateServiceLocationStatus(record.RegionIdentifier, record.ServiceLocationIdentifier, "Service location has blank address fields", 
                                 "Error", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                             if (!errorUpdatingServiceLocation)
@@ -4069,7 +4069,7 @@ namespace Averitt_RNA
                             Order temp = new Order();
                             string currentLine = sr.ReadLine();
                             string[] dummyOrderValue = currentLine.Split(',');
-                            if (dummyOrderValue[0].Length == 0 || dummyOrderValue[0] == null || dummyOrderValue[8].Length == 0 || dummyOrderValue[8] == null)
+                            if (dummyOrderValue[0].Length == 0 || dummyOrderValue[0] == null || dummyOrderValue[8].Length == 0 || dummyOrderValue[8] == null || dummyOrderValue[9].Length == 0 || dummyOrderValue[9] == null)
                             {
                                 _Logger.DebugFormat("Dummy order on line {0} has some missing information. Order not added to RNA", i.ToString());
                                 i++;

@@ -89,7 +89,7 @@ namespace Averitt_RNA.DBAccess
             return string.Format(@"
                
                 UPDATE STAGED_SERVICE_LOCATIONS
-                SET [Status] = '{0}'
+                SET [Status] = '{0}', Error='{1}'
                 WHERE RegionIdentifier = '{2}' AND ServiceLocationIdentifier = '{3}'
                 ", status, error, regionID, serviceLocationID);
         }
@@ -219,7 +219,7 @@ namespace Averitt_RNA.DBAccess
                 RN = ROW_NUMBER()OVER(PARTITION BY  RegionIdentifier, OrderIdentifier, ServiceLocationIdentifier, BeginDate, 
                 QuantitySize1, QuantitySize2, QuantitySize3, PreferredRouteIdentifier, OriginDepotIdentifier, OrderClassIdentifier, 
                 SpecialInstructions, ServiceWindowOverride1Start, ServiceWindowOverride1End, ServiceWindowOverride2Start, ServiceWindowOverride2End, LiftgateOnly, GuaranteedDelivery, 
-                Avail, [Delete], [Staged], [Error], [Status] ORDER BY RegionIdentifier)
+                Avail ORDER BY RegionIdentifier)
                 FROM STAGED_ORDERS
                 )
                 DELETE FROM CTE WHERE RN > 1");
