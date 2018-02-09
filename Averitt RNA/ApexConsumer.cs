@@ -4063,11 +4063,18 @@ namespace Averitt_RNA
                     using (StreamReader sr = new StreamReader(dummyCsvFilename))
                     {
                         sr.ReadLine();
+                        int i = 1;
                         while (!sr.EndOfStream)
                         {
                             Order temp = new Order();
                             string currentLine = sr.ReadLine();
                             string[] dummyOrderValue = currentLine.Split(',');
+                            if (dummyOrderValue[0].Length == 0 || dummyOrderValue[0] == null || dummyOrderValue[8].Length == 0 || dummyOrderValue[8] == null)
+                            {
+                                _Logger.DebugFormat("Dummy order on line {0} has some missing information. Order not added to RNA", i.ToString());
+                                i++;
+                                continue;
+                            }
                             TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[0];
                             long orderClassEntity;
                             long routeOriginEntityKey;
@@ -4158,6 +4165,7 @@ namespace Averitt_RNA
                             
 
                             retrieveListDummyOrders.Add(temp);
+                            i++;
                         }
                     }
                 } else
