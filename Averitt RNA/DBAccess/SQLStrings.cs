@@ -142,10 +142,19 @@ namespace Averitt_RNA.DBAccess
                   string regionID, string orderId, string staged, string status)
         {
             return string.Format(@"
+                BEGIN TRANSACTION 
+                UPDATE STAGED_ROUTES SET RegionIdentifier = '{0}', OrderIdentifier = '{1}', RouteIdentifier = '{2}', 
+                RouteStartTime = '{3}', RouteDescription =  '{4}' , StopSequenceNumber = '{5}' , Staged = CONVERT(datetime2,'{6}'), 
+                [Status] = '{7}', Error = ''
+                WHERE  OrderIdentifier = '{1}' AND RegionIdentifier = '{0}' AND RouteIdentifier = '{2}'
+                IF @@ROWCOUNT = 0
                 INSERT INTO STAGED_ROUTES
                 (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, [Status], Error)
-                VALUES
-                ( '{0}', '{1}', '{2}', '{3}', '{4}', '{5}', CONVERT(datetime2,'{6}'), '{7}', '')", regionID, orderId, null, null, null, null, staged, status);
+                VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', CONVERT(datetime2,'{6}'), '{7}', '')
+                END
+                COMMIT TRANSACTION
+                GO
+                ", regionID, orderId, null, null, null, null, staged, status);
         }
 
         public static string DELETE_EXPIRED_STAGED_ROUTES(

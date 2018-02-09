@@ -105,11 +105,9 @@ namespace Averitt_RNA.DBAccess.Records
                 DeliveryDays == other.DeliveryDays &&
                 PhoneNumber == other.PhoneNumber &&
                 ServiceTimeTypeIdentifier == other.ServiceTimeTypeIdentifier &&
-                ServiceWindowTypeIdentifier == other.ServiceWindowTypeIdentifier &&
-                Staged == other.Staged &&
-                Error == other.Error &&
-                Status == other.Status;
+                ServiceWindowTypeIdentifier == other.ServiceWindowTypeIdentifier;
         }
+
 
         public override int GetHashCode()
         {
@@ -118,8 +116,6 @@ namespace Averitt_RNA.DBAccess.Records
                 Description + AddressLine1 + AddressLine2 + City + State + PostalCode + WorldTimeZone + DeliveryDays.ToString() + 
                 PhoneNumber + ServiceTimeTypeIdentifier + ServiceWindowTypeIdentifier + Staged + Error + Status);
         }
-
-       
 
        
 
@@ -201,5 +197,82 @@ namespace Averitt_RNA.DBAccess.Records
 
 
         #endregion
+
+
     }
+    #region IEqualityComparer
+    class ServiceLocationComparer : IEqualityComparer<StagedServiceLocationRecord>
+    {
+       
+
+        public bool Equals(StagedServiceLocationRecord x, StagedServiceLocationRecord other)
+        {
+
+            return x.RegionIdentifier == other.RegionIdentifier &&
+                x.ServiceLocationIdentifier == other.ServiceLocationIdentifier &&
+                x.Description == other.Description &&
+                x.AddressLine1 == other.AddressLine1 &&
+                x.AddressLine2 == other.AddressLine2 &&
+                x.City == other.City &&
+                x.State == other.State &&
+                x.PostalCode == other.PostalCode &&
+                x.WorldTimeZone == other.WorldTimeZone &&
+                x.DeliveryDays == other.DeliveryDays &&
+                x.PhoneNumber == other.PhoneNumber &&
+                x.ServiceTimeTypeIdentifier == other.ServiceTimeTypeIdentifier &&
+                x.ServiceWindowTypeIdentifier == other.ServiceWindowTypeIdentifier;
+        }
+
+
+        public int GetHashCode(StagedServiceLocationRecord location)
+        {
+            //Check whether the object is null
+            if (Object.ReferenceEquals(location, null)) return 0;
+
+            //Get hash code for the regionIdentifier field if it is not null.
+            int hashRegionIdentifier = location.RegionIdentifier == null ? 0 : location.RegionIdentifier.GetHashCode();
+
+            //Get hash code for the ServiceLocationIdentifier field if it is not null.
+            int hashServiceLocationIdentifier = location.ServiceLocationIdentifier == null ? 0 : location.ServiceLocationIdentifier.GetHashCode();
+
+            //Get hash code for the Description field if it is not null.
+            int hashDescription = location.Description == null ? 0 : location.Description.GetHashCode();
+
+            //Get hash code for the AddressLine1 field if it is not null.
+            int hashAddressLine1 = location.AddressLine1 == null ? 0 : location.AddressLine1.GetHashCode();
+
+            //Get hash code for the AddressLine2 field if it is not null.
+            int hashAddressLine2 = location.AddressLine2 == null ? 0 : location.AddressLine2.GetHashCode();
+
+            //Get hash code for the City field if it is not null.
+            int hashCity = location.City == null ? 0 : location.City.GetHashCode();
+
+            //Get hash code for the State field if it is not null.
+            int hashState = location.State == null ? 0 : location.State.GetHashCode();
+
+            //Get hash code for the PostalCode field if it is not null.
+            int hashPostalCode = location.PostalCode == null ? 0 : location.PostalCode.GetHashCode();
+
+            //Get hash code for the WorldTimeZone field if it is not null.
+            int hashWorldTimeZone = location.WorldTimeZone == null ? 0 : location.WorldTimeZone.GetHashCode();
+
+            //Get hash code for the DeliveryDays field if it is not null.
+            int hashDeliveryDays = location.DeliveryDays.ToString() == null ? 0 : location.DeliveryDays.ToString().GetHashCode();
+
+            //Get hash code for the PhoneNumber field if it is not null.
+            int hashPhoneNumber = location.PhoneNumber == null ? 0 : location.PhoneNumber.GetHashCode();
+
+            //Get hash code for the ServiceTimeTypeIdentifier field if it is not null.
+            int hashServiceTimeTypeIdentifier = location.ServiceTimeTypeIdentifier == null ? 0 : location.ServiceTimeTypeIdentifier.GetHashCode();
+
+            //Get hash code for the ServiceWindowTypeIdentifier field if it is not null.
+            int hashServiceWindowTypeIdentifier = location.ServiceWindowTypeIdentifier == null ? 0 : location.ServiceWindowTypeIdentifier.GetHashCode();
+
+            return hashRegionIdentifier ^ hashServiceLocationIdentifier ^ hashDescription ^ hashAddressLine1 ^ hashAddressLine2 ^ hashCity ^ hashPostalCode ^ hashState ^ hashPhoneNumber ^ 
+                hashServiceTimeTypeIdentifier ^ hashServiceWindowTypeIdentifier ^ hashDeliveryDays ^ hashWorldTimeZone;
+        }
+
+ 
+    }
+    #endregion
 }

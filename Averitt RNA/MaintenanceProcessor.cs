@@ -57,7 +57,7 @@ namespace Averitt_RNA
                 }
                 catch (Exception ex)
                 {
-                    Logger.Error(" Error Performing Maintenance on Expired Records from Staging Tables" + ex.Message);
+                    Logger.Error("Error Performing Maintenance on Expired Records from Staging Tables" + ex.Message);
                 }
 
             }

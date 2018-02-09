@@ -1630,8 +1630,7 @@ namespace Averitt_RNA
         public List<UnassignedOrderGroup> RetrieveRNAUnassignedOrderGroups(out ErrorLevel errorLevel, out string fatalErrorMessage, DateTime lastCycleTime)
         {
             List<UnassignedOrderGroup> unassignedOrders = null;
-            long x = -1;
-
+           
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
             try
@@ -1818,7 +1817,7 @@ namespace Averitt_RNA
                 else if (retrievalResults.Items.Length == 0)
                 {
                     string identifiersString = string.Join(" ", identifiers);
-                    _Logger.Error("Retrieve Orders |  Orders Not Found for " + identifiersString + " | " + fatalErrorMessage);
+                    _Logger.Debug("Retrieve Orders |  Orders Not Found for " + identifiersString + " | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.Fatal;
                     orders = retrievalResults.Items.Cast<Order>().ToList();
                 }
@@ -2091,15 +2090,15 @@ namespace Averitt_RNA
                 {
 
                     List<ServiceLocation> serviceLocationsInRna = new List<ServiceLocation>();
-
+                    
                     //Check for Duplicates Records in Table
-                    if (retrieveList.Count != retrieveList.Distinct().Count())
+                    if (retrieveList.Count != retrieveList.Distinct(new DBAccess.Records.ServiceLocationComparer()).Count())
                     {
                         bool errorDeletingDuplicateServiceLocations = false;
                         string errorDeletingDuplicateServiceLocationsMessage = string.Empty;
                         //filter out duplicates
                         _Logger.DebugFormat("Duplicate Service Locations Found, Deleting them from Staged Service Locations Table");
-                        checkedServiceLocationRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
+                        checkedServiceLocationRecordList = retrieveList.Distinct(new DBAccess.Records.ServiceLocationComparer()).ToList(); //filter out duplicates
                         DBAccessor.DeleteDuplicatedServiceLocation(out errorDeletingDuplicateServiceLocationsMessage, out errorDeletingDuplicateServiceLocations);
                         if (errorDeletingDuplicateServiceLocations == true)
                         {
@@ -2125,10 +2124,13 @@ namespace Averitt_RNA
                         //Add serviceTimeType, timeWindowType, and region Entity Keys to Checked Service Locations
                         foreach (DBAccess.Records.StagedServiceLocationRecord location in checkedServiceLocationRecordList)
                         {
+
+                            _Logger.DebugFormat("Retrieved {0} Location from Location Table", location.ServiceLocationIdentifier);
                             long serviceTimeTypeEntityKey = 0;
                             long timeWindowTypeEntityKey = 0;
                             long[] regionEntityKey = new long[1] { 0 };
                             var temp = (ServiceLocation)location;
+                            _Logger.DebugFormat("Cast Location {0} as Service Location Object", temp.Identifier);
 
                             //Add SerivceTimeType, region and timewindowType entity keys
 
@@ -2139,16 +2141,20 @@ namespace Averitt_RNA
                             }
                             else
                             {
+                                _Logger.DebugFormat("Adding Service Time Type {0} with Entity Key {1} to location ", location.ServiceTimeTypeIdentifier, serviceTimeTypeEntityKey, temp.Identifier);
                                 temp.ServiceTimeTypeEntityKey = serviceTimeTypeEntityKey;
                             }
                             if (!timeWindowTypes.TryGetValue(location.ServiceWindowTypeIdentifier, out timeWindowTypeEntityKey))
                             {
                                 _Logger.ErrorFormat("No match found for Time Window Type with identifier {0} in RNA, Using Default Time Window Type", location.ServiceTimeTypeIdentifier);
                                 temp.ServiceTimeTypeEntityKey = 0;
+                                _Logger.ErrorFormat("Adding Successful");
                             }
                             else
                             {
+                                _Logger.DebugFormat("Adding Time Window Type {0} with Entity Key {1} to location ", location.ServiceWindowTypeIdentifier, timeWindowTypeEntityKey, temp.Identifier);
                                 temp.TimeWindowTypeEntityKey = timeWindowTypeEntityKey;
+                                _Logger.ErrorFormat("Adding Successful");
                             }
 
                             if (!regionEntityKeyDic.TryGetValue(location.RegionIdentifier, out regionEntityKey[0]))
@@ -2159,8 +2165,10 @@ namespace Averitt_RNA
                             }
                             else
                             {
+                                _Logger.DebugFormat("Adding Region {0} with Entity Key {1} to location", location.RegionIdentifier, regionEntityKey, temp.Identifier);
                                 temp.RegionEntityKeys = new long[] { };
                                 temp.RegionEntityKeys = regionEntityKey;
+                                _Logger.ErrorFormat("Adding Successful");
                             }
 
 
@@ -2598,16 +2606,15 @@ namespace Averitt_RNA
                     List<Order> checkedOrdersList = new List<Order>();
 
                     //Check for Duplicates Records in Table
-                    if (retrieveList.Count != retrieveList.Distinct().Count())
+                    if (retrieveList.Count != retrieveList.Distinct(new DBAccess.Records.OrderComparer()).Count())
                     {
-                        checkedOrderRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
+                        checkedOrderRecordList = retrieveList.Distinct(new DBAccess.Records.OrderComparer()).ToList(); //filter out duplicates
 
                         bool errorDeletingDuplicateOrders = false;
                         string errorDeletingDuplicateOrdersMessage = string.Empty;
-                        //filter out duplicates
+                        
                         _Logger.DebugFormat("Duplicate Orders Found, Deleting them from Orders Table");
 
-                        checkedOrderRecordList = retrieveList.Distinct().ToList(); //filter out duplicates
                         DBAccessor.DeleteDuplicatedOrders(out errorDeletingDuplicateOrdersMessage, out errorDeletingDuplicateOrders);
                         if (errorDeletingDuplicateOrders == true)
                         {
@@ -4617,22 +4624,23 @@ namespace Averitt_RNA
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
                     MainService.SessionHeader,
-                    new MultipleRegionContext
+                    new SingleRegionContext
                     {
                         BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
-                        Mode = MultipleRegionMode.All
+                        RegionEntityKey = _Region.EntityKey
                     },
                     new RetrievalOptions
                     {
                         PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         PropertyOptions = new ServiceTimeTypePropertyOptions
                         {
-                            Identifier = true,
-
-
+                            Identifier = true
                         },
+                      
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.ServiceTimeType)
-                    });
+                    }
+                  
+                    );
                 if (retrievalResults.Items == null)
                 {
                     _Logger.Error("Retrieve Service Time Types for All Regions Failed with a null result.");
@@ -4642,12 +4650,26 @@ namespace Averitt_RNA
                 else if (retrievalResults.Items.Length == 0)
                 {
                     fatalErrorMessage = "ServiceTime Types does not exist.";
-                    _Logger.Error(" ServiceTime Types does not exist for Multiple Regions | " + fatalErrorMessage);
+                    _Logger.Error("ServiceTime Types does not exist for Multiple Regions | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.Fatal;
                 }
                 else
                 {
-                    return retrievalResults.Items.Cast<ServiceTimeType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+                    Dictionary<string, long> temp = new Dictionary<string, long>();
+                    List<ServiceTimeType> temp2 = retrievalResults.Items.Cast<ServiceTimeType>().ToList();
+                    foreach (ServiceTimeType serviceTime in temp2)
+                    {
+                        if (!temp.ContainsKey(serviceTime.Identifier))
+                        {
+                            temp.Add(serviceTime.Identifier, serviceTime.EntityKey);
+                            _Logger.DebugFormat("Added ServiceTime Type {0} to Dict", serviceTime.Identifier);
+                        } else
+                        {
+                            _Logger.DebugFormat("Duplicate Service Time Type Identifier found {0}. Will Use first one as entity Key", serviceTime.Identifier);
+                        }
+                    }
+
+                    return temp;
 
                 }
             }
@@ -4709,9 +4731,26 @@ namespace Averitt_RNA
                 }
                 else
                 {
-                    Dictionary<string, long> dict = retrievalResults.Items.Cast<TimeWindowType>().ToDictionary(x => x.Identifier, y => y.EntityKey);
                     
-                    return dict;
+
+                    Dictionary<string, long> temp = new Dictionary<string, long>();
+                    List<TimeWindowType> temp2 = retrievalResults.Items.Cast<TimeWindowType>().ToList();
+                    foreach (TimeWindowType timeWindow in temp2)
+                    {
+                        if (!temp.ContainsKey(timeWindow.Identifier))
+                        {
+                            temp.Add(timeWindow.Identifier, timeWindow.EntityKey);
+                            _Logger.DebugFormat("Added Time Window Type {0} to Dict", timeWindow.Identifier);
+                        }
+                        else
+                        {
+                            _Logger.DebugFormat("Duplicate Time Window Type Identifier found {0}. Will Use first one as entity Key", timeWindow.Identifier);
+                        }
+                    }
+
+                    return temp;
+
+                   
 
                 }
             }
@@ -4769,7 +4808,7 @@ namespace Averitt_RNA
                 else if (retrievalResults.Items.Length == 0)
                 {
                     fatalErrorMessage = "Depots does not exist.";
-                    _Logger.Error(" Depots does not exist for Multiple Regions | " + fatalErrorMessage);
+                    _Logger.Error("Depots does not exist for Multiple Regions | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.Fatal;
                 }
                 else
@@ -4836,12 +4875,27 @@ namespace Averitt_RNA
                 else if (retrievalResults.Items.Length == 0)
                 {
                     fatalErrorMessage = "Order Classes does not exist.";
-                    _Logger.Error(" Order Classes does not exist for Multiple Regions | " + fatalErrorMessage);
+                    _Logger.Error("Order Classes does not exist for Multiple Regions | " + fatalErrorMessage);
                     errorLevel = ErrorLevel.Fatal;
                 }
                 else
                 {
-                    return retrievalResults.Items.Cast<OrderClass>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+                    Dictionary<string, long> temp = new Dictionary<string, long>();
+                    List<OrderClass> temp2 = retrievalResults.Items.Cast<OrderClass>().ToList();
+                    foreach (OrderClass orderClass in temp2)
+                    {
+                        if (!temp.ContainsKey(orderClass.Identifier))
+                        {
+                            temp.Add(orderClass.Identifier, orderClass.EntityKey);
+                            _Logger.DebugFormat("Added Order Class {0} to Dict", orderClass.Identifier);
+                        }
+                        else
+                        {
+                            _Logger.DebugFormat("Duplicate Order Class Identifier found {0}. Will Use first one as entity Key", orderClass.Identifier);
+                        }
+                    }
+
+                    return temp;
 
                 }
             }
@@ -4916,7 +4970,7 @@ namespace Averitt_RNA
                 else if (retrievalResults.Items.Length == 0)
                 {
                     regularErrorMessage = "Orders does not exist.";
-                    _Logger.Error(" Orders does not exist for Regions | " + regularErrorMessage);
+                    _Logger.Error("Orders does not exist for Regions | " + regularErrorMessage);
                     errorLevel = ErrorLevel.Transient;
                 }
                 else

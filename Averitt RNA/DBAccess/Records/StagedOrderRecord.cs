@@ -244,4 +244,77 @@ namespace Averitt_RNA.DBAccess.Records
         #endregion
 
     }
+
+    #region IEqualityComparer
+    class OrderComparer : IEqualityComparer<StagedOrderRecord>
+    {
+
+
+        public bool Equals(StagedOrderRecord x, StagedOrderRecord other)
+        {
+
+            return x.RegionIdentifier == other.RegionIdentifier &&
+                x.ServiceLocationIdentifier == other.ServiceLocationIdentifier &&
+                x.OrderIdentifier == other.OrderIdentifier &&
+                x.OrderClassIdentifier == other.OrderClassIdentifier &&
+                x.BeginDate == other.BeginDate &&
+                x.QuantitySize1 == other.QuantitySize1 &&
+                x.QuantitySize2 == other.QuantitySize2 &&
+                x.QuantitySize3 == other.QuantitySize3 &&
+                x.PreferredRouteIdentifier == other.PreferredRouteIdentifier &&
+                x.OriginDepotIdentifier == other.OriginDepotIdentifier &&
+                (bool)x.Delete == (bool)other.Delete &&
+                x.Status == other.Status;
+        }
+
+
+        public int GetHashCode(StagedOrderRecord order)
+        {
+            //Check whether the object is null
+            if (Object.ReferenceEquals(order, null)) return 0;
+
+            //Get hash code for the regionIdentifier field if it is not null.
+            int hashRegionIdentifier = order.RegionIdentifier == null ? 0 : order.RegionIdentifier.GetHashCode();
+
+            //Get hash code for the ServiceLocationIdentifier field if it is not null.
+            int hashServiceLocationIdentifier = order.ServiceLocationIdentifier == null ? 0 : order.ServiceLocationIdentifier.GetHashCode();
+
+            //Get hash code for the OrderIdentifier field if it is not null.
+            int hashOrderIdentifier = order.OrderIdentifier == null ? 0 : order.OrderIdentifier.GetHashCode();
+
+            //Get hash code for the OrderClassIdentifier field if it is not null.
+            int hashOrderClassIdentifier = order.OrderClassIdentifier == null ? 0 : order.OrderClassIdentifier.GetHashCode();
+
+            //Get hash code for the BeginDate field if it is not null.
+            int hashBeginDate = order.BeginDate == null ? 0 : order.BeginDate.GetHashCode();
+
+            //Get hash code for the QuantitySize1 field if it is not null.
+            int hashQuantitySize1 = order.QuantitySize1 == null ? 0 : order.QuantitySize1.GetHashCode();
+
+            //Get hash code for the QuantitySize2 field if it is not null.
+            int hashQuantitySize2 = order.QuantitySize2 == null ? 0 : order.QuantitySize2.GetHashCode();
+
+            //Get hash code for the QuantitySize3 field if it is not null.
+            int hashQuantitySize3 = order.QuantitySize3 == null ? 0 : order.QuantitySize3.GetHashCode();
+
+            //Get hash code for the PreferredRouteIdentifier field if it is not null.
+            int hashPreferredRouteIdentifier = order.PreferredRouteIdentifier == null ? 0 : order.PreferredRouteIdentifier.GetHashCode();
+
+            //Get hash code for the Delete field if it is not null.
+            int hashDelete = order.Delete.ToString() == null ? 0 : order.Delete.ToString().GetHashCode();
+
+            //Get hash code for the OriginDepotIdentifier field if it is not null.
+            int hashOriginDepotIdentifier = order.OriginDepotIdentifier == null ? 0 : order.OriginDepotIdentifier.GetHashCode();
+
+            //Get hash code for the Status field if it is not null.
+            int hashStatus = order.Status == null ? 0 : order.Status.GetHashCode();
+
+
+            return hashRegionIdentifier ^ hashServiceLocationIdentifier ^ hashOrderIdentifier ^ hashOrderClassIdentifier ^ hashBeginDate ^
+                hashQuantitySize1 ^ hashQuantitySize2 ^ hashQuantitySize3 ^ hashPreferredRouteIdentifier ^ hashDelete ^ hashOriginDepotIdentifier ^ hashStatus;
+        }
+
+
+    }
+    #endregion
 }
