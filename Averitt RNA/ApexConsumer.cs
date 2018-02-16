@@ -1476,7 +1476,7 @@ namespace Averitt_RNA
                 modifiedRoutes = RetrieveModifiedRNARoute(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
                 if(errorLevel == ErrorLevel.None)
                 {
-                    _Logger.Debug("Completed Retrieving Modified Routes");
+                    _Logger.DebugFormat("Completed Retrieving {0} Modified Routes", modifiedRoutes.Count);
                    
                         //Write Routes and Unassigned Orders to Routing Table
                         foreach (Route route in modifiedRoutes)
@@ -1485,12 +1485,14 @@ namespace Averitt_RNA
                             {
                                 foreach (Stop stop in route.Stops)
                                 {
+                                
                                     if (stop is ServiceableStop)
                                     {
                                         var tempStop = (ServiceableStop)stop;
+                                    
                                         foreach (StopAction action in tempStop.Actions)
                                         {
-                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, stop.Index.ToString(), DateTime.Now.ToString(), "", "NEW");
+                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
                                         }
                                     }
                                 }

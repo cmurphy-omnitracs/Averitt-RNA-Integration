@@ -87,7 +87,7 @@ namespace Averitt_RNA
                     {
                         DateTime stagedDate;
                         bool parseDatetime = DateTime.TryParse(record.Staged,out stagedDate);
-                        if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
+                        if (Config.ARCHIVE_DAYS <= (DateTime.Now.Day - stagedDate.Day))
                         {
                             _IntegrationDBAccessor.DeleteExpiredOrder(record.RegionIdentifier, record.OrderIdentifier,
                                 record.Status,record.Staged, out errorMessage, out errorCaught);
@@ -111,7 +111,7 @@ namespace Averitt_RNA
                     {
                         DateTime stagedDate;
                         bool parseDatetime = DateTime.TryParse(record.Staged, out stagedDate);
-                        if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
+                        if (Config.ARCHIVE_DAYS <= (DateTime.Now.Day - stagedDate.Day))
                         {
                             _IntegrationDBAccessor.DeleteExpiredOrder(record.RegionIdentifier, record.OrderIdentifier,
                                 record.Status, record.Staged , out errorMessage, out errorCaught);
@@ -155,7 +155,7 @@ namespace Averitt_RNA
                     {
                         DateTime stagedDate;
                         bool parseDatetime = DateTime.TryParse(record.Staged, out stagedDate);
-                        if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
+                        if (Config.ARCHIVE_DAYS <= (DateTime.Now.Day - stagedDate.Day))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedServiceLocation(record.RegionIdentifier, record.ServiceLocationIdentifier,
                                 record.Staged, out errorMessage, out errorCaught);
@@ -223,7 +223,7 @@ namespace Averitt_RNA
                     {
                         DateTime stagedDate;
                         bool parseDatetime = DateTime.TryParse(record.Staged, out stagedDate);
-                        if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
+                        if (Config.ARCHIVE_DAYS <= (DateTime.Now.Day - stagedDate.Day))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedRoute(record.RegionIdentifier, record.OrderIdentifier,
                                 record.Status, record.Staged, out errorMessage, out errorCaught);
@@ -247,7 +247,7 @@ namespace Averitt_RNA
                     {
                         DateTime stagedDate;
                         bool parseDatetime = DateTime.TryParse(record.Staged, out stagedDate);
-                        if (stagedDate.Day < (DateTime.Now.Day - Config.ARCHIVE_DAYS))
+                        if (Config.ARCHIVE_DAYS <= (DateTime.Now.Day - stagedDate.Day))
                         {
                             _IntegrationDBAccessor.DeleteExpiredStagedRoute(record.RegionIdentifier, record.OrderIdentifier,
                                 record.Status, record.Staged, out errorMessage, out errorCaught);

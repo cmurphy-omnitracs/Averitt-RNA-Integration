@@ -151,7 +151,6 @@ namespace Averitt_RNA.DBAccess
                 INSERT INTO STAGED_ROUTES
                 (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, [Status], Error)
                 VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', CONVERT(datetime2,'{6}'), '{7}', '')
-                END
                 COMMIT TRANSACTION
                 GO
                 ", regionID, orderId, null, null, null, null, staged, status);
