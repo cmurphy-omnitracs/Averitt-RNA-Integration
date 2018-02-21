@@ -252,9 +252,12 @@ namespace Averitt_RNA.DBAccess
             try
             {
                 //Edit this 
+                _Logger.DebugFormat("Executing Delete of Order {0}", orderId);
                 ExecuteNonQuery(
                     SQLStrings.DELETE_EXPIRED_STAGED_ORDERS(regionID, orderId, staged, status),
                      "Delete expired Order" + orderId + " from STAGE_ORDER Table");
+
+                _Logger.DebugFormat("Delete Successful", orderId);
             }
             catch (DatabaseException ex)
             {
@@ -265,16 +268,19 @@ namespace Averitt_RNA.DBAccess
 
         }
 
-        public void DeleteExpiredStagedRoute(string regionID, string orderId, string status, string staged, out string databaseError, out bool databaseErrorCaught)
+        public void DeleteExpiredOrderSQL(out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
             try
             {
                 //Edit this 
+                _Logger.DebugFormat("Executing Delete of Error/Complete Order older than {0}", Config.ARCHIVE_DAYS);
                 ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, status, staged, orderId),
-                     "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
+                    SQLStrings.DELETE_ERROR_COMPLETE_EXP_STAGED_ORDERS(),
+                     "Delete expired Orders from STAGE_ORDER Table");
+
+                _Logger.DebugFormat("Delete Successful");
             }
             catch (DatabaseException ex)
             {
@@ -285,6 +291,96 @@ namespace Averitt_RNA.DBAccess
 
         }
 
+        public void DeleteExpiredRoutesSQL(out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                _Logger.DebugFormat("Executing Delete of Error/Complete Routes older than {0}", Config.ARCHIVE_DAYS);
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_ERROR_COMPLETE_EXP_STAGED_ROUTES(),
+                     "Delete expired Routes from Staged Routes Table");
+
+                _Logger.DebugFormat("Delete Successful");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public void DeleteExpiredSLSQL(out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                _Logger.DebugFormat("Executing Delete of Error/Complete Service Location older than {0}", Config.ARCHIVE_DAYS);
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_ERROR_COMPLETE_EXP_SL(),
+                     "Delete expired Service Location from Staged Service Locations Table");
+
+                _Logger.DebugFormat("Delete Successful");
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public void DeleteExpiredStagedRouteOrder(string regionID, string orderId, string status, string staged, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                _Logger.DebugFormat("Executing Delete of Route Table order {0} ", orderId);
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTE_TABLE_ORDER(regionID, status, staged, orderId),
+                     "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
+
+                _Logger.DebugFormat(" Delete of Route Table order {0} successful ", orderId);
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
+
+        public void DeleteExpiredStagedRouteAndOrder(string regionID, string orderId, string routeID ,string status, string staged, out string databaseError, out bool databaseErrorCaught)
+        {
+            databaseError = string.Empty;
+            databaseErrorCaught = false;
+            try
+            {
+                //Edit this 
+                _Logger.DebugFormat("Executing Delete of Staged Route {0} and order {1} ", routeID, orderId);
+                ExecuteNonQuery(
+                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, status, staged, orderId, routeID),
+                     "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
+                _Logger.DebugFormat("Delete of Staged Route {0} and order {1} successful", routeID, orderId);
+            }
+            catch (DatabaseException ex)
+            {
+                databaseError = ex.Message;
+                databaseErrorCaught = true;
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+
+        }
         public void DeleteExpiredStagedServiceLocation(string regionID, string serviceLocationId, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
@@ -292,9 +388,11 @@ namespace Averitt_RNA.DBAccess
             try
             {
                 //Edit this 
+                _Logger.DebugFormat("Executing Delete of Service Location {0}", serviceLocationId);
                 ExecuteNonQuery(
                     SQLStrings.DELETE_EXPIRED_STAGED_SERVICE_LOCATION(regionID, serviceLocationId, staged),
                      "Delete expired Service Location" + serviceLocationId + " from STAGED_SERVICE_LOCATION Table");
+                _Logger.DebugFormat("Delete of Service Location {0} Successful", serviceLocationId);
             }
             catch (DatabaseException ex)
             {
