@@ -78,12 +78,12 @@ namespace Averitt_RNA.DBAccess.Records
             } as DBAccessUtility.DBRecord;
         }
 
-        
+
         public OrderSpec ToOrderSpec()
         {
             return new OrderSpec
             {
-                
+
             };
         }
 
@@ -117,12 +117,12 @@ namespace Averitt_RNA.DBAccess.Records
                 && Error == other.Error
                 && Status == other.Status;
 
-            
+
         }
 
         public override int GetHashCode()
         {
-            
+
             return StringComparer.InvariantCultureIgnoreCase.GetHashCode(RegionIdentifier + OrderIdentifier + ServiceLocationIdentifier +
                                     BeginDate + QuantitySize1 + QuantitySize2 + QuantitySize3 + PreferredRouteIdentifier + OriginDepotIdentifier +
                                     OrderClassIdentifier + SpecialInstructions + ServiceWindowOverride1Start + ServiceWindowOverride1End +
@@ -140,10 +140,7 @@ namespace Averitt_RNA.DBAccess.Records
 
             TaskServiceWindowOverrideDetail tempServiceWindowOverride = new TaskServiceWindowOverrideDetail();
             TaskServiceWindowOverrideDetail temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail();
-
-
-
-
+         
             if ((record.ServiceWindowOverride1Start != null && record.ServiceWindowOverride1End != null) && (record.ServiceWindowOverride1Start != string.Empty
                 && record.ServiceWindowOverride1End != string.Empty))
             {
@@ -157,18 +154,17 @@ namespace Averitt_RNA.DBAccess.Records
                         DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"
                     }
                 };
-                                    
-            } else
+
+            }
+            else
             {
                 tempServiceWindowOverride = null;
-
-
 
             }
             if ((record.ServiceWindowOverride2Start != null && record.ServiceWindowOverride2End != null) && (record.ServiceWindowOverride2Start != string.Empty
                 && record.ServiceWindowOverride2End != string.Empty))
             {
-              
+
 
                 temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail
                 {
@@ -192,13 +188,14 @@ namespace Averitt_RNA.DBAccess.Records
                 if (temp2ServiceWindowOverride != null)
                 {
                     serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { tempServiceWindowOverride, temp2ServiceWindowOverride };
-                } else
+                }
+                else
                 {
                     serviceWindowOverride = new TaskServiceWindowOverrideDetail[] { tempServiceWindowOverride };
                 }
-                    
+
             }
-            
+
 
 
             Task[] task = new Task[] {
@@ -217,7 +214,7 @@ namespace Averitt_RNA.DBAccess.Records
 
                 } };
 
-            return new Order
+            Order order = new Order
             {
                 Identifier = record.OrderIdentifier,
                 BeginDate = record.BeginDate,
@@ -232,14 +229,26 @@ namespace Averitt_RNA.DBAccess.Records
                 SpecialInstructions = record.SpecialInstructions,
                 CustomProperties = dict,
                 Tasks = task,
-                
+
 
             };
+
+            if (record.Delete == false)
+            {
+                order.Action = ActionType.Delete;
+            }
+
+            return order;
+
+
+
 
 
         }
 
-        
+     
+
+
 
         #endregion
 
@@ -267,6 +276,16 @@ namespace Averitt_RNA.DBAccess.Records
                 x.Status == other.Status;
         }
 
+        public bool Equals(StagedOrderRecord x, Order other, DictCache dictCache)
+        {
+
+            return x.ServiceLocationIdentifier == other.Tasks[0].LocationIdentifier &&
+                x.OrderIdentifier == other.Identifier &&
+                x.BeginDate == other.BeginDate &&
+                x.OrderClassIdentifier == dictCache.orderClassesDict.Where(orderclass => orderclass.Value == other.OrderClassEntityKey).Select(orderclass => orderclass.Key).FirstOrDefault(null) &&
+                x.RegionIdentifier == MainService.Regions.Where(region => region.EntityKey == other.RegionEntityKey).Select(region => region.Identifier).FirstOrDefault(null);
+
+        }
 
         public int GetHashCode(StagedOrderRecord order)
         {

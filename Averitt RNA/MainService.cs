@@ -138,6 +138,12 @@ namespace Averitt_RNA
                 {
                     RetrieveUrls(queryServiceClient, region);
                     RegionGeocodeTimeoutCounts.Add(region.EntityKey, new Dictionary<string, int>());
+
+
+
+
+
+
                 }
                 success = true;
             }
@@ -301,6 +307,8 @@ namespace Averitt_RNA
                 }
             }
         }
+
+    
 
         #endregion
 

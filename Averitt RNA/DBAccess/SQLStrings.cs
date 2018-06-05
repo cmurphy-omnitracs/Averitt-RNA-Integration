@@ -33,6 +33,19 @@ namespace Averitt_RNA.DBAccess
                 regionID, Status);
         }
 
+        public static string SELECT_NEW_ORDERS(
+                  string regionID)
+        {
+
+            return string.Format(@"
+                SELECT [RegionIdentifier], [OrderIdentifier], [ServiceLocationIdentifier], [BeginDate], [QuantitySize1], [QuantitySize2], [QuantitySize3], [PreferredRouteIdentifier], [OriginDepotIdentifier], [OrderClassIdentifier], [SpecialInstructions], 
+                CAST([ServiceWindowOverride1Start] AS varchar) as ServiceWindowOverride1Start , CAST([ServiceWindowOverride1End] AS VARCHAR) as ServiceWindowOverride1End, CAST([ServiceWindowOverride2Start] AS VARCHAR) as ServiceWindowOverride2Start, CAST([ServiceWindowOverride2End] AS VARCHAR) as ServiceWindowOverride2End, 
+                [LiftgateOnly], [GuaranteedDelivery] AS GuaranteedDelivery , [Avail], [Delete], [Staged], [Error], [Status] 
+                FROM  [STAGED_ORDERS]
+                WHERE [RegionIdentifier] = '{0}'",
+                regionID);
+        }
+
         //GET ALL STAGED SERVICE LOCATIONS
         public static string SELECT_ALL_NEW_STAGED_SERVICE_LOCATIONS(
                     string regionID)
@@ -43,6 +56,7 @@ namespace Averitt_RNA.DBAccess
                 WHERE [RegionIdentifier] = '{0}' AND UPPER([Status]) = 'NEW'",
                 regionID);
         }
+
         public static string SELECT_ALL_STAGED_SERVICE_LOCATIONS_STATUS(
                  string status)
         {
@@ -61,14 +75,14 @@ namespace Averitt_RNA.DBAccess
             {
                 return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status], OrderIdentifier)
+                (OrderIdentifier, RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
                 VALUES
                 ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', NULL, CONVERT(datetime2,'{5}'), '{6}', '{7}', '{8}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status, orderNumber);
             } else
             {
                 return string.Format(@"
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status],  OrderIdentifier)
+                (OrderIdentifier, RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
                 VALUES
                 ('{0}', '{1}', CONVERT(datetime2,'{2}'), '{3}', {4}, CONVERT(datetime2,'{5}'), '{6}', '{7}', '{8}')", regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status, orderNumber);
             }
@@ -140,14 +154,14 @@ namespace Averitt_RNA.DBAccess
         {
             return string.Format(@"
                 BEGIN TRANSACTION 
-                UPDATE STAGED_ROUTES SET RegionIdentifier = '{0}', OrderIdentifier = '{1}', RouteIdentifier = '{2}', 
+                UPDATE STAGED_ROUTES SET OrderIdentifier = '{1}', RegionIdentifier = '{0}',  RouteIdentifier = '{2}', 
                 RouteStartTime = '{3}', RouteDescription =  '{4}' , StopSequenceNumber = '{5}' , Staged = CONVERT(datetime2,'{6}'), 
-                [Status] = '{7}', Error = ''
+                Error = '', [Status] = '{7}' 
                 WHERE  OrderIdentifier = '{1}' AND RegionIdentifier = '{0}' AND RouteIdentifier = '{2}'
                 IF @@ROWCOUNT = 0
                 INSERT INTO STAGED_ROUTES
-                (RegionIdentifier, OrderIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, [Status], Error)
-                VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', CONVERT(datetime2,'{6}'), '{7}', '')
+                (OrderIdentifier, RegionIdentifier, RouteIdentifier, RouteStartTime, RouteDescription, StopSequenceNumber, Staged, Error, [Status])
+                VALUES('{1}', '{0}', '{2}', '{3}', '{4}', '{5}', CONVERT(datetime2,'{6}'), '', '{7}')
                 COMMIT TRANSACTION
                 GO
                 ", regionID, orderId, null, null, null, null, staged, status);

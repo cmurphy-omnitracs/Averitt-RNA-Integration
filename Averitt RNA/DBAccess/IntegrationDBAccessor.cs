@@ -42,6 +42,25 @@ namespace Averitt_RNA.DBAccess
             }
             return stagedOrderRecordList;
         }
+
+        public List<StagedOrderRecord> RetrievedStagedOrders(string regionID)
+        {
+            List<StagedOrderRecord> stagedOrderRecordList = null;
+            try
+            {
+                stagedOrderRecordList =
+                    GetList(
+                        SQLStrings.SELECT_NEW_ORDERS(regionID),
+                        new StagedOrderRecord(),
+                        "Select Staged Orders (" + regionID + ")"
+                    ).Cast<StagedOrderRecord>().ToList();
+            }
+            catch (DatabaseException ex)
+            {
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+            }
+            return stagedOrderRecordList;
+        }
         public List<StagedRouteRecord> SelectStagedRoutesStatus(string status, out string databaseError, out bool databaseErrorCaught)
         {
             List<StagedRouteRecord> stagedRouteRecordList = null;
@@ -94,6 +113,31 @@ namespace Averitt_RNA.DBAccess
         {
             List<StagedServiceLocationRecord> stagedStagedServiceLocationList = null;
             
+            try
+            {
+                stagedStagedServiceLocationList =
+                    GetList(
+                        SQLStrings.SELECT_ALL_NEW_STAGED_SERVICE_LOCATIONS(regionID),
+                        new StagedServiceLocationRecord(),
+                        "Select Staged Service Location (" + regionID + ")"
+                    ).Cast<StagedServiceLocationRecord>().ToList();
+            }
+            catch (DatabaseException ex)
+            {
+                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+
+            }
+
+
+
+            _Logger.DebugFormat("Sucessfully Retrieved {0} Service Locations from Staged_Service_Location Table", stagedStagedServiceLocationList.Count);
+            return stagedStagedServiceLocationList;
+        }
+
+        public List<StagedServiceLocationRecord> SelectNewStagedServiceLocations(string regionID)
+        {
+            List<StagedServiceLocationRecord> stagedStagedServiceLocationList = null;
+
             try
             {
                 stagedStagedServiceLocationList =
@@ -181,25 +225,6 @@ namespace Averitt_RNA.DBAccess
 
         }
 
-
-        //public void DeleteServiceLocation(string regionID, string serviceLocationId, string staged, string error, string status, out string databaseError, out bool databaseErrorCaught)
-        //{
-        //    databaseError = string.Empty;
-        //    databaseErrorCaught = false;
-        //    try
-        //    {
-        //        ExecuteNonQuery(
-        //            SQLStrings.UPDATE_STAGED_SERVICE_LOCATION(regionID, serviceLocationId, staged, error, status),
-        //             "Update  Service Location " + serviceLocationId + " status from New to Completed");
-        //    }
-        //    catch (DatabaseException ex)
-        //    {
-        //        databaseError = ex.Message;
-        //        databaseErrorCaught = true;
-        //        _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-        //    }
-
-        //}
 
         public void UpdateOrderStatus(string regionID, string OrderId, string error, string status,
        out string databaseError, out bool databaseErrorCaught)

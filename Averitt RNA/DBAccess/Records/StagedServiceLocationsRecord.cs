@@ -125,11 +125,10 @@ namespace Averitt_RNA.DBAccess.Records
           
             var mask = (DeliveryDaysFlag)record.DeliveryDays;
 
-
             List<DeliveryDaysFlag> result = Enum.GetValues(typeof(DeliveryDaysFlag)).Cast<DeliveryDaysFlag>().Where(value => mask.HasFlag(value)).ToList();
             string combinedDeliveryDay = string.Join(",", result);
-
-
+          
+            
             return new ServiceLocation
             {
                 Identifier = record.ServiceLocationIdentifier.ToUpper(),
@@ -151,40 +150,8 @@ namespace Averitt_RNA.DBAccess.Records
 
                 },
                 Action = ActionType.Add,
-              
-                
-                /*OpenCloseOverrides = new ServiceLocationOpenCloseDetail[]
-                {
-                new ServiceLocationOpenCloseDetail
-                {
-                    Action = ActionType.Add,
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.All.ToString(),
-                        EndTime = new TimeSpan(17, 0, 0).ToString(TimeFormat),
-                        StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
-                    },
-                    OrderClassEntityKey = 101
-                },
-               
-                },*/
-                /*ServiceWindowOverrides = new ServiceLocationServiceWindowDetail[]
-                {
-                new ServiceLocationServiceWindowDetail
-                {
-                    Action = ActionType.Add,
-                    DailyTimePeriod = new DailyTimePeriod
-                    {
-                        DayOfWeekFlags_DaysOfWeek = DayOfWeekFlags.All.ToString(),
-                        EndTime = new TimeSpan(12, 0, 0).ToString(TimeFormat),
-                        StartTime = new TimeSpan(9, 0, 0).ToString(TimeFormat)
-                    },
-                    OrderClassEntityKey = 101
-                },
-                },*/
                 StandingDeliveryQuantities = new Quantities { },
                 StandingPickupQuantities = new Quantities { },
-
                 PhoneNumber = record.PhoneNumber,
                 WorldTimeZone_TimeZone = record.WorldTimeZone,
                 DayOfWeekFlags_DeliveryDays = combinedDeliveryDay,
