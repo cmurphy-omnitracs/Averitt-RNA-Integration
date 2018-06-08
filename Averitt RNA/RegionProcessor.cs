@@ -110,8 +110,23 @@ namespace Averitt_RNA
                 try
                 {
                     //Region Processing
-                    Logger.Debug("Start Retrieving and Saving Region " + _Region.Identifier + " Service Locations");
+                    Logger.Info("Start Retrieving and Saving Region " + _Region.Identifier + " Service Locations");
                     //Service location Processing
+
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("Start Retrieving NEW Service Locations from staging table");
+                    List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier);
+                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfull", newServiceLocations.Count());
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+                    SaveSLToRNA(_Region.Identifier, newServiceLocations);
+                    Logger.InfoFormat("Service Locations Save Process Finished", newServiceLocations.Count());
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("Start Retrieving NEW Orders from staging table");
+
+
+
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
@@ -284,31 +299,11 @@ namespace Averitt_RNA
             }
         }
 
-        private List<ServiceLocation> RetrieveNewSLToSave(string regionID)
+       private List<ServiceLocation> RetrieveNewSLRecords(string regionID)
         {
+            List<ServiceLocation> newServiceLocations = new List<ServiceLocation>();
             bool errorCaught = false;
-            string errorMessage = string.Empty;
-
-            List<ServiceLocation> newServiceLocations = new List<ServiceLocation>();
-
-            newServiceLocations = RetrieveNewSLRecords(out errorCaught, out errorMessage, regionID);
-
-
-            if (newServiceLocations == null)
-            {
-                newServiceLocations = new List<ServiceLocation>();
-                return newServiceLocations;
-            }
-
-
-            return newServiceLocations;
-        }
-
-        private List<ServiceLocation> RetrieveNewSLRecords(out bool errorRetrieveSLFromStagingTable, out string errorRetrieveSLFromStagingTableMessage, string regionID)
-        {
-            List<ServiceLocation> newServiceLocations = new List<ServiceLocation>();
-            errorRetrieveSLFromStagingTable = false;
-            errorRetrieveSLFromStagingTableMessage = string.Empty;
+            string errorSLMessage = string.Empty;
             try
             {
 
@@ -330,36 +325,145 @@ namespace Averitt_RNA
                     newServiceLocations = retrieveNewSLRecords.FindAll(sl => !errorSLRecords.Contains(sl)).DefaultIfEmpty(new DBAccess.Records.StagedServiceLocationRecord()).Cast<ServiceLocation>().ToList();
 
                     //update service locations in errorlist in database indicating service location is missing fields
+                    foreach (DBAccess.Records.StagedServiceLocationRecord sLrecord in errorSLRecords)
+                    {
+                        errorCaught = false;
+                        errorSLMessage = string.Empty;
+                        string errorMessage = string.Empty;
+                        if (sLrecord.AddressLine1 == null || sLrecord.AddressLine1.Count() == 0)
+                        {
+                            errorMessage = errorMessage + "AddressLine1 is null or empty | ";
+
+                        }
+                        if (sLrecord.ServiceLocationIdentifier == null || sLrecord.ServiceLocationIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "ServiceLocationIdentifier is null or empty | ";
+
+                        }
+                        if (sLrecord.RegionIdentifier == null || sLrecord.RegionIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "RegionIdentifier is null or empty | ";
+
+                        }
+                        if (sLrecord.WorldTimeZone == null || sLrecord.WorldTimeZone.Length == 0)
+                        {
+                            errorMessage = errorMessage + "WorldTimeZone is null or empty | ";
+
+                        }
+                        if (sLrecord.ServiceTimeTypeIdentifier == null || sLrecord.ServiceTimeTypeIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "ServiceTimeTypeIdentifier is null or empty | ";
+
+                        }
+                        if (sLrecord.ServiceWindowTypeIdentifier == null || sLrecord.ServiceWindowTypeIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "ServiceWindowTypeIdentifier is null or empty | ";
+
+                        }
+
+                        _IntegrationDBAccessor.UpdateServiceLocationStatus(sLrecord.RegionIdentifier, sLrecord.ServiceLocationIdentifier, errorMessage, "Error", out errorSLMessage, out errorCaught);
+                        if (errorCaught)
+                        {
+                            Logger.Error("Error Updating SL " + sLrecord.ServiceLocationIdentifier + " with Error Status | " + errorMessage);
+
+                        }
+                        else
+                        {
+                            Logger.Debug("Service Location " + sLrecord.ServiceLocationIdentifier + " error status update successfully");
+                        }
+                    }
+
 
 
                 }
                 else
                 {
-                    errorRetrieveSLFromStagingTable = false;
+                    errorCaught = false;
                     return null;
                 }
 
             }
             catch (Exception ex)
             {
-                errorRetrieveSLFromStagingTable = true;
-                errorRetrieveSLFromStagingTableMessage = ex.Message;
-                Logger.Error("Error Retrieveing New SL's from Database: " + errorRetrieveSLFromStagingTableMessage);
+                errorCaught = true;
+                errorSLMessage = ex.Message;
+                Logger.Error("Error Retrieveing New SL's from Database: " + errorSLMessage);
             }
             return newServiceLocations;
         }
 
-        private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations, out bool errorCaught, out string errorMessage)
+        private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
         {
-            errorCaught = false;
-            errorMessage = string.Empty;
-
-            List<ServiceLocation> saveServiceLocations = serviceLocations.Where(sl => (sl.Action == ActionType.Add) || (sl.Action == ActionType.Update)).ToList();
-            List<ServiceLocation> deleteServiceLocations = serviceLocations.Where(sl => (sl.Action == ActionType.Delete)).ToList();
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
 
             try
             {
-                
+                SaveResult[] slSaveResult = _ApexConsumer.SaveRNAServiceLocations(out errorCaught, out errorMessage, serviceLocations.ToArray());
+                if (!errorCaught)
+                {
+                    if (slSaveResult != null && slSaveResult.Count() > 0)
+                    {
+                        foreach (SaveResult saveResult in slSaveResult)
+                        {
+                            ServiceLocation serviceLocation = (ServiceLocation)saveResult.Object;
+                            errorCaught = false;
+                            errorMessage = string.Empty;
+                            if (saveResult.Error != null)
+                            {
+
+                                if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                                {
+
+                                    foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                    {
+                                        Logger.Debug("A Validation Error Occured While Saving Service Locations. The " + validFailure.Property + " Property for Order " + serviceLocation.Identifier + " is not Valid");
+                                        Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " db record status to Error");
+                                        _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, serviceLocation.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorMessage, out errorCaught);
+                                        if (errorCaught)
+                                        {
+                                            Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " error status in staging table failed | " + errorMessage);
+
+                                        }
+                                        else
+                                        {
+                                            Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " error status succesfull");
+                                        }
+                                    }
+                                }
+                                else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                                {
+
+                                    Logger.Debug("An Error Occured While Saving Service Locations. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + serviceLocation.Identifier + " is not Valid");
+                                    Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " db records status to Error");
+                                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, serviceLocation.Identifier, "Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorMessage, out errorCaught);
+                                    if (errorCaught)
+                                    {
+                                        Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " error status in staging table failed | " + errorMessage);
+
+                                    }
+                                    else
+                                    {
+                                        Logger.Debug("Updating Order " + serviceLocation.Identifier + " error status succesfull");
+                                    }
+
+                                }
+                            }
+                            else
+                            {
+                                Logger.Debug("Saving/Updating Order : " + serviceLocation.Identifier + " to RNA Successfull ");
+                            }
+
+                        }
+
+                    }
+
+                }
+                else
+                {
+
+                }
+
 
             }
             catch (Exception ex)
@@ -371,7 +475,7 @@ namespace Averitt_RNA
 
         }
 
-        private void SeperateOrders(string regionID, List<Order> orders, out bool errorCaught, out string errorMessage, out List<Order> updateOrders, out List<Order> newOrders)
+        private void SeperateOrders(string regionID, List<Order> orders, out bool errorCaught, out string errorMessage, out List<Order> updateOrders, out List<Order> newOrders, out List<Order> deleteOrders)
         {
             errorCaught = false;
             errorMessage = string.Empty;
@@ -380,35 +484,33 @@ namespace Averitt_RNA
             List<string> orderIdentifiers = orders.Select(order => order.Identifier).ToList();
             newOrders = new List<Order>();
             updateOrders = new List<Order>();
+            deleteOrders = new List<Order>();
             try
             {
                 List<Order> ordersFromRNA = _ApexConsumer.RetrieveOrdersFromRNA(out errorCaught, out errorMessage, orderIdentifiers.ToArray());
                 if (!errorCaught)
                 {
-                    updateOrders = orders.Intersect(ordersFromRNA).ToList();
-                    newOrders = orders.Except(updateOrders).ToList();
+                    updateOrders = orders.Where(order => order.Action != ActionType.Delete).Intersect(ordersFromRNA).ToList();
+                    newOrders = orders.Where(order => order.Action != ActionType.Delete).Except(updateOrders).ToList();
+                    deleteOrders = orders.Where(order => order.Action == ActionType.Delete).Intersect(ordersFromRNA).ToList();
 
-
-                } else
+                }
+                else
                 {
-                    Logger.Error("Error Caught Checking if Orders Exist in RNA : " + errorMessage); 
+                    Logger.Error("Error Caught Checking if Orders Exist in RNA : " + errorMessage);
                 }
 
-               foreach(Order updateOrder in updateOrders)
+                foreach (Order updateOrder in updateOrders)
                 {
-                    Order databaseOrder = orders.Find(order => (order.Identifier == updateOrder.Identifier) && 
+                    Order databaseOrder = orders.Find(order => (order.Identifier == updateOrder.Identifier) &&
                     (order.BeginDate == updateOrder.BeginDate));
 
                     updateOrder.Action = ActionType.Update;
                     updateOrder.Tasks = databaseOrder.Tasks;
                     updateOrder.Tasks[0].ServiceWindowOverrides = ServiceWindowConsolidation(updateOrder, databaseOrder);
 
-                });
+                }
 
-                System.Threading.Tasks.Parallel.ForEach(updateOrders, (newOrder) =>
-                {
-
-                });
 
 
             }
@@ -419,32 +521,85 @@ namespace Averitt_RNA
                 Logger.Error("Error Saving/Updating/Deleting Service Locations into RNA: " + errorMessage);
             }
 
-           
-        
+
+
         }
 
-        private OrderSpec ConvertToOrderSpec(string regionID, List<Order> orders, out bool errorCaught, out string errorMessage)
+        private void SaveUpdateRNAOrders(string regionID, List<Order> orders, out bool errorCaught, out string errorMessage)
         {
             errorCaught = false;
             errorMessage = string.Empty;
-            List<OrderSpec> orderSpecs = new List<OrderSpec>();
 
-            List<string> orderIdentifiers = orders.Select(order => order.Identifier).ToList();
-            List<Order> newOrder = new List<Order>();
-            List<Order> updateOrder = new List<Order>();
+            System.Collections.Concurrent.ConcurrentBag<OrderSpec> orderSpecs = new System.Collections.Concurrent.ConcurrentBag<OrderSpec>();
+
+            System.Threading.Tasks.Parallel.ForEach(orders, (rnaOrder) =>
+            {
+                orderSpecs.Add(ConvertOrderToOrderSpec(rnaOrder));
+
+            });
+
+
             try
             {
-                List<Order> ordersFromRNA = _ApexConsumer.RetrieveOrdersFromRNA(out errorCaught, out errorMessage, orderIdentifiers.ToArray());
+                List<SaveResult> saveOrdersResult = _ApexConsumer.SaveRNAOrders(out errorCaught, out errorMessage, orderSpecs.ToArray()).ToList();
                 if (!errorCaught)
                 {
-                    updateOrder = orders.Intersect(ordersFromRNA).ToList();
-                    newOrder = orders.Except(updateOrder).ToList();
+                    foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
+                    {
+                        var tempOrder = (Order)saveResult.Object;
+                        bool errorUpdatingServiceLocation = false;
+                        string errorUpdatingServiceLocationMessage = string.Empty;
+                        if (saveResult.Error != null)
+                        {
 
+
+                            if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                            {
+                                foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                {
+                                    Logger.Debug("A Validation Error Occured While Saving Orders. The " + validFailure.Property + " Property for Order " + tempOrder.Identifier + " is not Valid");
+                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " db record status to Error");
+                                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                    if (errorUpdatingServiceLocation)
+                                    {
+                                        Logger.Debug("Updating Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+
+                                    }
+                                    else
+                                    {
+                                        Logger.Debug("Updating Order " + tempOrder.Identifier + " error status succesfull");
+                                    }
+                                }
+                            }
+                            else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                            {
+
+                                Logger.Debug("An Error Occured While Saving Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + tempOrder.Identifier + " is not Valid");
+                                Logger.Debug("Updating Order " + tempOrder.Identifier + " db records status to Error");
+                                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                if (errorUpdatingServiceLocation)
+                                {
+                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+
+                                }
+                                else
+                                {
+                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " error status succesfull");
+                                }
+
+                            }
+                        }
+                        else
+                        {
+                            Logger.Debug("Saving/Updating Order : " + tempOrder.Identifier + " to RNA Successfull ");
+                        }
+                    }
 
                 }
                 else
                 {
-                    Logger.Error("Error Caught Checking if Orders Exist in RNA : " + errorMessage);
+                    Logger.Error("Error Caught Saving Orders to RNA : " + errorMessage);
+
                 }
 
 
@@ -529,7 +684,7 @@ namespace Averitt_RNA
 
         private TaskServiceWindowOverrideDetail[] ServiceWindowConsolidation(Order RNAOrder, Order dbOrder)
         {
-            
+
 
             if ((RNAOrder.Tasks[0].ServiceWindowOverrides.Length == dbOrder.Tasks[0].ServiceWindowOverrides.Length) && (RNAOrder.Tasks[0].ServiceWindowOverrides != null && RNAOrder.Tasks[0].ServiceWindowOverrides.Length != 0))
             {
@@ -543,7 +698,7 @@ namespace Averitt_RNA
             else if ((dbOrder.Tasks[0].ServiceWindowOverrides == null || dbOrder.Tasks[0].ServiceWindowOverrides.Length == 0) && RNAOrder.Tasks[0].ServiceWindowOverrides.Length > 0)
             {
                 RNAOrder.Tasks[0].ServiceWindowOverrides = RNAOrder.Tasks[0].ServiceWindowOverrides.Select(sw => { sw.Action = ActionType.Delete; return sw; }).ToArray();
-                               
+
             }
             else
             {
@@ -577,6 +732,164 @@ namespace Averitt_RNA
             return RNAOrder.Tasks[0].ServiceWindowOverrides;
         }
 
-        
+        private static OrderSpec ConvertOrderToOrderSpec(Order order)
+        {
+            OrderSpec orderSpec = new OrderSpec
+            {
+                BeginDate = order.BeginDate,
+                CustomProperties = order.CustomProperties,
+                EndDate = order.EndDate,
+                ForceBulkServiceTime = order.ForceBulkServiceTime,
+                Identifier = order.Identifier,
+                LineItems = order.LineItems,
+                ManagedByUserEntityKey = order.ManagedByUserEntityKey,
+                NetRevenue = order.NetRevenue,
+                OrderClassEntityKey = order.OrderClassEntityKey,
+                OrderInstance = new DomainInstance
+                {
+                    EntityKey = order.EntityKey,
+                    Version = order.Version
+                },
+                PlannedDeliveryCategory1Quantities = order.PlannedDeliveryCategory1Quantities,
+                PlannedDeliveryCategory2Quantities = order.PlannedDeliveryCategory2Quantities,
+                PlannedDeliveryCategory3Quantities = order.PlannedDeliveryCategory3Quantities,
+                PlannedPickupCategory1Quantities = order.PlannedPickupCategory1Quantities,
+                PlannedPickupCategory2Quantities = order.PlannedPickupCategory2Quantities,
+                PlannedPickupCategory3Quantities = order.PlannedPickupCategory3Quantities,
+                PreferredRouteIdentifierOverride = order.PreferredRouteIdentifierOverride,
+                RegionEntityKey = order.RegionEntityKey,
+                Selector = order.Selector,
+                SessionEntityKey = order.SessionEntityKey,
+                SpecialInstructions = order.SpecialInstructions,
+                TakenBy = order.TakenBy,
+                UploadSelector = order.UploadSelector
+
+            };
+            TaskSpecType taskSpecType = TaskSpecType.None;
+            if (order.LineItems == null || order.LineItems.Length == 0)
+            {
+                if (order.Tasks != null && order.Tasks.Length != 0)
+                {
+                    if (order.Tasks.All(task => task.TaskType_Type == Enum.GetName(typeof(TaskType), TaskType.Delivery)))
+                    {
+                        taskSpecType = TaskSpecType.Delivery;
+                    }
+                    else if (order.Tasks.All(task => task.TaskType_Type == Enum.GetName(typeof(TaskType), TaskType.Pickup)))
+                    {
+                        taskSpecType = TaskSpecType.Pickup;
+                    }
+                    else
+                    {
+                        long firstTaskLocationEntityKey = order.Tasks.First().LocationEntityKey;
+                        if (order.Tasks.All(task => task.LocationEntityKey == firstTaskLocationEntityKey))
+                        {
+                            taskSpecType = TaskSpecType.DeliveryAndPickup;
+                        }
+                        else
+                        {
+                            taskSpecType = TaskSpecType.Transfer;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (order.LineItems.All(lineItem => lineItem.LineItemType_Type == Enum.GetName(typeof(LineItemType), LineItemType.Delivery)))
+                {
+                    taskSpecType = TaskSpecType.Delivery;
+                }
+                else if (order.LineItems.All(lineItem => lineItem.LineItemType_Type == Enum.GetName(typeof(LineItemType), LineItemType.Pickup)))
+                {
+                    taskSpecType = TaskSpecType.Pickup;
+                }
+                else if (order.LineItems.All(lineItem => lineItem.LineItemType_Type == Enum.GetName(typeof(LineItemType), LineItemType.Transfer)))
+                {
+                    taskSpecType = TaskSpecType.Transfer;
+                }
+                else
+                {
+                    taskSpecType = TaskSpecType.DeliveryAndPickup;
+                }
+            }
+            Task deliveryTask;
+            Task pickupTask;
+            switch (taskSpecType)
+            {
+                case TaskSpecType.Delivery:
+                    orderSpec.TaskSpec = new DeliveryTaskSpec
+                    {
+                        AdditionalServiceTime = order.AdditionalServiceTime,
+                        Quantities = order.PlannedDeliveryQuantities,
+                        RequiredOriginEntityKey = order.RequiredRouteOriginEntityKey
+
+                    };
+                    deliveryTask = order.Tasks.FirstOrDefault();
+                    if (deliveryTask != null)
+                    {
+                        ((DeliveryTaskSpec)orderSpec.TaskSpec).CoordinateOverride = deliveryTask.CoordinateOverride;
+                        ((DeliveryTaskSpec)orderSpec.TaskSpec).OpenCloseOverrides = deliveryTask.OpenCloseOverrides;
+                        ((DeliveryTaskSpec)orderSpec.TaskSpec).ServiceLocationEntityKey = deliveryTask.LocationEntityKey;
+                        ((DeliveryTaskSpec)orderSpec.TaskSpec).ServiceWindowOverrides = deliveryTask.ServiceWindowOverrides;
+                    }
+                    break;
+                case TaskSpecType.Pickup:
+                    orderSpec.TaskSpec = new PickupTaskSpec
+                    {
+                        AdditionalServiceTime = order.AdditionalServiceTime,
+                        Quantities = order.PlannedPickupQuantities,
+                        RequiredDestinationEntityKey = order.RequiredRouteDestinationEntityKey,
+
+                    };
+                    pickupTask = order.Tasks.FirstOrDefault();
+                    if (pickupTask != null)
+                    {
+                        ((PickupTaskSpec)orderSpec.TaskSpec).CoordinateOverride = pickupTask.CoordinateOverride;
+                        ((PickupTaskSpec)orderSpec.TaskSpec).OpenCloseOverrides = pickupTask.OpenCloseOverrides;
+                        ((PickupTaskSpec)orderSpec.TaskSpec).ServiceLocationEntityKey = pickupTask.LocationEntityKey;
+                        ((PickupTaskSpec)orderSpec.TaskSpec).ServiceWindowOverrides = pickupTask.ServiceWindowOverrides;
+                    }
+                    break;
+                case TaskSpecType.DeliveryAndPickup:
+                    deliveryTask = order.Tasks[0];
+                    pickupTask = order.Tasks[1];
+                    orderSpec.TaskSpec = new DeliveryAndPickupTaskSpec
+                    {
+                        AdditionalServiceTime = deliveryTask.AdditionalServiceTime,
+                        CoordinateOverride = deliveryTask.CoordinateOverride,
+                        DeliveryQuantities = deliveryTask.PlannedQuantities,
+                        OpenCloseOverrides = deliveryTask.OpenCloseOverrides,
+                        PickupQuantities = pickupTask.PlannedQuantities,
+                        RequiredDestinationEntityKey = order.RequiredRouteDestinationEntityKey,
+                        RequiredOriginEntityKey = order.RequiredRouteOriginEntityKey,
+                        ServiceLocationEntityKey = deliveryTask.LocationEntityKey,
+                        ServiceWindowOverrides = deliveryTask.ServiceWindowOverrides
+                    };
+                    break;
+                case TaskSpecType.Transfer:
+                    deliveryTask = order.Tasks[1];
+                    pickupTask = order.Tasks[0];
+                    orderSpec.TaskSpec = new TransferTaskSpec
+                    {
+                        DeliveryAdditionalServiceTime = TimeSpan.FromSeconds(order.AdditionalServiceTime.TotalSeconds / 2),
+                        DeliveryCoordinateOverride = deliveryTask.CoordinateOverride,
+                        DeliveryLocationEntityKey = deliveryTask.LocationEntityKey,
+                        DeliveryOpenCloseOverrides = deliveryTask.OpenCloseOverrides,
+                        DeliveryServiceWindowOverrides = deliveryTask.ServiceWindowOverrides,
+                        PickupAdditionalServiceTime = TimeSpan.FromSeconds(order.AdditionalServiceTime.TotalSeconds / 2),
+                        PickupCoordinateOverride = pickupTask.CoordinateOverride,
+                        PickupLocationEntityKey = pickupTask.LocationEntityKey,
+                        PickupOpenCloseOverrides = pickupTask.OpenCloseOverrides,
+                        PickupServiceWindowOverrides = pickupTask.ServiceWindowOverrides,
+                        Quantities = order.PlannedDeliveryQuantities,
+                        RequiredDestinationEntityKey = order.RequiredRouteDestinationEntityKey,
+                        RequiredOriginEntityKey = order.RequiredRouteOriginEntityKey
+                    };
+                    break;
+            }
+            return orderSpec;
+        }
+
+
+
     }
 }
