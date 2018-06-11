@@ -16,7 +16,7 @@ namespace Averitt_RNA
         private Region _Region;
         private ApexConsumer _ApexConsumer;
         private IntegrationDBAccessor _IntegrationDBAccessor;
-        private DictCache dictCache = new DictCache();
+        private DictCache dictCache;
         private static CacheHelper cacheHelper = new CacheHelper();
         private string dictCacheFile = string.Empty;
         public static DateTime lastSuccessfulRunTime = new DateTime();
@@ -29,7 +29,7 @@ namespace Averitt_RNA
             _ApexConsumer = new ApexConsumer(region, Logger);
             _IntegrationDBAccessor = new IntegrationDBAccessor(Logger);
             dictCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dicts_" + _Region.Identifier + ".json");
-
+            dictCache = new DictCache(dictCacheFile, Logger);
 
         }
 
@@ -72,8 +72,8 @@ namespace Averitt_RNA
                         lock (thisLock)
                         {
                             dictCache.resetCache();
-                            WriteDictCachedData();
-                            LoadDictCachedData();
+                            dictCache.WriteDictCachedData(_Region.EntityKey);
+                            dictCache.LoadDictCachedData();
                         }
                         Logger.Debug("Writing and Loading Dictionaries Completed Successfully");
                     }
@@ -95,7 +95,7 @@ namespace Averitt_RNA
                     try
                     {
                         Logger.Debug("Starting Loading of Dictionaries");
-                        LoadDictCachedData();
+                        dictCache.LoadDictCachedData();
                         Logger.Debug("Loading Dictionaries Completed Successfully");
                     }
 
@@ -122,10 +122,19 @@ namespace Averitt_RNA
                     SaveSLToRNA(_Region.Identifier, newServiceLocations);
                     Logger.InfoFormat("Service Locations Save Process Finished", newServiceLocations.Count());
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    //New Order Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Orders from staging table");
-
-
+                    List<DBAccess.Records.StagedOrderRecord> dbOrderRecordes = new List<DBAccess.Records.StagedOrderRecord>();
+                    List<Order> newDBOrders = RetrieveOrdersSave(_Region.Identifier, out dbOrderRecordes);
+                    Logger.InfoFormat("Retrieved {0} Orders from staging table successfully", newDBOrders.Count);
+                    Logger.InfoFormat("Seperate Order Types and prepare for saving");
+                    List<Order> updateOrders = new List<Order>();
+                    List<Order> newOrders = new List<Order>();
+                    List<Order> deleteOrders = new List<Order>();
+                    SeperateOrders(_Region.Identifier, newDBOrders, out updateOrders, out newOrders, out deleteOrders);
+                    Logger.InfoFormat("Seperation and Order Processing Successful");
+                    Logger.InfoFormat("Create Routing Session for new Orders into RNA");
 
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
@@ -160,82 +169,7 @@ namespace Averitt_RNA
 
 
         }
-        private void WriteDictCachedData()
-        {
-
-
-
-            ApexConsumer.ErrorLevel errorLevel = ApexConsumer.ErrorLevel.None;
-            string errorMessage = string.Empty;
-
-
-            Logger.InfoFormat("Writing Dictionary Cache file to {0}", dictCacheFile);
-
-
-            try
-            {
-                dictCache.depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage, _Region.EntityKey);
-                dictCache.orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
-                dictCache.regionEntityKeyDict = _ApexConsumer.RetrieveRegionEntityKey(out errorLevel, out errorMessage);
-                dictCache.serviceTimeEntityKeyDict = _ApexConsumer.RetrieveServiceTimeEntityKey(out errorLevel, out errorMessage);
-                dictCache.timeWindowEntityKeyDict = _ApexConsumer.RetrieveTimeWindowEntityKey(out errorLevel, out errorMessage);
-
-                Newtonsoft.Json.JsonSerializerSettings settings = new Newtonsoft.Json.JsonSerializerSettings
-                {
-                    PreserveReferencesHandling = Newtonsoft.Json.PreserveReferencesHandling.Objects,
-                    ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
-
-                };
-
-
-
-                string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(dictCache, Newtonsoft.Json.Formatting.None, settings);
-
-
-                // StreamWriter writer = new StreamWriter(dictCacheFile, append: false);
-                System.IO.File.WriteAllText(dictCacheFile, jsonData);
-
-
-
-                // writer.Write(jsonData);
-
-            }
-
-
-            catch (Exception ex)
-            {
-                Logger.ErrorFormat("Error writing cache file: {0}", ex.Message);
-            }
-
-
-        }
-
-        private void LoadDictCachedData()
-        {
-            if (!File.Exists(dictCacheFile))
-            {
-                Logger.Info("No cache file exists");
-            }
-            else
-            {
-                Logger.InfoFormat("Loading cache file from {0}", dictCacheFile);
-                try
-                {
-                    string jsonData = File.ReadAllText(dictCacheFile);
-                    DictCache temp = Newtonsoft.Json.JsonConvert.DeserializeObject<DictCache>(jsonData);
-                    if (temp != null)
-                    {
-                        dictCache = temp;
-                        Logger.Debug("Dicts loaded from " + dictCacheFile);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.ErrorFormat("Error opening cache file: {0}", ex.Message);
-                }
-            }
-        }
-
+      
         private void WriteSuccessfullRunTimeCache(string filename)
         {
 
@@ -330,7 +264,7 @@ namespace Averitt_RNA
                         errorCaught = false;
                         errorSLMessage = string.Empty;
                         string errorMessage = string.Empty;
-                        if (sLrecord.AddressLine1 == null || sLrecord.AddressLine1.Count() == 0)
+                        if (sLrecord.AddressLine1 == null || sLrecord.AddressLine1.Length == 0)
                         {
                             errorMessage = errorMessage + "AddressLine1 is null or empty | ";
 
@@ -392,7 +326,7 @@ namespace Averitt_RNA
             return newServiceLocations;
         }
 
-        private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
+       private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -475,10 +409,10 @@ namespace Averitt_RNA
 
         }
 
-        private void SeperateOrders(string regionID, List<Order> orders, out bool errorCaught, out string errorMessage, out List<Order> updateOrders, out List<Order> newOrders, out List<Order> deleteOrders)
+       private void SeperateOrders(string regionID, List<Order> orders, out List<Order> updateOrders, out List<Order> newOrders, out List<Order> deleteOrders)
         {
-            errorCaught = false;
-            errorMessage = string.Empty;
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
             List<OrderSpec> orderSpecs = new List<OrderSpec>();
 
             List<string> orderIdentifiers = orders.Select(order => order.Identifier).ToList();
@@ -510,7 +444,8 @@ namespace Averitt_RNA
                     updateOrder.Tasks[0].ServiceWindowOverrides = ServiceWindowConsolidation(updateOrder, databaseOrder);
 
                 }
-
+                if (newOrders == null) { newOrders = new List<Order>(); }
+                if (deleteOrders == null) { deleteOrders = new List<Order>(); }
 
 
             }
@@ -615,14 +550,14 @@ namespace Averitt_RNA
 
         }
 
-        private List<Order> RetrieveOrdersSave(string regionID)
+        private List<Order> RetrieveOrdersSave(string regionID, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
 
             List<Order> newOrders = new List<Order>();
-
-            newOrders = RetrieveNewOrderRecords(out errorCaught, out errorMessage, regionID);
+            stagedOrderRecords = new List<DBAccess.Records.StagedOrderRecord>();
+            newOrders = RetrieveNewOrderRecords(out errorCaught, out errorMessage, out stagedOrderRecords, regionID);
             if (!errorCaught)
             {
 
@@ -650,11 +585,12 @@ namespace Averitt_RNA
 
         }
 
-        private List<Order> RetrieveNewOrderRecords(out bool errorRetrieveOrdersFromTable, out string errorRetrieveOrdersFromTableMessage, string regionID)
+        private List<Order> RetrieveNewOrderRecords(out bool errorRetrieveOrdersFromTable, out string errorRetrieveOrdersFromTableMessage, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords, string regionID)
         {
             List<Order> newOrders = new List<Order>();
             errorRetrieveOrdersFromTable = false;
             errorRetrieveOrdersFromTableMessage = string.Empty;
+            stagedOrderRecords = new List<DBAccess.Records.StagedOrderRecord>();
             try
             {
 
@@ -663,8 +599,74 @@ namespace Averitt_RNA
                 if (retrieveOrderRecords != null)
                 {
 
-                    newOrders = retrieveOrderRecords.Cast<Order>().ToList();
+                    List<DBAccess.Records.StagedOrderRecord> errorOrderRecords = retrieveOrderRecords.Where(orderRecord => (orderRecord.OrderIdentifier == null || orderRecord.OrderIdentifier.Length == 0) ||
+                  (orderRecord.BeginDate == null || orderRecord.BeginDate.Length == 0) ||
+                  (orderRecord.RegionIdentifier == null || orderRecord.RegionIdentifier.Length == 0) ||
+                  (orderRecord.OrderClassIdentifier == null || orderRecord.OrderClassIdentifier.Length == 0) ||
+                  (orderRecord.QuantitySize1 == null || orderRecord.QuantitySize1.Length == 0) ||
+                  (orderRecord.QuantitySize2 == null || orderRecord.QuantitySize2.Length == 0) ||
+                  (orderRecord.QuantitySize3 == null || orderRecord.QuantitySize3.Length == 0) ||
+                  (orderRecord.PreferredRouteIdentifier == null || orderRecord.PreferredRouteIdentifier.Length == 0) ||
+                  (orderRecord.OriginDepotIdentifier == null || orderRecord.OriginDepotIdentifier.Length == 0)).ToList();
 
+                    stagedOrderRecords = retrieveOrderRecords.FindAll(orderRecord => !errorOrderRecords.Contains(orderRecord)).DefaultIfEmpty(new DBAccess.Records.StagedOrderRecord()).ToList();
+                    newOrders = stagedOrderRecords.Cast<Order>().ToList();
+                    errorRetrieveOrdersFromTable = false;
+
+                    foreach (DBAccess.Records.StagedOrderRecord orderRecord in errorOrderRecords)
+                    {
+                        bool errorCaught = false;
+                        string errorSLMessage = string.Empty;
+                        string errorMessage = string.Empty;
+                        if (orderRecord.BeginDate == null || orderRecord.BeginDate.Length == 0)
+                        {
+                            errorMessage = errorMessage + "BeginDate is null or empty | ";
+
+                        }
+                        if (orderRecord.RegionIdentifier == null || orderRecord.RegionIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "RegionIdentifier is null or empty | ";
+
+                        }
+                        if (orderRecord.OrderClassIdentifier == null || orderRecord.OrderClassIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "OrderClass is null or empty | ";
+
+                        }
+                        if (orderRecord.QuantitySize1 == null || orderRecord.QuantitySize1.Length == 0)
+                        {
+                            errorMessage = errorMessage + "QuantitySize1 is null or empty | ";
+
+                        }
+                        if (orderRecord.QuantitySize2 == null || orderRecord.QuantitySize2.Length == 0)
+                        {
+                            errorMessage = errorMessage + "QuantitySize2 is null or empty | ";
+
+                        }
+                        if (orderRecord.QuantitySize3 == null || orderRecord.QuantitySize3.Length == 0)
+                        {
+                            errorMessage = errorMessage + "QuantitySize3 is null or empty | ";
+
+                        } if (orderRecord.PreferredRouteIdentifier == null || orderRecord.PreferredRouteIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "PreferredRouteIdentifier is null or empty | ";
+                        } if (orderRecord.OriginDepotIdentifier == null || orderRecord.OriginDepotIdentifier.Length == 0)
+                        {
+                            errorMessage = errorMessage + "OriginDepotIdentifier is null or empty | ";
+                        }
+
+                        _IntegrationDBAccessor.UpdateOrderStatus(orderRecord.RegionIdentifier, orderRecord.OrderIdentifier, errorMessage, "Error", out errorSLMessage, out errorCaught);
+
+                        if (errorCaught)
+                        {
+                            Logger.Error("Error Updating Order Record" + orderRecord.OrderIdentifier + " with Error Status | " + errorMessage);
+
+                        }
+                        else
+                        {
+                            Logger.Debug("Order Record " + orderRecord.OrderIdentifier + " error status update successfully");
+                        }
+                    }
                 }
                 else
                 {
@@ -680,6 +682,35 @@ namespace Averitt_RNA
                 Logger.Error("Error Retrieveing New Orders from Database: " + errorRetrieveOrdersFromTableMessage);
             }
             return newOrders;
+        }
+
+        private List<Order> PrepareOrders(List<Order> unprepOrders)
+        {
+            List<Order> preppedOrder = new List<Order>();
+
+            System.Threading.Tasks.Parallel.ForEach(preppedOrder, (order) => 
+            {
+                
+            });
+
+            return preppedOrder;
+
+        }
+
+        private void CreateRoutingSessions(List<DBAccess.Records.StagedOrderRecord> newOrders)
+        {
+            List<Order> preppedOrder = new List<Order>();
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+
+            System.Threading.Tasks.Parallel.ForEach(newOrders, (order) =>
+            {
+                _ApexConsumer.RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out errorMessage, Convert.ToDateTime(order.BeginDate), order.OriginDepotIdentifier);
+
+            });
+
+            return preppedOrder;
+
         }
 
         private TaskServiceWindowOverrideDetail[] ServiceWindowConsolidation(Order RNAOrder, Order dbOrder)
@@ -888,6 +919,8 @@ namespace Averitt_RNA
             }
             return orderSpec;
         }
+
+
 
 
 

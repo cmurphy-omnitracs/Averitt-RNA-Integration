@@ -5495,12 +5495,12 @@ namespace Averitt_RNA
         }
 
         public DailyRoutingSession[] RetrieveDailyRoutingSessionwithOrigin(
-           out ErrorLevel errorLevel,
+           out bool errorCaught,
            out string fatalErrorMessage,
-           DateTime startDate, string[] originDepotsId)
+           DateTime startDate, string originDepotsId)
         {
             DailyRoutingSession[] dailyRoutingSessions = null;
-            errorLevel = ErrorLevel.None;
+            errorCaught = false;
             fatalErrorMessage = string.Empty;
 
             try
@@ -5523,7 +5523,7 @@ namespace Averitt_RNA
                                 new InExpression
                                 {
                                     Left = new PropertyExpression { Name = "Description" },
-                                    Right = new ValueExpression { Value = originDepotsId.ToArray() }
+                                    Right = new ValueExpression { Value = originDepotsId }
                                 },
                             },
                         },
@@ -5535,7 +5535,7 @@ namespace Averitt_RNA
                 if (retrievalResults.Items == null)
                 {
                     _Logger.Error("RetrieveDailyRoutingSessions | " + string.Join(" | ", startDate) + " | Failed with a null result.");
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = true;
                 }
                 else
                 {
@@ -5550,18 +5550,18 @@ namespace Averitt_RNA
                 {
                     _Logger.Info("Session has expired. New session required.");
                     MainService.SessionRequired = true;
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = true;
                 }
                 else
                 {
-                    errorLevel = ErrorLevel.Fatal;
+                    errorCaught = true;
                     fatalErrorMessage = errorMessage;
                 }
             }
             catch (Exception ex)
             {
                 _Logger.Error("RetrieveDailyRoutingSessions | " + string.Join(" | ", startDate), ex);
-                errorLevel = ErrorLevel.Transient;
+                errorLevel = true;
             }
             return dailyRoutingSessions;
         }

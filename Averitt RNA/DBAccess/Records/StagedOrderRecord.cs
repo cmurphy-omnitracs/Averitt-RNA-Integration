@@ -209,13 +209,14 @@ namespace Averitt_RNA.DBAccess.Records
                         Size3 = Convert.ToDouble(record.QuantitySize3)
 
                     },
-                    ServiceWindowOverrides = serviceWindowOverride
-
+                    ServiceWindowOverrides = serviceWindowOverride,
+                    
 
                 } };
 
             Order order = new Order
             {
+                
                 Identifier = record.OrderIdentifier,
                 BeginDate = record.BeginDate,
                 PlannedDeliveryQuantities = new Quantities
