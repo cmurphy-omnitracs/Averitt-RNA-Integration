@@ -4483,12 +4483,12 @@ namespace Averitt_RNA
         }
 
         public SaveResult[] SaveDailyRoutingSessions(
-            out ErrorLevel errorLevel,
+            out bool errorCaught,
             out string fatalErrorMessage,
             DateTime[] startDates, string[] originIdentifiers)
         {
             SaveResult[] saveResults = null;
-            errorLevel = ErrorLevel.None;
+            errorCaught = false;
             fatalErrorMessage = string.Empty;
             try
             {
@@ -4521,7 +4521,7 @@ namespace Averitt_RNA
                 if (saveResults == null)
                 {
                     _Logger.Error("SaveDailyRoutingSessions | " + string.Join(" | ", startDates) + " | Failed with a null result.");
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = false;
                 }
                 else
                 {
@@ -4530,7 +4530,7 @@ namespace Averitt_RNA
                         if (saveResults[i].Error != null)
                         {
                             _Logger.Error("SaveDailyRoutingSessions | " + startDates[i] + " | Failed with Error: " + ToString(saveResults[i].Error));
-                            errorLevel = ErrorLevel.Partial;
+                            errorCaught = false ;
                         }
                     }
                 }
@@ -4543,18 +4543,18 @@ namespace Averitt_RNA
                 {
                     _Logger.Info("Session has expired. New session required.");
                     MainService.SessionRequired = true;
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = true;
                 }
                 else
                 {
-                    errorLevel = ErrorLevel.Fatal;
+                    errorCaught = true;
                     fatalErrorMessage = errorMessage;
                 }
             }
             catch (Exception ex)
             {
                 _Logger.Error("SaveDailyRoutingSessions | " + string.Join(" | ", startDates), ex);
-                errorLevel = ErrorLevel.Transient;
+                errorCaught = true;
             }
             return saveResults;
         }
@@ -5624,6 +5624,8 @@ namespace Averitt_RNA
             return manipulationResult;
         }
 
+
+
         public SaveResult[] DeleteOrders(
             out ErrorLevel errorLevel,
             out string fatalErrorMessage,
@@ -5689,7 +5691,68 @@ namespace Averitt_RNA
             return saveResults;
         }
 
+        public SaveRouteResult CreateRNARoute(
+           out bool errorCaught,
+           out string errorMessage,
+           SaveRouteArgs routeArgs
+          )
+        {
+            SaveRouteResult saveResults = null;
+            errorCaught = false;
+            errorMessage = string.Empty;
+            try
+            {
 
+                saveResults = _RoutingServiceClient.CreateRoute(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    routeArgs
+                   ,
+                    new SaveOptions
+                    {
+                        InclusionMode = PropertyInclusionMode.All
+                    });
+                if (saveResults == null)
+                {
+                    errorMessage = "Create Route  | " + routeArgs.Identifier + " | Failed with a null result.";
+                    _Logger.Error(errorMessage);
+                    errorCaught = true;
+                }
+                else
+                {
+                    
+                        if (saveResults.Error != null)
+                        {
+                            _Logger.Error("Create Route | " + routeArgs.Identifier + " | Failed with Error: " + ToString(saveResults.Error));
+                            errorCaught = false;
+                        }
+                   
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Create Route  | " + routeArgs.Identifier + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorCaught = true;
+                }
+                else
+                {
+                    errorCaught = true;
+                    
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = "Save Route | " + routeArgs.Identifier + " | Exception Error" + ex.Message;
+                _Logger.Error(errorMessage);
+                errorCaught = true;
+            }
+            return saveResults;
+        }
 
         #endregion
 

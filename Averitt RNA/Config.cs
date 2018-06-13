@@ -24,5 +24,9 @@ namespace Averitt_RNA
         public static readonly TimeSpan[] TRUNCATE_ARCHIVES_TIMES = ConfigurationManager.AppSettings["TruncateArchivesTimes"].Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(time => TimeSpan.Parse(time)).ToArray();
         public static readonly string DummyOrderCSVFile = ConfigurationManager.AppSettings["DummyOrderCSVFile"];
         public static readonly int DictServiceTimeRefresh = Convert.ToInt32(ConfigurationManager.AppSettings["DictServiceTimeRefresh"]);
+        public static readonly long DefaultRoutingPassEK = Convert.ToInt32(ConfigurationManager.AppSettings["DefaultRoutingPassEK"]);
+
+
+        
     }
 }

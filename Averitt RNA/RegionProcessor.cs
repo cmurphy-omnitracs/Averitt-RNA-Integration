@@ -125,8 +125,8 @@ namespace Averitt_RNA
                     //New Order Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Orders from staging table");
-                    List<DBAccess.Records.StagedOrderRecord> dbOrderRecordes = new List<DBAccess.Records.StagedOrderRecord>();
-                    List<Order> newDBOrders = RetrieveOrdersSave(_Region.Identifier, out dbOrderRecordes);
+                    List<DBAccess.Records.StagedOrderRecord> dbOrderRecords = new List<DBAccess.Records.StagedOrderRecord>();
+                    List<Order> newDBOrders = RetrieveOrdersSave(_Region.Identifier, out dbOrderRecords);
                     Logger.InfoFormat("Retrieved {0} Orders from staging table successfully", newDBOrders.Count);
                     Logger.InfoFormat("Seperate Order Types and prepare for saving");
                     List<Order> updateOrders = new List<Order>();
@@ -135,6 +135,10 @@ namespace Averitt_RNA
                     SeperateOrders(_Region.Identifier, newDBOrders, out updateOrders, out newOrders, out deleteOrders);
                     Logger.InfoFormat("Seperation and Order Processing Successful");
                     Logger.InfoFormat("Create Routing Session for new Orders into RNA");
+
+                    CreateRoutingSessions(dbOrderRecords.Where(order => newOrders.Any(newRnaOrder => newRnaOrder.Identifier==order.OrderIdentifier)).ToList(), newOrders);
+
+                    Logger.InfoFormat("Find Routes in Routing Sessions");
 
                     _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
@@ -697,15 +701,40 @@ namespace Averitt_RNA
 
         }
 
-        private void CreateRoutingSessions(List<DBAccess.Records.StagedOrderRecord> newOrders)
+        private void CreateRoutingSessions(List<DBAccess.Records.StagedOrderRecord> newOrderRecords, List<Order> newOrders)
         {
             List<Order> preppedOrder = new List<Order>();
             bool errorCaught = false;
             string errorMessage = string.Empty;
 
-            System.Threading.Tasks.Parallel.ForEach(newOrders, (order) =>
+            System.Threading.Tasks.Parallel.ForEach(newOrderRecords, (order) =>
             {
-                _ApexConsumer.RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out errorMessage, Convert.ToDateTime(order.BeginDate), order.OriginDepotIdentifier);
+                DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
+                DailyRoutingSession[] dailyRoutingSessions = _ApexConsumer.RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out errorMessage, sessionDate, order.OriginDepotIdentifier);
+
+                if (!errorCaught)
+                {
+                    if (dailyRoutingSessions != null || dailyRoutingSessions.Length == 0)
+                    {
+                        SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier });
+                        if(dsSaveResult[0].Error == null)
+                        {
+                            DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
+                            newOrders = newOrders.Where(newOrder => newOrder.Identifier == order.OrderIdentifier).Select(o => { o.SessionDate = order.BeginDate; o.SessionEntityKey = rtSession.EntityKey; return o; }).ToList();
+                        } else
+                        {
+                            //TODO
+                        }
+                        
+                    } else
+                    {
+                        newOrders = newOrders.Where(newOrder => newOrder.Identifier == order.OrderIdentifier).Select(o => { o.SessionDate = order.BeginDate; o.SessionEntityKey = dailyRoutingSessions[0].EntityKey; return o; }).ToList();
+                    }
+                }
+                else
+                {
+                    //TODO
+                }
 
             });
 
@@ -761,6 +790,57 @@ namespace Averitt_RNA
 
 
             return RNAOrder.Tasks[0].ServiceWindowOverrides;
+        }
+
+       private long CreateRoute(string createRouteID)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+            SaveRouteArgs routeArgs = new SaveRouteArgs
+            {
+                Identifier = createRouteID,
+                DispatcherEntityKey = ,
+                OriginDepotEntityKey = (long)_Region.Defaults.DepotEntityKey,
+
+                PassEntityKey = Config.DefaultRoutingPassEK,
+                Phase = RoutePhase.Plan,
+                Equipment = new RouteEquipmentType[]
+                {
+                   new RouteEquipmentType
+                   {
+                       EquipmentTypeEntityKey = (long)_Region.Defaults.EquipmentTypeEntityKey
+
+                   }
+               },
+
+
+
+            };
+            SaveRouteResult saveRouteResult = new SaveRouteResult();
+            try
+            {
+                saveRouteResult = _ApexConsumer.CreateRNARoute(out errorCaught, out errorMessage, routeArgs);
+                if (!errorCaught)
+                {
+                    if(saveRouteResult.Error != null)
+                    {
+                        //todo
+                    } else
+                    {
+                        Logger.InfoFormat("Route {0} created successfully", routeArgs.Identifier);
+                    }
+
+                }else
+                {
+                    //todo
+                }
+
+            }catch (Exception ex)
+            {
+                //todo
+            }
+
+            return saveRouteResult.EntityKey;
         }
 
         private static OrderSpec ConvertOrderToOrderSpec(Order order)
