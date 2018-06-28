@@ -77,7 +77,8 @@ namespace Averitt_RNA
             TimeWindowType,
             UnassignedOrderGroup,
             Worker,
-            WorkerType
+            WorkerType,
+            DailyPassTemplate
         }
         public Dictionary<int, string> GeocodeAccuracyDict = new Dictionary<int, string>
         {
@@ -2608,10 +2609,6 @@ namespace Averitt_RNA
 
 
         }
-
-
-
-
 
 
         public void RetrieveOrdersandSaveToRNA(Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> orginDepotTypes, Dictionary<string, long> orderClassTypes, string regionId,
@@ -5605,7 +5602,7 @@ namespace Averitt_RNA
            
             errorCaught = false;
             fatalErrorMessage = string.Empty;
-            DailyPass dailySessionPass = new DailyPass();
+            DailyPass dailySessionPass = null;
             try
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
@@ -5644,6 +5641,7 @@ namespace Averitt_RNA
                 {
                     _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | Failed with a null result.");
                     errorCaught = true;
+                    return null;
                 }
                 else
                 {
@@ -5675,53 +5673,60 @@ namespace Averitt_RNA
             return dailySessionPass;
         }
 
-
-
-        public SaveResult CreateDailyPassforSession(
-          out bool errorCaught,
-          out string fatalErrorMessage,
-          DailyRoutingSession routingSession, string passIdentifier, long regionEntity, long equipmentTypeEntityKey)
+        public PassTemplate RetrievePassTemplate(
+         out bool errorCaught,
+         out string fatalErrorMessage,
+         string passIdentifier, long regionEntity)
         {
 
             errorCaught = false;
             fatalErrorMessage = string.Empty;
-            DailyPass dailySessionPass = new DailyPass
-            {
-                Action = ActionType.Add,
-                CommonAttributes = new PassAttributes
-                {
-                    StartTime = "08:00:00.0000000",
-                    DepotEquipmentTypeQuantities = new DepotEquipmentTypeQuantity[]
-                    {
-                        new DepotEquipmentTypeQuantity
-                        {
-                            DepotEntityKey = (long)routingSession.DepotEntityKey, 
-                            EquipmentTypeEntityKey = equipmentTypeEntityKey, 
-                            Quantity = 1,
-                        }
-                    }
-                }
-            };
+            PassTemplate passTemplate = null;
             try
             {
-                RetrievalResults retrievalResults = _RoutingServiceClient.Save(
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
                     MainService.SessionHeader,
                     _RegionContext,
-                 );
+                    new RetrievalOptions
+                    {
+
+                        Expression = new AndExpression
+                        {
+                            Expressions = new SimpleExpressionBase[]
+                            {
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "Identifier" },
+                                    Right = new ValueExpression { Value = passIdentifier }
+                                },
+                                
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "RegionEntityKey" },
+                                    Right = new ValueExpression { Value =  regionEntity }
+                                },
+                            },
+                        },
+
+
+                        PropertyInclusionMode = PropertyInclusionMode.All,
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.DailyPassTemplate)
+                    });
                 if (retrievalResults.Items == null)
                 {
-                    _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | Failed with a null result.");
+                    _Logger.Error("Retrieve Daily Pass Template | " + string.Join(" | ", passIdentifier) + " | Failed with a null result.");
                     errorCaught = true;
+                    return null;
                 }
                 else
                 {
-                    dailySessionPass = retrievalResults.Items.Cast<DailyPass>().First();
+                    passTemplate = retrievalResults.Items.Cast<DailyPassTemplate>().First();
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
             {
                 string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | " + errorMessage);
+                _Logger.Error("Retrieve Daily Pass Template | " + string.Join(" | ", passIdentifier) + " | " + errorMessage);
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
@@ -5736,11 +5741,62 @@ namespace Averitt_RNA
             }
             catch (Exception ex)
             {
-                fatalErrorMessage = "Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + ex.Message;
+                fatalErrorMessage = "Retrieve Daily Pass Template | " + string.Join(" | ", passIdentifier) + ex.Message;
                 _Logger.Error(fatalErrorMessage);
                 errorCaught = true;
             }
-            return dailySessionPass;
+            return passTemplate;
+        }
+
+
+        public SaveResult[] CreateDailyPassforSession(
+          out bool errorCaught,
+          out string fatalErrorMessage,
+          DailyRoutingSession routingSession, DailyPass dailySessionPass, long regionEntity, long equipmentTypeEntityKey)
+        {
+
+            errorCaught = false;
+            fatalErrorMessage = string.Empty;
+            SaveResult[] saveResult = new SaveResult[] { };
+            try
+            {
+                saveResult = _RoutingServiceClient.Save(
+                    MainService.SessionHeader,
+                    _RegionContext, 
+                    new AggregateRootEntity[] { dailySessionPass },
+                    new SaveOptions
+                    {
+                        InclusionMode = PropertyInclusionMode.All,
+                        ReturnSavedItems = true,
+                        IgnoreEntityVersion = true,
+                       
+                    }
+                 );
+               
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Saving Daily Pass Error | " + string.Join(" | ", dailySessionPass.Identifier) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorCaught = true;
+                }
+                else
+                {
+                    errorCaught = true;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                fatalErrorMessage = "Saving Daily Pass Error | " + string.Join(" | ", dailySessionPass.Identifier) + ex.Message;
+                _Logger.Error(fatalErrorMessage);
+                errorCaught = true;
+            }
+            return saveResult;
         }
 
 
@@ -5953,7 +6009,7 @@ namespace Averitt_RNA
             try
             {
 
-                saveResults = _RoutingServiceClient.(
+                saveResults = _RoutingServiceClient.CreateRoute(
                     MainService.SessionHeader,
                     _RegionContext,
                     routeArgs

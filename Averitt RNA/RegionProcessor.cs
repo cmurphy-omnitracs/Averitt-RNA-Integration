@@ -712,12 +712,13 @@ namespace Averitt_RNA
 
             System.Threading.Tasks.Parallel.ForEach(newOrderRecords, (order) =>
             {
-            DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
-            if (order.PreferredRouteIdentifier != string.Empty || order.PreferredRouteIdentifier != null)
-            {
+                DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
+                if (order.PreferredRouteIdentifier != string.Empty || order.PreferredRouteIdentifier != null)
+                {
 
-                Route route = _ApexConsumer.RetrieveRoute(out errorCaught, out errorMessage, order.PreferredRouteIdentifier, sessionDate.ToString("yyyy-MM-dd"), order.OriginDepotIdentifier);
-                Order newRNAOrder = (Order)order;
+                    Route route = _ApexConsumer.RetrieveRoute(out errorCaught, out errorMessage, order.PreferredRouteIdentifier, sessionDate.ToString("yyyy-MM-dd"), order.OriginDepotIdentifier);
+                    Order newRNAOrder = (Order)order;
+                    long routeEntityKey;
                     if (!errorCaught)
                     {
                         if (route != null) // route found, assign order to route
@@ -742,7 +743,15 @@ namespace Averitt_RNA
                                 newRNAOrder.SessionEntityKey = dailyRoutingSession.EntityKey;
                                 newRNAOrder.SessionDescription = dailyRoutingSession.Description;
                                 newRNAOrder.SessionDate = dailyRoutingSession.StartDate;
-                                long entityKey = CreateRoute(order.PreferredRouteIdentifier);
+                                long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession);
+                                if (passEntityKey.HasValue)
+                                {
+                                    routeEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey);
+                                }
+                                else
+                                {
+                                    Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
+                                }
 
 
                             }
@@ -755,7 +764,15 @@ namespace Averitt_RNA
                                     newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionEntityKey = rtSession.EntityKey;
                                     newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDescription = rtSession.Description;
                                     newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDate = rtSession.StartDate;
-                                    long entityKey = CreateRoute(order.PreferredRouteIdentifier);
+                                    long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession);
+                                    if (passEntityKey.HasValue)
+                                    {
+                                        routeEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey);
+                                    }
+                                    else
+                                    {
+                                        Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", rtSession.Description, rtSession.StartDate);
+                                    }
                                 }
                                 else //Error Creating Routing Session
                                 {
@@ -785,37 +802,67 @@ namespace Averitt_RNA
 
                     }
                 }
-            else // Create routing session if routing session does not exist
-            {
-                Logger.Error("Order {0} has no preferred route ID, will add to session as unassigned");
-                SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier });
-                if (dsSaveResult[0].Error == null)
+                else //No preferred route Identifier found will add routes to routing session  as unassigned
                 {
-                    DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
-                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionEntityKey = rtSession.EntityKey;
-                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDescription = rtSession.Description;
-                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDate = rtSession.StartDate;
-                    long entityKey = CreateRoute(order.PreferredRouteIdentifier);
-                }
-                else //Error Creating Routing Session
-                {
-                    if (dsSaveResult[0].Error.ValidationFailures.Count() == 0)
+                    Logger.Error("Order {0} has no preferred route ID, will add to session as unassigned");
+                    SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier });
+                    if (dsSaveResult[0].Error == null)
                     {
-                        Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}", order.OrderIdentifier, dsSaveResult[0].Error.Code.ToString());
-                    }
-                    else
-                    {
-                        foreach (ValidationFailure validFailure in dsSaveResult[0].Error.ValidationFailures)
+                        DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
+                        Order rnaOrder = newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper());
+                        rnaOrder.SessionEntityKey = rtSession.EntityKey;
+                        rnaOrder.SessionDescription = rtSession.Description;
+                        rnaOrder.SessionDate = rtSession.StartDate;
+                        OrderSpec saveOrderSpec = ConvertOrderToOrderSpec(rnaOrder);
+
+                        SaveResult orderSaveResult = _ApexConsumer.SaveRNAOrders(out errorCaught, out errorMessage, new OrderSpec[] { saveOrderSpec })[0];
+                        if (!errorCaught)
                         {
-                            Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", order.OrderIdentifier,
-                                dsSaveResult[0].Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                            if (orderSaveResult.Error == null)
+                            {
+
+                                if (orderSaveResult.Error.ValidationFailures.Count() == 0)
+                                {
+                                    Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}", order.OrderIdentifier, dsSaveResult[0].Error.Code.ToString());
+
+                                }
+                                else
+                                {
+                                    foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
+                                    {
+                                        Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", order.OrderIdentifier,
+                                            dsSaveResult[0].Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                                    }
+
+                                }
+                            }
+                            else
+                            {
+                                Logger.InfoFormat("Order {0} saved as Unassigned Order Successfully", rnaOrder.Identifier);
+                            }
                         }
                     }
+                    else //Error Creating Routing Session
+                    {
+                        if (dsSaveResult[0].Error.ValidationFailures.Count() == 0)
+                        {
+                            Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}", order.OrderIdentifier, dsSaveResult[0].Error.Code.ToString());
+                            Logger.Error("No Route Created");
+                        }
+                        else
+                        {
+                            foreach (ValidationFailure validFailure in dsSaveResult[0].Error.ValidationFailures)
+                            {
+                                Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", order.OrderIdentifier,
+                                    dsSaveResult[0].Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                            }
+                            Logger.Error("No Route Created");
+                        }
 
-                }
+                    }
                 }
 
-               
+
             });
 
 
@@ -872,7 +919,7 @@ namespace Averitt_RNA
             return RNAOrder.Tasks[0].ServiceWindowOverrides;
         }
 
-        private long CreateRoute(string createRouteID, DateTime routeStartTime)
+        private long CreateRoute(string createRouteID, DateTime routeStartTime, long dailyPassEntityKey)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -882,7 +929,7 @@ namespace Averitt_RNA
                 Identifier = createRouteID,
                 DispatcherEntityKey = MainService.User.EntityKey,
                 OriginDepotEntityKey = (long)_Region.Defaults.DepotEntityKey,
-                PassEntityKey = Config.DefaultRoutingPassEK,
+                PassEntityKey = dailyPassEntityKey,
                 Phase = RoutePhase.Plan,
                 Equipment = new RouteEquipmentType[]
                 {
@@ -929,46 +976,161 @@ namespace Averitt_RNA
             return saveRouteResult.EntityKey;
         }
 
-        private long GetorCreateRoutingSessionPass(DailyRoutingSession routingSession)
+        private long? GetorCreateRoutingSessionPass(DailyRoutingSession routingSession)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
 
             try
             {
-               
-                if (!errorCaught)
+
+                DailyPass dailyPass = _ApexConsumer.RetrieveRoutingSessionPass(out errorCaught, out errorMessage, routingSession.EntityKey, Config.DefaultRoutingPassIdentifier, _Region.EntityKey);
+                if (!errorCaught && dailyPass != null)
                 {
-                    if (routingSession != null)
+
+                    return dailyPass.EntityKey;
+                }
+                else if (dailyPass == null && !errorCaught)
+                {
+                    PassTemplate passTemplate = _ApexConsumer.RetrievePassTemplate(out errorCaught, out errorMessage, Config.DefaultRoutingPassIdentifier, _Region.EntityKey);
+
+                    if (!errorCaught && passTemplate != null)
                     {
-                        DailyPass dailyPass = _ApexConsumer.RetrieveRoutingSessionPass(out errorCaught, out errorMessage, routingSession.EntityKey, Config.DefaultRoutingPassIdentifier, _Region.EntityKey);
-                        if(dailyPass != null)
+                        DailyPass newDailyPass = new DailyPass()
                         {
-                            return dailyPass.EntityKey;
-                        }
-                        else // Create Routing Session Pass
+                            Action = ActionType.Add,
+                            CommonAttributes = passTemplate.CommonAttributes,
+                            RegionEntityKey = passTemplate.RegionEntityKey,
+                            PassTemplateEntityKey = passTemplate.EntityKey,
+                            SessionEntityKey = routingSession.EntityKey,
+                            Identifier = Config.DefaultRoutingPassIdentifier,
+                            CreatedBy = MainService.User.EmailAddress
+
+                        };
+
+                        SaveResult saveResult = _ApexConsumer.CreateDailyPassforSession(out errorCaught, out errorMessage, routingSession,
+                            newDailyPass, _Region.EntityKey, (long)_Region.Defaults.EquipmentTypeEntityKey)[0];
+
+                        DailyPass dailypass = (DailyPass)saveResult.Object;
+                        if (saveResult.Error == null)
                         {
 
+                            Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
+                                dailypass.Identifier, routingSession.Description, routingSession.StartDate);
+                            return dailypass.EntityKey;
                         }
+                        else if (saveResult.Error.ValidationFailures.Count() > 0)
+                        {
+                            foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                            {
+                                Logger.InfoFormat("Error creating daily pass {0} | ErrorCode: {1}, ErrorDetail: {2}, ErrorProperty: {3} ", dailypass.Identifier,
+                                    "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
+                            }
+
+                            return null;
+                        }
+                        else
+                        {
+
+                            Logger.InfoFormat("Error creating daily pass {0} | ErrorCode: {1}, ErrorDetail: {2} ", dailypass.Identifier,
+                                saveResult.Error.Code, saveResult.Error.Detail);
+                            return null;
+
+                        }
+
                     }
-                    else
+                    else if (!errorCaught && passTemplate == null)
                     {
-                        Logger.InfoFormat("Route {0} created successfully", routeArgs.Identifier);
+                        DailyPass newDailyPass = new DailyPass()
+                        {
+
+                            Action = ActionType.Add,
+                            CommonAttributes = new PassAttributes
+                            {
+                                DepotEquipmentTypeQuantities = new DepotEquipmentTypeQuantity[]
+                                {
+                                            new DepotEquipmentTypeQuantity
+                                            {
+                                                DepotEntityKey = (long)routingSession.DepotEntityKey,
+                                                EquipmentTypeEntityKey = (long)_Region.Defaults.EquipmentTypeEntityKey,
+                                                Quantity = 1
+                                            }
+                                },
+                                LoadAction_StartingLoadAction = Enum.GetName(typeof(LoadAction), LoadAction.AsNeeded),
+                                StartTime = "08:00:00.0000000",
+                                PreferredRunTime = new TimeSpan(0, 0, 0),
+                                MaximumRunTime = new TimeSpan(0, 0, 0),
+                                PreRouteTime = new TimeSpan(0, 0, 0),
+                                PostRouteTime = new TimeSpan(0, 0, 0)
+
+                            },
+                            RegionEntityKey = _Region.EntityKey,
+                            SessionEntityKey = routingSession.EntityKey,
+                            Identifier = Config.DefaultRoutingPassIdentifier,
+                            CreatedBy = MainService.User.EmailAddress,
+                            DailyAttributes = new DailyPassAttributes
+                            {
+                                Goals = new DailyRoutingGoals
+                                {
+                                    BasicGoalsMissedTimeWindowFactor = 0,
+                                    BasicGoalsRunTimeBalanceFactor = 0,
+                                    UseAdvancedGoals = false
+                                }
+                            }
+
+                        };
+
+                        SaveResult saveResult = _ApexConsumer.CreateDailyPassforSession(out errorCaught, out errorMessage, routingSession,
+                            newDailyPass, _Region.EntityKey, (long)_Region.Defaults.EquipmentTypeEntityKey)[0];
+                        DailyPass dailypass = (DailyPass)saveResult.Object;
+                        if (saveResult.Error == null)
+                        {
+
+                            Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
+                                dailypass.Identifier, routingSession.Description, routingSession.StartDate);
+                            return dailypass.EntityKey;
+                        }
+                        else if (saveResult.Error.ValidationFailures.Count() > 0)
+                        {
+                            foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                            {
+                                Logger.InfoFormat("Error creating daily pass {0} | ErrorCode: {1}, ErrorDetail: {2}, ErrorProperty: {3} ", dailypass.Identifier,
+                                    "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
+                            }
+
+                            return null;
+                        }
+                        else
+                        {
+
+                            Logger.InfoFormat("Error creating daily pass {0} | ErrorCode: {1}, ErrorDetail: {2} ", dailypass.Identifier,
+                                saveResult.Error.Code, saveResult.Error.Detail);
+                            return null;
+                        }
+
+
                     }
+                    else if (errorCaught) // Create Routing Session Pass
+                    {
+                        Logger.ErrorFormat("Error Creating Daily Routing Pass | {0}", errorMessage);
+                        return null;
+                    }
+                    return null;
 
                 }
-                else
+                else if (errorCaught)
                 {
-                    //todo
+                    Logger.ErrorFormat("Error Creating Daily Routing Pass | {0}", errorMessage);
+                    return null;
                 }
-
             }
             catch (Exception ex)
             {
-                //todo
+                Logger.ErrorFormat("Error Retrieving or Creating Daily Routing Pass | {0}", ex.Message);
+                return null;
             }
 
-            return saveRouteResult.EntityKey;
+            return null;
         }
 
         private static OrderSpec ConvertOrderToOrderSpec(Order order)
@@ -1126,6 +1288,131 @@ namespace Averitt_RNA
                     break;
             }
             return orderSpec;
+        }
+
+        private bool SaveUnassignedOrderToRna(Order rnaOrder)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+            OrderSpec saveOrderSpec = ConvertOrderToOrderSpec(rnaOrder);
+
+            SaveResult orderSaveResult = _ApexConsumer.SaveRNAOrders(out errorCaught, out errorMessage, new OrderSpec[] { saveOrderSpec })[0];
+            if (!errorCaught)
+            {
+                if (orderSaveResult.Error == null)
+                {
+
+                    if (orderSaveResult.Error.ValidationFailures.Count() == 0)
+                    {
+                        Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}", rnaOrder.Identifier, orderSaveResult.Error.Code.ToString());
+
+                    }
+                    else
+                    {
+                        foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
+                        {
+                            Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
+                               orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                        }
+
+                    }
+                    return false;
+                }
+                else
+                {
+                    Logger.InfoFormat("Order {0} saved as Unassigned Order Successfully", rnaOrder.Identifier);
+                    return true;
+                }
+            } else
+            {
+                Logger.ErrorFormat("Error Saving Unassigned Order {0} | {1}", rnaOrder.Identifier, errorMessage);
+                return false;
+            }
+          
+        }
+
+        private bool SaveOrderToRna(Order rnaOrder)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+            OrderSpec saveOrderSpec = ConvertOrderToOrderSpec(rnaOrder);
+
+            SaveResult orderSaveResult = _ApexConsumer.SaveRNAOrders(out errorCaught, out errorMessage, new OrderSpec[] { saveOrderSpec })[0];
+            if (!errorCaught)
+            {
+                if (orderSaveResult.Error == null)
+                {
+
+                    if (orderSaveResult.Error.ValidationFailures.Count() == 0)
+                    {
+                        Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}", rnaOrder.Identifier, orderSaveResult.Error.Code.ToString());
+
+                    }
+                    else
+                    {
+                        foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
+                        {
+                            Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
+                               orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                        }
+
+                    }
+                    return false;
+                }
+                else
+                {
+                    Logger.InfoFormat("Order {0} saved as  Order Successfully", rnaOrder.Identifier);
+                    return true;
+                }
+            }
+            else
+            {
+                Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
+                return false;
+            }
+
+        }
+
+        private bool AssignOrderToRoute(Order rnaOrder)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+            OrderSpec saveOrderSpec = ConvertOrderToOrderSpec(rnaOrder);
+
+            SaveResult orderSaveResult = _ApexConsumer.SaveRNAOrders(out errorCaught, out errorMessage, new OrderSpec[] { saveOrderSpec })[0];
+            if (!errorCaught)
+            {
+                if (orderSaveResult.Error == null)
+                {
+
+                    if (orderSaveResult.Error.ValidationFailures.Count() == 0)
+                    {
+                        Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}", rnaOrder.Identifier, orderSaveResult.Error.Code.ToString());
+
+                    }
+                    else
+                    {
+                        foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
+                        {
+                            Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
+                               orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                        }
+
+                    }
+                    return false;
+                }
+                else
+                {
+                    Logger.InfoFormat("Order {0} saved as  Order Successfully", rnaOrder.Identifier);
+                    return true;
+                }
+            }
+            else
+            {
+                Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
+                return false;
+            }
+
         }
 
 
