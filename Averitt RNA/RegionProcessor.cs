@@ -136,7 +136,7 @@ namespace Averitt_RNA
                     Logger.InfoFormat("Seperation and Order Processing Successful");
                     Logger.InfoFormat("Create Routing Session for new Orders into RNA");
 
-                    CreateRoutingSessions(dbOrderRecords.Where(order => newOrders.Any(newRnaOrder => newRnaOrder.Identifier==order.OrderIdentifier)).ToList(), newOrders);
+                    CreateRoutingSessions(dbOrderRecords.Where(order => newOrders.Any(newRnaOrder => newRnaOrder.Identifier == order.OrderIdentifier)).ToList(), newOrders);
 
                     Logger.InfoFormat("Find Routes in Routing Sessions");
 
@@ -173,7 +173,7 @@ namespace Averitt_RNA
 
 
         }
-      
+
         private void WriteSuccessfullRunTimeCache(string filename)
         {
 
@@ -237,7 +237,7 @@ namespace Averitt_RNA
             }
         }
 
-       private List<ServiceLocation> RetrieveNewSLRecords(string regionID)
+        private List<ServiceLocation> RetrieveNewSLRecords(string regionID)
         {
             List<ServiceLocation> newServiceLocations = new List<ServiceLocation>();
             bool errorCaught = false;
@@ -330,7 +330,7 @@ namespace Averitt_RNA
             return newServiceLocations;
         }
 
-       private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
+        private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -413,7 +413,7 @@ namespace Averitt_RNA
 
         }
 
-       private void SeperateOrders(string regionID, List<Order> orders, out List<Order> updateOrders, out List<Order> newOrders, out List<Order> deleteOrders)
+        private void SeperateOrders(string regionID, List<Order> orders, out List<Order> updateOrders, out List<Order> newOrders, out List<Order> deleteOrders)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -651,10 +651,12 @@ namespace Averitt_RNA
                         {
                             errorMessage = errorMessage + "QuantitySize3 is null or empty | ";
 
-                        } if (orderRecord.PreferredRouteIdentifier == null || orderRecord.PreferredRouteIdentifier.Length == 0)
+                        }
+                        if (orderRecord.PreferredRouteIdentifier == null || orderRecord.PreferredRouteIdentifier.Length == 0)
                         {
                             errorMessage = errorMessage + "PreferredRouteIdentifier is null or empty | ";
-                        } if (orderRecord.OriginDepotIdentifier == null || orderRecord.OriginDepotIdentifier.Length == 0)
+                        }
+                        if (orderRecord.OriginDepotIdentifier == null || orderRecord.OriginDepotIdentifier.Length == 0)
                         {
                             errorMessage = errorMessage + "OriginDepotIdentifier is null or empty | ";
                         }
@@ -692,53 +694,131 @@ namespace Averitt_RNA
         {
             List<Order> preppedOrder = new List<Order>();
 
-            System.Threading.Tasks.Parallel.ForEach(preppedOrder, (order) => 
+            System.Threading.Tasks.Parallel.ForEach(preppedOrder, (order) =>
             {
-                
+
             });
 
             return preppedOrder;
 
         }
 
-        private void CreateRoutingSessions(List<DBAccess.Records.StagedOrderRecord> newOrderRecords, List<Order> newOrders)
+        private void AddNewOrdersToRNA(List<DBAccess.Records.StagedOrderRecord> newOrderRecords, List<Order> newOrders)
         {
             List<Order> preppedOrder = new List<Order>();
             bool errorCaught = false;
             string errorMessage = string.Empty;
+            System.Collections.Concurrent.ConcurrentBag<Order> newOrdersBag = new System.Collections.Concurrent.ConcurrentBag<Order>(newOrders);
 
             System.Threading.Tasks.Parallel.ForEach(newOrderRecords, (order) =>
             {
-                DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
-                DailyRoutingSession[] dailyRoutingSessions = _ApexConsumer.RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out errorMessage, sessionDate, order.OriginDepotIdentifier);
+            DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
+            if (order.PreferredRouteIdentifier != string.Empty || order.PreferredRouteIdentifier != null)
+            {
 
-                if (!errorCaught)
-                {
-                    if (dailyRoutingSessions != null || dailyRoutingSessions.Length == 0)
+                Route route = _ApexConsumer.RetrieveRoute(out errorCaught, out errorMessage, order.PreferredRouteIdentifier, sessionDate.ToString("yyyy-MM-dd"), order.OriginDepotIdentifier);
+                Order newRNAOrder = (Order)order;
+                    if (!errorCaught)
                     {
-                        SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier });
-                        if(dsSaveResult[0].Error == null)
+                        if (route != null) // route found, assign order to route
                         {
-                            DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
-                            newOrders = newOrders.Where(newOrder => newOrder.Identifier == order.OrderIdentifier).Select(o => { o.SessionDate = order.BeginDate; o.SessionEntityKey = rtSession.EntityKey; return o; }).ToList();
-                        } else
-                        {
-                            //TODO
+
+                            if (newOrdersBag.Contains(newRNAOrder))
+                            {
+                                newRNAOrder.SessionEntityKey = route.RoutingSessionEntityKey;
+                                newRNAOrder.SessionDescription = route.RoutingSessionDescription;
+                                newRNAOrder.SessionDate = route.RoutingSessionDate;
+                            }
+
+
                         }
-                        
-                    } else
+                        else // Route not found, see if routing session Exist, if not create routing session and route, if it does just create route
+                        {
+                            DailyRoutingSession dailyRoutingSession = _ApexConsumer.RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out errorMessage, sessionDate, order.OriginDepotIdentifier).DefaultIfEmpty(null).FirstOrDefault();
+
+                            if (dailyRoutingSession != null) // just create route and update order with session information
+                            {
+
+                                newRNAOrder.SessionEntityKey = dailyRoutingSession.EntityKey;
+                                newRNAOrder.SessionDescription = dailyRoutingSession.Description;
+                                newRNAOrder.SessionDate = dailyRoutingSession.StartDate;
+                                long entityKey = CreateRoute(order.PreferredRouteIdentifier);
+
+
+                            }
+                            else// session is null create new routing session, create new route, update order with session information;
+                            {
+                                SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier });
+                                if (dsSaveResult[0].Error == null)
+                                {
+                                    DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
+                                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionEntityKey = rtSession.EntityKey;
+                                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDescription = rtSession.Description;
+                                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDate = rtSession.StartDate;
+                                    long entityKey = CreateRoute(order.PreferredRouteIdentifier);
+                                }
+                                else //Error Creating Routing Session
+                                {
+                                    if (dsSaveResult[0].Error.ValidationFailures.Count() == 0)
+                                    {
+                                        Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}", order.OrderIdentifier, dsSaveResult[0].Error.Code.ToString());
+                                    }
+                                    else
+                                    {
+                                        foreach (ValidationFailure validFailure in dsSaveResult[0].Error.ValidationFailures)
+                                        {
+                                            Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", order.OrderIdentifier,
+                                                dsSaveResult[0].Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                                        }
+                                    }
+
+                                }
+
+                            }
+
+
+                        }
+                    }
+                    else
                     {
-                        newOrders = newOrders.Where(newOrder => newOrder.Identifier == order.OrderIdentifier).Select(o => { o.SessionDate = order.BeginDate; o.SessionEntityKey = dailyRoutingSessions[0].EntityKey; return o; }).ToList();
+                        Logger.ErrorFormat("Error saving Order {0} to RNA | {1}", order.OrderIdentifier, errorMessage);
+
                     }
                 }
-                else
+            else // Create routing session if routing session does not exist
+            {
+                Logger.Error("Order {0} has no preferred route ID, will add to session as unassigned");
+                SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier });
+                if (dsSaveResult[0].Error == null)
                 {
-                    //TODO
+                    DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
+                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionEntityKey = rtSession.EntityKey;
+                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDescription = rtSession.Description;
+                    newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDate = rtSession.StartDate;
+                    long entityKey = CreateRoute(order.PreferredRouteIdentifier);
+                }
+                else //Error Creating Routing Session
+                {
+                    if (dsSaveResult[0].Error.ValidationFailures.Count() == 0)
+                    {
+                        Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}", order.OrderIdentifier, dsSaveResult[0].Error.Code.ToString());
+                    }
+                    else
+                    {
+                        foreach (ValidationFailure validFailure in dsSaveResult[0].Error.ValidationFailures)
+                        {
+                            Logger.ErrorFormat("Error Creating Routing session for Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", order.OrderIdentifier,
+                                dsSaveResult[0].Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                        }
+                    }
+
+                }
                 }
 
+               
             });
 
-            return preppedOrder;
+
 
         }
 
@@ -792,16 +872,16 @@ namespace Averitt_RNA
             return RNAOrder.Tasks[0].ServiceWindowOverrides;
         }
 
-       private long CreateRoute(string createRouteID)
+        private long CreateRoute(string createRouteID, DateTime routeStartTime)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
+
             SaveRouteArgs routeArgs = new SaveRouteArgs
             {
                 Identifier = createRouteID,
-                DispatcherEntityKey = ,
+                DispatcherEntityKey = MainService.User.EntityKey,
                 OriginDepotEntityKey = (long)_Region.Defaults.DepotEntityKey,
-
                 PassEntityKey = Config.DefaultRoutingPassEK,
                 Phase = RoutePhase.Plan,
                 Equipment = new RouteEquipmentType[]
@@ -812,7 +892,10 @@ namespace Averitt_RNA
 
                    }
                },
-
+                LastStopIsDestination = true,
+                RouterEntityKey = MainService.User.EntityKey,
+                OriginLoadAction = LoadAction.AsNeeded,
+                StartTime = routeStartTime
 
 
             };
@@ -822,20 +905,65 @@ namespace Averitt_RNA
                 saveRouteResult = _ApexConsumer.CreateRNARoute(out errorCaught, out errorMessage, routeArgs);
                 if (!errorCaught)
                 {
-                    if(saveRouteResult.Error != null)
+                    if (saveRouteResult.Error != null)
                     {
-                        //todo
-                    } else
+                        Logger.Info("")
+                    }
+                    else
                     {
                         Logger.InfoFormat("Route {0} created successfully", routeArgs.Identifier);
                     }
 
-                }else
+                }
+                else
                 {
                     //todo
                 }
 
-            }catch (Exception ex)
+            }
+            catch (Exception ex)
+            {
+                //todo
+            }
+
+            return saveRouteResult.EntityKey;
+        }
+
+        private long GetorCreateRoutingSessionPass(DailyRoutingSession routingSession)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+
+            try
+            {
+               
+                if (!errorCaught)
+                {
+                    if (routingSession != null)
+                    {
+                        DailyPass dailyPass = _ApexConsumer.RetrieveRoutingSessionPass(out errorCaught, out errorMessage, routingSession.EntityKey, Config.DefaultRoutingPassIdentifier, _Region.EntityKey);
+                        if(dailyPass != null)
+                        {
+                            return dailyPass.EntityKey;
+                        }
+                        else // Create Routing Session Pass
+                        {
+
+                        }
+                    }
+                    else
+                    {
+                        Logger.InfoFormat("Route {0} created successfully", routeArgs.Identifier);
+                    }
+
+                }
+                else
+                {
+                    //todo
+                }
+
+            }
+            catch (Exception ex)
             {
                 //todo
             }

@@ -4530,7 +4530,7 @@ namespace Averitt_RNA
                         if (saveResults[i].Error != null)
                         {
                             _Logger.Error("SaveDailyRoutingSessions | " + startDates[i] + " | Failed with Error: " + ToString(saveResults[i].Error));
-                            errorCaught = false ;
+                            errorCaught = false;
                         }
                     }
                 }
@@ -4767,7 +4767,7 @@ namespace Averitt_RNA
                    out string errorMessage,
                    ServiceLocation[] serviceLocations)
         {
-           SaveResult[] saveResults = null;
+            SaveResult[] saveResults = null;
             errorCaught = false;
             errorMessage = string.Empty;
 
@@ -4798,7 +4798,7 @@ namespace Averitt_RNA
                             DayOfWeekFlags_DeliveryDays = true,
 
                         },
-                        
+
 
                     });
                 if (saveResults == null)
@@ -4806,9 +4806,9 @@ namespace Averitt_RNA
                     errorMessage = "SaveServiceLocations | " + string.Join(" | ", serviceLocations.Select(serviceLocation => ToString(serviceLocation))) + " | Failed with a null result.";
                     _Logger.Error(errorMessage);
                     errorCaught = true;
-                    
+
                 }
-               
+
             }
             catch (FaultException<TransferErrorCode> tec)
             {
@@ -5202,6 +5202,109 @@ namespace Averitt_RNA
             return null;
         }
 
+        public Route RetrieveRoute(out bool errorCaught, out string errorMessage, string RouteID, string sessionDate, string sessionDescription)
+        {
+            errorCaught = false;
+            errorMessage = string.Empty;
+           
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    new SingleRegionContext
+                    {
+                        BusinessUnitEntityKey = _RegionContext.BusinessUnitEntityKey,
+                        RegionEntityKey = _Region.EntityKey
+
+                    },
+                    new RetrievalOptions
+                    {
+                        Expression = new AndExpression
+                        {
+                            Expressions = new SimpleExpressionBase[]
+                            {
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "Identifier"},
+                                    Right = new ValueExpression { Value = RouteID}
+
+                                },
+
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "RoutingSessionDescription"},
+                                    Right = new ValueExpression { Value = sessionDescription}
+
+                                },
+
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "RoutingSessionDate"},
+                                    Right = new ValueExpression { Value = sessionDate}
+
+                                },
+                            }
+                        },
+
+
+
+                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                        PropertyOptions = new RoutePropertyOptions
+                        {
+                            Identifier = true,
+                            RoutingSessionEntityKey = true,
+                            RoutingSessionDate = true,
+                            OriginDepotIdentifier = true,
+                            RoutingSessionDescription = true
+
+                        },
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Route)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.ErrorFormat("Retrieve Routes {0} | Failed with a null result.", RouteID);
+                    errorCaught = true;
+
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    errorMessage = string.Format("Route {0} does not exist.", RouteID);
+                    _Logger.Error(errorMessage);
+                    errorCaught = false;
+                }
+                else
+                {
+
+                    return retrievalResults.Items.Cast<Route>().DefaultIfEmpty(null).FirstOrDefault();
+
+
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.ErrorFormat("Retrieve Route {0} failed| ", errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorCaught = true;
+
+                }
+                else
+                {
+                    errorCaught = true;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _Logger.ErrorFormat("Error Retrieving Route {0] |  " + ex, RouteID);
+
+            }
+            return null;
+        }
+
         public Order[] GetOrdersToUnassignOrDeleteInRNA(out ErrorLevel errorLevel, out string fatalErrorMessage, out string regularErrorMessage, string[] identifier)
         {
             errorLevel = ErrorLevel.None;
@@ -5494,6 +5597,153 @@ namespace Averitt_RNA
 
         }
 
+        public DailyPass RetrieveRoutingSessionPass(
+          out bool errorCaught,
+          out string fatalErrorMessage,
+          long passSessionEntityKey, string passIdentifier, long regionEntity)
+        {
+           
+            errorCaught = false;
+            fatalErrorMessage = string.Empty;
+            DailyPass dailySessionPass = new DailyPass();
+            try
+            {
+                RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new RetrievalOptions
+                    {
+
+                        Expression = new AndExpression
+                        {
+                            Expressions = new SimpleExpressionBase[]
+                            {
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "Identifier" },
+                                    Right = new ValueExpression { Value = passIdentifier }
+                                },
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "SessionEntityKey" },
+                                    Right = new ValueExpression { Value = passSessionEntityKey }
+                                },
+                                new EqualToExpression
+                                {
+                                    Left = new PropertyExpression { Name = "RegionEntityKey" },
+                                    Right = new ValueExpression { Value =  regionEntity }
+                                },
+                            },
+                        },
+
+
+                        PropertyInclusionMode = PropertyInclusionMode.All,
+                        Type = Enum.GetName(typeof(RetrieveType), RetrieveType.DailyPass)
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | Failed with a null result.");
+                    errorCaught = true;
+                }
+                else
+                {
+                    dailySessionPass = retrievalResults.Items.Cast<DailyPass>().First();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorCaught = true;
+                }
+                else
+                {
+                    errorCaught = true;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                fatalErrorMessage = "Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + ex.Message;
+                _Logger.Error(fatalErrorMessage);
+                errorCaught = true;
+            }
+            return dailySessionPass;
+        }
+
+
+
+        public SaveResult CreateDailyPassforSession(
+          out bool errorCaught,
+          out string fatalErrorMessage,
+          DailyRoutingSession routingSession, string passIdentifier, long regionEntity, long equipmentTypeEntityKey)
+        {
+
+            errorCaught = false;
+            fatalErrorMessage = string.Empty;
+            DailyPass dailySessionPass = new DailyPass
+            {
+                Action = ActionType.Add,
+                CommonAttributes = new PassAttributes
+                {
+                    StartTime = "08:00:00.0000000",
+                    DepotEquipmentTypeQuantities = new DepotEquipmentTypeQuantity[]
+                    {
+                        new DepotEquipmentTypeQuantity
+                        {
+                            DepotEntityKey = (long)routingSession.DepotEntityKey, 
+                            EquipmentTypeEntityKey = equipmentTypeEntityKey, 
+                            Quantity = 1,
+                        }
+                    }
+                }
+            };
+            try
+            {
+                RetrievalResults retrievalResults = _RoutingServiceClient.Save(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                 );
+                if (retrievalResults.Items == null)
+                {
+                    _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | Failed with a null result.");
+                    errorCaught = true;
+                }
+                else
+                {
+                    dailySessionPass = retrievalResults.Items.Cast<DailyPass>().First();
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorCaught = true;
+                }
+                else
+                {
+                    errorCaught = true;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                fatalErrorMessage = "Retrieve Daily Pass | " + string.Join(" | ", passIdentifier) + ex.Message;
+                _Logger.Error(fatalErrorMessage);
+                errorCaught = true;
+            }
+            return dailySessionPass;
+        }
+
+
         public DailyRoutingSession[] RetrieveDailyRoutingSessionwithOrigin(
            out bool errorCaught,
            out string fatalErrorMessage,
@@ -5703,15 +5953,11 @@ namespace Averitt_RNA
             try
             {
 
-                saveResults = _RoutingServiceClient.CreateRoute(
+                saveResults = _RoutingServiceClient.(
                     MainService.SessionHeader,
                     _RegionContext,
                     routeArgs
-                   ,
-                    new SaveOptions
-                    {
-                        InclusionMode = PropertyInclusionMode.All
-                    });
+                    );
                 if (saveResults == null)
                 {
                     errorMessage = "Create Route  | " + routeArgs.Identifier + " | Failed with a null result.";
@@ -5720,13 +5966,13 @@ namespace Averitt_RNA
                 }
                 else
                 {
-                    
-                        if (saveResults.Error != null)
-                        {
-                            _Logger.Error("Create Route | " + routeArgs.Identifier + " | Failed with Error: " + ToString(saveResults.Error));
-                            errorCaught = false;
-                        }
-                   
+
+                    if (saveResults.Error != null)
+                    {
+                        _Logger.Error("Create Route | " + routeArgs.Identifier + " | Failed with Error: " + ToString(saveResults.Error));
+                        errorCaught = false;
+                    }
+
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
@@ -5742,7 +5988,7 @@ namespace Averitt_RNA
                 else
                 {
                     errorCaught = true;
-                    
+
                 }
             }
             catch (Exception ex)
