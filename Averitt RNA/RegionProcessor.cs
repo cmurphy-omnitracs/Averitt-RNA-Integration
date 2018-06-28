@@ -20,7 +20,14 @@ namespace Averitt_RNA
         private static CacheHelper cacheHelper = new CacheHelper();
         private string dictCacheFile = string.Empty;
         public static DateTime lastSuccessfulRunTime = new DateTime();
-
+        public enum TaskSpecType
+        {
+            None,
+            Delivery,
+            Pickup,
+            DeliveryAndPickup,
+            Transfer
+        }
 
 
         public RegionProcessor(Region region) : base(MethodBase.GetCurrentMethod().DeclaringType, region.Identifier)
@@ -133,23 +140,31 @@ namespace Averitt_RNA
                     List<Order> newOrders = new List<Order>();
                     List<Order> deleteOrders = new List<Order>();
                     SeperateOrders(_Region.Identifier, newDBOrders, out updateOrders, out newOrders, out deleteOrders);
-                    Logger.InfoFormat("Seperation and Order Processing Successful");
-                    Logger.InfoFormat("Create Routing Session for new Orders into RNA");
-
-                    CreateRoutingSessions(dbOrderRecords.Where(order => newOrders.Any(newRnaOrder => newRnaOrder.Identifier == order.OrderIdentifier)).ToList(), newOrders);
-
-                    Logger.InfoFormat("Find Routes in Routing Sessions");
-
-                    _ApexConsumer.RetrieveSLFromSTandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.timeWindowEntityKeyDict, dictCache.serviceTimeEntityKeyDict,
-                      _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
-
+                    Logger.InfoFormat("Seperation and Order Processing Completed");
+                    Logger.InfoFormat("Add New Orders to RNA");
+                    AddNewOrdersToRNA(dbOrderRecords.Where(order => newOrders.Any(newRnaOrder => newRnaOrder.Identifier == order.OrderIdentifier)).ToList(), newOrders);
+                    Logger.InfoFormat("Add New Orders to RNA Completed");
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    //Update Order Processing
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("Update Orders in RNA");
+                    SaveUpdateRNAOrders(_Region.Identifier, updateOrders);
+                    Logger.InfoFormat("Update Orders Complete");
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    //Delete Order Processing
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("Delete Orders in RNA");
+                    DeleteUpdateRNAOrders(_Region.Identifier, deleteOrders);
+                    Logger.InfoFormat("Delete Orders Complete");
+                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                                       
                     //Pick Up Dummy Order Processing
                     _ApexConsumer.RetrieveDummyOrdersAndSave(dictCache.depotsForRegionDict, dictCache.orderClassesDict, _Region.Identifier, out errorCaught, out errorMessage);
 
                     //Orders Processing * correct Save Order Result
 
-                    _ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
-                       _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
+                    //_ApexConsumer.RetrieveOrdersandSaveToRNA(dictCache.regionEntityKeyDict, dictCache.depotsForRegionDict, dictCache.orderClassesDict,
+                    //   _Region.Identifier, out errorCaught, out errorMessage, out fatalErrorMessage, out timeOut);
 
 
 
@@ -464,10 +479,10 @@ namespace Averitt_RNA
 
         }
 
-        private void SaveUpdateRNAOrders(string regionID, List<Order> orders, out bool errorCaught, out string errorMessage)
+        private void SaveUpdateRNAOrders(string regionID, List<Order> orders)
         {
-            errorCaught = false;
-            errorMessage = string.Empty;
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
 
             System.Collections.Concurrent.ConcurrentBag<OrderSpec> orderSpecs = new System.Collections.Concurrent.ConcurrentBag<OrderSpec>();
 
@@ -718,7 +733,7 @@ namespace Averitt_RNA
 
                     Route route = _ApexConsumer.RetrieveRoute(out errorCaught, out errorMessage, order.PreferredRouteIdentifier, sessionDate.ToString("yyyy-MM-dd"), order.OriginDepotIdentifier);
                     Order newRNAOrder = (Order)order;
-                    long routeEntityKey;
+                   
                     if (!errorCaught)
                     {
                         if (route != null) // route found, assign order to route
@@ -731,6 +746,7 @@ namespace Averitt_RNA
                                 newRNAOrder.SessionDate = route.RoutingSessionDate;
                             }
 
+                            bool assignOrder = AssignOrderToRoute(newRNAOrder, route.EntityKey, route.Version);
 
                         }
                         else // Route not found, see if routing session Exist, if not create routing session and route, if it does just create route
@@ -743,15 +759,25 @@ namespace Averitt_RNA
                                 newRNAOrder.SessionEntityKey = dailyRoutingSession.EntityKey;
                                 newRNAOrder.SessionDescription = dailyRoutingSession.Description;
                                 newRNAOrder.SessionDate = dailyRoutingSession.StartDate;
-                                long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession);
+                                long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession, newRNAOrder);
                                 if (passEntityKey.HasValue)
                                 {
-                                    routeEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey);
+                                    long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newRNAOrder);
+                                  
+                                    if (rtEntityKey.HasValue)
+                                    {
+                                        bool assignOrder = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
+                                    }
+
+
+
+
                                 }
                                 else
                                 {
                                     Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
                                 }
+                                
 
 
                             }
@@ -764,10 +790,15 @@ namespace Averitt_RNA
                                     newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionEntityKey = rtSession.EntityKey;
                                     newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDescription = rtSession.Description;
                                     newOrdersBag.FirstOrDefault(odr => odr.Identifier.ToUpper() == order.OrderIdentifier.ToUpper()).SessionDate = rtSession.StartDate;
-                                    long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession);
+                                    long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession, newRNAOrder);
                                     if (passEntityKey.HasValue)
                                     {
-                                        routeEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey);
+                                        long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newRNAOrder);
+                                        if (rtEntityKey.HasValue)
+                                        {
+                                            bool assignOrder = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
+                                        }
+
                                     }
                                     else
                                     {
@@ -919,7 +950,7 @@ namespace Averitt_RNA
             return RNAOrder.Tasks[0].ServiceWindowOverrides;
         }
 
-        private long CreateRoute(string createRouteID, DateTime routeStartTime, long dailyPassEntityKey)
+        private long? CreateRoute(string createRouteID, DateTime routeStartTime, long dailyPassEntityKey, Order rnaOrder)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -952,31 +983,85 @@ namespace Averitt_RNA
                 saveRouteResult = _ApexConsumer.CreateRNARoute(out errorCaught, out errorMessage, routeArgs);
                 if (!errorCaught)
                 {
-                    if (saveRouteResult.Error != null)
+                    if (saveRouteResult.Error == null)
                     {
-                        Logger.Info("")
+                        Logger.InfoFormat("Route {0} Created Successfully", routeArgs.Identifier);
+                        return saveRouteResult.EntityKey;
                     }
                     else
                     {
-                        Logger.InfoFormat("Route {0} created successfully", routeArgs.Identifier);
+                        string  message = string.Empty;
+                        if (saveRouteResult.Error.ValidationFailures.Count() == 0)
+                        {
+                            message = String.Format("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
+                            Logger.ErrorFormat("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
+                            _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                            if (errorCaught)
+                            {
+                                Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                            }
+                            else
+                            {
+                                Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                            }
+                        }
+                        
+                        else
+                        {
+                            foreach (ValidationFailure validFailure in saveRouteResult.Error.ValidationFailures)
+                            {
+                                message = " | " + String.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}", "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
+                                Logger.ErrorFormat("Error Creating Routing failed | ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}", "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
+                            }
+                            _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                            if (errorCaught)
+                            {
+                                Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                            }
+                            else
+                            {
+                                Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                            }
+                        }
+                        return null;
                     }
 
                 }
                 else
                 {
-                    //todo
+                    Logger.ErrorFormat("Error Creating Route {0} | {1}", routeArgs.Identifier, errorMessage);
+                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Creating Route for Order RNA:  " + errorMessage + "See Log", "ERROR", out errorMessage, out errorCaught);
+                    if (errorCaught)
+                    {
+                        Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                    }
+                    else
+                    {
+                        Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                    }
+                    return null;
                 }
 
             }
             catch (Exception ex)
             {
-                //todo
+                Logger.ErrorFormat("Error Creating Route {0} | {1}", routeArgs.Identifier, ex.Message);
+                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Creating Route for Order RNA:  " + ex.Message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                if (errorCaught)
+                {
+                    Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                }
+                else
+                {
+                    Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                }
+                return null;
             }
 
-            return saveRouteResult.EntityKey;
+         
         }
 
-        private long? GetorCreateRoutingSessionPass(DailyRoutingSession routingSession)
+        private long? GetorCreateRoutingSessionPass(DailyRoutingSession routingSession, Order rnaOrder)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -1121,16 +1206,125 @@ namespace Averitt_RNA
                 else if (errorCaught)
                 {
                     Logger.ErrorFormat("Error Creating Daily Routing Pass | {0}", errorMessage);
+                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Creating Routing Session:  " + errorMessage + "See Log", "ERROR", out errorMessage, out errorCaught);
+                    if (errorCaught)
+                    {
+                        Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                    }
+                    else
+                    {
+                        Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                    }
                     return null;
                 }
             }
             catch (Exception ex)
             {
                 Logger.ErrorFormat("Error Retrieving or Creating Daily Routing Pass | {0}", ex.Message);
+                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Creating Routing Session:  " + ex.Message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                if (errorCaught)
+                {
+                    Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                }
+                else
+                {
+                    Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                }
                 return null;
             }
 
             return null;
+        }
+
+
+
+        private void DeleteUpdateRNAOrders(string regionID, List<Order> orders)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+
+
+
+                try
+                {
+                    List<SaveResult> saveOrdersResult = _ApexConsumer.DeleteRNAOrder(out errorCaught, out errorMessage, orders.ToArray()).ToList();
+                    if (!errorCaught)
+                    {
+                        foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
+                        {
+                            var tempOrder = (Order)saveResult.Object;
+                            bool errorUpdatingServiceLocation = false;
+                            string errorUpdatingServiceLocationMessage = string.Empty;
+                            if (saveResult.Error != null)
+                            {
+
+
+                                if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                                {
+                                    string message = string.Empty;
+
+                                    foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                    {
+                                        message = message + " | " + string.Format("ErrorCode: {0} ErrorDetail: {1} ErrorProperty: {2}", "ValidationError", validFailure.FailureType_Type, validFailure.Property);
+                                        Logger.Debug("A Validation Error Occured While Deleting Orders. The " + validFailure.Property + " Property for Order " + tempOrder.Identifier + " is not Valid");
+                                        
+                                      
+                                    }
+                                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order Failed | " + message + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                if (errorUpdatingServiceLocation)
+                                {
+                                    Logger.Debug("Updating Order Table | Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+
+                                }
+                                else
+                                {
+                                    Logger.Debug("Updating Order Table | Order  " + tempOrder.Identifier + " error status succesfull");
+                                }
+                            }
+                                else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                                {
+
+                                    Logger.Debug("An Error Occured While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + tempOrder.Identifier + " is not Valid");
+                                  
+                                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order failed | Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                    if (errorUpdatingServiceLocation)
+                                    {
+                                        Logger.Debug("Updating Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+
+                                    }
+                                    else
+                                    {
+                                        Logger.Debug("Updating Order " + tempOrder.Identifier + " error status succesfull");
+                                    }
+
+                                }
+                            }
+                            else
+                            {
+                                Logger.Debug("Saving/Updating Order : " + tempOrder.Identifier + " to RNA Successfull ");
+                            }
+                        }
+
+                    }
+                    else
+                    {
+                        Logger.Error("Error Caught Saving Orders to RNA : " + errorMessage);
+
+                    }
+
+
+                }
+                catch (Exception ex)
+                {
+                    errorCaught = true;
+                    errorMessage = ex.Message;
+                    Logger.Error("Error Saving/Updating/Deleting Service Locations into RNA: " + errorMessage);
+
+              
+            }
+
+            
+
         }
 
         private static OrderSpec ConvertOrderToOrderSpec(Order order)
@@ -1305,16 +1499,35 @@ namespace Averitt_RNA
                     if (orderSaveResult.Error.ValidationFailures.Count() == 0)
                     {
                         Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}", rnaOrder.Identifier, orderSaveResult.Error.Code.ToString());
-
+                        _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + orderSaveResult.Error.Code.ToString() + "See Log", "ERROR", out errorMessage, out errorCaught);
+                        if (errorCaught)
+                        {
+                            Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                        }
+                        else
+                        {
+                            Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                        }
                     }
                     else
                     {
+                        string message = string.Empty;
                         foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
                         {
+                            message = " | " + message + "|" + String.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}",
+                           orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
                             Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
                                orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
                         }
-
+                        _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                        if (errorCaught)
+                        {
+                            Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                        }
+                        else
+                        {
+                            Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                        }
                     }
                     return false;
                 }
@@ -1323,12 +1536,13 @@ namespace Averitt_RNA
                     Logger.InfoFormat("Order {0} saved as Unassigned Order Successfully", rnaOrder.Identifier);
                     return true;
                 }
-            } else
+            }
+            else
             {
                 Logger.ErrorFormat("Error Saving Unassigned Order {0} | {1}", rnaOrder.Identifier, errorMessage);
                 return false;
             }
-          
+
         }
 
         private bool SaveOrderToRna(Order rnaOrder)
@@ -1350,10 +1564,24 @@ namespace Averitt_RNA
                     }
                     else
                     {
+                        string message = string.Empty;
                         foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
                         {
+                            message = " | " + message + "|" + String.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}",
+                               orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+
                             Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
                                orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                        }
+
+                        _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                        if (errorCaught)
+                        {
+                            Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                        }
+                        else
+                        {
+                            Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
                         }
 
                     }
@@ -1362,54 +1590,113 @@ namespace Averitt_RNA
                 else
                 {
                     Logger.InfoFormat("Order {0} saved as  Order Successfully", rnaOrder.Identifier);
+                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "", "COMPLETE", out errorMessage, out errorCaught);
+                    if (errorCaught)
+                    {
+                        Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                    }
+                    else
+                    {
+                        Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                    }
                     return true;
                 }
             }
             else
             {
                 Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
+                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + errorMessage + "See Log", "ERROR", out errorMessage, out errorCaught);
+                if (errorCaught)
+                {
+                    Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                }
+                else
+                {
+                    Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                }
                 return false;
             }
 
         }
 
-        private bool AssignOrderToRoute(Order rnaOrder)
+        private bool AssignOrderToRoute(Order rnaOrder, long routeEntityKey, long versionNumber)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
-            OrderSpec saveOrderSpec = ConvertOrderToOrderSpec(rnaOrder);
+            Placement placement = new Placement
+            {
+                RouteInstance = new DomainInstance
+                {
+                    EntityKey = routeEntityKey,
+                    Version = versionNumber
+                }
+            };
 
-            SaveResult orderSaveResult = _ApexConsumer.SaveRNAOrders(out errorCaught, out errorMessage, new OrderSpec[] { saveOrderSpec })[0];
+            RouteRetrievalOptions options = new RouteRetrievalOptions
+            {
+                EntityKey = routeEntityKey,
+                InclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
+                PropertyOptions = new RoutePropertyOptions
+                {
+                    Identifier = true,
+
+                }
+            };
+
+            ManipulationResult assignOrderResult = _ApexConsumer.AddOrderToRoute(out errorCaught, out errorMessage, placement, options, rnaOrder);
             if (!errorCaught)
             {
-                if (orderSaveResult.Error == null)
+
+                if (assignOrderResult.Errors != null)
                 {
-
-                    if (orderSaveResult.Error.ValidationFailures.Count() == 0)
+                    foreach (ManipulationResult.ManipulationError error in assignOrderResult.Errors)
                     {
-                        Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}", rnaOrder.Identifier, orderSaveResult.Error.Code.ToString());
-
-                    }
-                    else
-                    {
-                        foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
+                        Logger.ErrorFormat("Assiging Order {0} to Route {1} Failed | {2}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
+                        
+                        _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error assigning Order to Route:  " + error.Reason.ErrorCode_Status + "See Log", "ERROR", out errorMessage, out errorCaught);
+                        if (errorCaught)
                         {
-                            Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
-                               orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
+                            Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                        } else
+                        {
+                            Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
                         }
 
                     }
+
                     return false;
+
                 }
                 else
                 {
-                    Logger.InfoFormat("Order {0} saved as  Order Successfully", rnaOrder.Identifier);
+                    Logger.InfoFormat("Order {0} assigned to Route {1}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier);
+                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "", "COMPLETE", out errorMessage, out errorCaught);
+                    if (errorCaught)
+                    {
+                        Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                    }
+                    else
+                    {
+                        Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                    }
                     return true;
                 }
+
+
             }
             else
             {
+                
                 Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
+                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Assigning Order to Route " +  errorMessage, "Error", out errorMessage, out errorCaught);
+                if (errorCaught)
+                {
+                    Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
+                }
+                else
+                {
+                    Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
+                }
                 return false;
             }
 
