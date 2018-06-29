@@ -119,7 +119,6 @@ namespace Averitt_RNA
                     //Region Processing
                     Logger.Info("Start Retrieving and Saving Region " + _Region.Identifier + " Service Locations");
                     //Service location Processing
-
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Service Locations from staging table");
                     List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier, dictCache.serviceTimeEntityKeyDict, dictCache.timeWindowEntityKeyDict);
@@ -130,11 +129,12 @@ namespace Averitt_RNA
                     SaveSLToRNA(_Region.Identifier, finalizedServiceLocations);
                     Logger.InfoFormat("Service Locations Save Process Finished", newServiceLocations.Count());
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
+
                     //New Order Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Orders from staging table");
                     List<DBAccess.Records.StagedOrderRecord> dbOrderRecords = new List<DBAccess.Records.StagedOrderRecord>();
-                    List<Order> newDBOrders = RetrieveOrdersSave(_Region.Identifier, out dbOrderRecords);
+                    List<Order> newDBOrders = RetrieveOrdersSave(_Region.Identifier, out dbOrderRecords, dictCache.orderClassesDict, dictCache.depotsForRegionDict);
                     Logger.InfoFormat("Retrieved {0} Orders from staging table successfully", newDBOrders.Count);
                     Logger.InfoFormat("Seperate Order Types and prepare for saving");
                     List<Order> updateOrders = new List<Order>();
@@ -146,12 +146,14 @@ namespace Averitt_RNA
                     AddNewOrdersToRNA(dbOrderRecords.Where(order => newOrders.Any(newRnaOrder => newRnaOrder.Identifier == order.OrderIdentifier)).ToList(), newOrders);
                     Logger.InfoFormat("Add New Orders to RNA Completed");
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
+
                     //Update Order Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Update Orders in RNA");
                     SaveUpdateRNAOrders(_Region.Identifier, updateOrders);
                     Logger.InfoFormat("Update Orders Complete");
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
+
                     //Delete Order Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Delete Orders in RNA");
@@ -499,7 +501,8 @@ namespace Averitt_RNA
 
         }
 
-        private void SeperateOrders(string regionID, List<Order> orders, out List<Order> updateOrders, out List<Order> newOrders, out List<Order> deleteOrders)
+        private void SeperateOrders(string regionID, List<Order> orders, out List<Order> updateOrders, 
+            out List<Order> newOrders, out List<Order> deleteOrders)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -514,9 +517,10 @@ namespace Averitt_RNA
                 List<Order> ordersFromRNA = _ApexConsumer.RetrieveOrdersFromRNA(out errorCaught, out errorMessage, orderIdentifiers.ToArray());
                 if (!errorCaught)
                 {
-                    updateOrders = orders.Where(order => order.Action != ActionType.Delete).Intersect(ordersFromRNA).ToList();
-                    newOrders = orders.Where(order => order.Action != ActionType.Delete).Except(updateOrders).ToList();
-                    deleteOrders = orders.Where(order => order.Action == ActionType.Delete).Intersect(ordersFromRNA).ToList();
+                    updateOrders = orders.Where(order => order.Action != ActionType.Delete && ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
+                    newOrders = orders.Where(order => order.Action != ActionType.Delete && !ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
+                    newOrders.ForEach(x => x.Action = ActionType.Add);
+                    deleteOrders = orders.Where(order => order.Action == ActionType.Delete && ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
 
                 }
                 else
@@ -640,14 +644,15 @@ namespace Averitt_RNA
 
         }
 
-        private List<Order> RetrieveOrdersSave(string regionID, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords)
+        private List<Order> RetrieveOrdersSave(string regionID, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords, 
+            Dictionary<string, long> orderClassCache, Dictionary<string, long> depotCache)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
 
             List<Order> newOrders = new List<Order>();
             stagedOrderRecords = new List<DBAccess.Records.StagedOrderRecord>();
-            newOrders = RetrieveNewOrderRecords(out errorCaught, out errorMessage, out stagedOrderRecords, regionID);
+            newOrders = RetrieveNewOrderRecords(out errorCaught, out errorMessage, out stagedOrderRecords, regionID, orderClassCache, depotCache);
             if (!errorCaught)
             {
 
@@ -675,7 +680,8 @@ namespace Averitt_RNA
 
         }
 
-        private List<Order> RetrieveNewOrderRecords(out bool errorRetrieveOrdersFromTable, out string errorRetrieveOrdersFromTableMessage, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords, string regionID)
+        private List<Order> RetrieveNewOrderRecords(out bool errorRetrieveOrdersFromTable, out string errorRetrieveOrdersFromTableMessage, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords, string regionID,
+             Dictionary<string, long> orderClassCache, Dictionary<string, long> depotCache)
         {
             List<Order> newOrders = new List<Order>();
             errorRetrieveOrdersFromTable = false;
@@ -700,7 +706,15 @@ namespace Averitt_RNA
                   (orderRecord.OriginDepotIdentifier == null || orderRecord.OriginDepotIdentifier.Length == 0)).ToList();
 
                     stagedOrderRecords = retrieveOrderRecords.FindAll(orderRecord => !errorOrderRecords.Contains(orderRecord)).DefaultIfEmpty(new DBAccess.Records.StagedOrderRecord()).ToList();
-                    newOrders = stagedOrderRecords.Cast<Order>().ToList();
+                  
+                    foreach(DBAccess.Records.StagedOrderRecord orderRecord in stagedOrderRecords)
+                    {
+                        Order newOrder = (Order)orderRecord;
+                        newOrder.RequiredRouteOriginEntityKey = depotCache[orderRecord.OriginDepotIdentifier];
+                        newOrder.OrderClassEntityKey = orderClassCache[orderRecord.OrderClassIdentifier];
+                        newOrders.Add(newOrder);
+                    }
+
                     errorRetrieveOrdersFromTable = false;
 
                     foreach (DBAccess.Records.StagedOrderRecord orderRecord in errorOrderRecords)

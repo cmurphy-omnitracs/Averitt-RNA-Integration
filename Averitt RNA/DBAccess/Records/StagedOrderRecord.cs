@@ -234,7 +234,7 @@ namespace Averitt_RNA.DBAccess.Records
 
             };
 
-            if (record.Delete == false)
+            if (record.Delete == true)
             {
                 order.Action = ActionType.Delete;
             }
