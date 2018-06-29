@@ -2226,7 +2226,7 @@ namespace Averitt_RNA
                         }
 
                         //Retrieve Service Locations from RNA
-                        rnaServiceLocations = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, checkedSLId, false).ToList();
+                        //rnaServiceLocations = RetrieveServiceLocations(out errorLevel, out fatalErrorMessage, checkedSLId, false).ToList();
 
 
 
@@ -4280,13 +4280,13 @@ namespace Averitt_RNA
         }
 
         public ServiceLocation[] RetrieveServiceLocations(
-            out ErrorLevel errorLevel,
+            out bool errorCaught,
             out string fatalErrorMessage,
             string[] identifiers,
             bool retrieveIdentifierOnly = false)
         {
             ServiceLocation[] serviceLocations = null;
-            errorLevel = ErrorLevel.None;
+            errorCaught = false;
             fatalErrorMessage = string.Empty;
             try
             {
@@ -4313,7 +4313,7 @@ namespace Averitt_RNA
                 if (retrievalResults.Items == null)
                 {
                     _Logger.Error("RetrieveServiceLocations | " + string.Join(" | ", identifiers) + " | Failed with a null result.");
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = false;
                     serviceLocations = retrievalResults.Items.Cast<ServiceLocation>().ToArray();
                 }
                 else
@@ -4329,18 +4329,18 @@ namespace Averitt_RNA
                 {
                     _Logger.Info("Session has expired. New session required.");
                     MainService.SessionRequired = true;
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = true;
                 }
                 else
                 {
-                    errorLevel = ErrorLevel.Fatal;
+                    errorCaught = true;
                     fatalErrorMessage = errorMessage;
                 }
             }
             catch (Exception ex)
             {
                 _Logger.Error("RetrieveServiceLocations | " + string.Join(" | ", identifiers), ex);
-                errorLevel = ErrorLevel.Transient;
+                errorCaught = true;
             }
             return serviceLocations;
         }
@@ -4760,7 +4760,7 @@ namespace Averitt_RNA
 
 
 
-        public SaveResult[] SaveRNAServiceLocations(
+        public SaveResult SaveRNAServiceLocations(
                    out bool errorCaught,
                    out string errorMessage,
                    ServiceLocation[] serviceLocations)
@@ -4781,6 +4781,11 @@ namespace Averitt_RNA
                         InclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         ReturnSavedItems = true,
                         IgnoreEntityVersion = true,
+                        ReturnPropertyOptions = new ServiceLocationPropertyOptions
+                        {
+                            Identifier = true
+                        },
+                        ReturnInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         PropertyOptions = new ServiceLocationPropertyOptions
                         {
                             BusinessUnitEntityKey = true,
@@ -4831,7 +4836,7 @@ namespace Averitt_RNA
                 _Logger.Error(errorMessage);
                 errorCaught = true;
             }
-            return saveResults;
+            return saveResults[0];
         }
 
         public Dictionary<string, long> RetrieveRegionEntityKey(out ErrorLevel errorLevel, out string fatalErrorMessage)

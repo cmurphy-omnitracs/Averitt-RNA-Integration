@@ -50,7 +50,7 @@ namespace Averitt_RNA
                 bool errorCaught = false;
                 string errorMessage = string.Empty;
                 string fatalErrorMessage = string.Empty;
-                bool timeOut = false;
+
 
                 string successfullRunCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), String.Format("{0}-SuccessfulRunTimeCache.json", _Region.Identifier));
 
@@ -122,11 +122,12 @@ namespace Averitt_RNA
 
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Service Locations from staging table");
-                    List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier);
+                    List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier, dictCache.serviceTimeEntityKeyDict, dictCache.timeWindowEntityKeyDict);
                     Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfull", newServiceLocations.Count());
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
-                    SaveSLToRNA(_Region.Identifier, newServiceLocations);
+                    List<ServiceLocation> finalizedServiceLocations = prepServiceLocations(newServiceLocations);
+                    SaveSLToRNA(_Region.Identifier, finalizedServiceLocations);
                     Logger.InfoFormat("Service Locations Save Process Finished", newServiceLocations.Count());
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     //New Order Processing
@@ -157,7 +158,7 @@ namespace Averitt_RNA
                     DeleteUpdateRNAOrders(_Region.Identifier, deleteOrders);
                     Logger.InfoFormat("Delete Orders Complete");
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
-                                       
+
                     //Pick Up Dummy Order Processing
                     _ApexConsumer.RetrieveDummyOrdersAndSave(dictCache.depotsForRegionDict, dictCache.orderClassesDict, _Region.Identifier, out errorCaught, out errorMessage);
 
@@ -252,7 +253,7 @@ namespace Averitt_RNA
             }
         }
 
-        private List<ServiceLocation> RetrieveNewSLRecords(string regionID)
+        private List<ServiceLocation> RetrieveNewSLRecords(string regionID, Dictionary<string,long> serviceTimeCache, Dictionary<string, long> timeWindowCache)
         {
             List<ServiceLocation> newServiceLocations = new List<ServiceLocation>();
             bool errorCaught = false;
@@ -275,7 +276,18 @@ namespace Averitt_RNA
                     (sLrecord.ServiceWindowTypeIdentifier == null || sLrecord.ServiceWindowTypeIdentifier.Length == 0)
                     ).ToList();
 
-                    newServiceLocations = retrieveNewSLRecords.FindAll(sl => !errorSLRecords.Contains(sl)).DefaultIfEmpty(new DBAccess.Records.StagedServiceLocationRecord()).Cast<ServiceLocation>().ToList();
+                    foreach (DBAccess.Records.StagedServiceLocationRecord locationRecord in retrieveNewSLRecords)
+                    {
+                        if (!errorSLRecords.Contains(locationRecord))
+                        {
+                            ServiceLocation location = (ServiceLocation)locationRecord;
+                            location.ServiceTimeTypeEntityKey = serviceTimeCache[locationRecord.ServiceTimeTypeIdentifier];
+                            location.TimeWindowTypeEntityKey = timeWindowCache[locationRecord.ServiceWindowTypeIdentifier];
+                            newServiceLocations.Add(location);
+                        }
+
+                    }
+
 
                     //update service locations in errorlist in database indicating service location is missing fields
                     foreach (DBAccess.Records.StagedServiceLocationRecord sLrecord in errorSLRecords)
@@ -314,7 +326,7 @@ namespace Averitt_RNA
 
                         }
 
-                        _IntegrationDBAccessor.UpdateServiceLocationStatus(sLrecord.RegionIdentifier, sLrecord.ServiceLocationIdentifier, errorMessage, "Error", out errorSLMessage, out errorCaught);
+                        _IntegrationDBAccessor.UpdateServiceLocationStatus(sLrecord.RegionIdentifier, sLrecord.ServiceLocationIdentifier, errorMessage, "ERROR", out errorSLMessage, out errorCaught);
                         if (errorCaught)
                         {
                             Logger.Error("Error Updating SL " + sLrecord.ServiceLocationIdentifier + " with Error Status | " + errorMessage);
@@ -345,6 +357,42 @@ namespace Averitt_RNA
             return newServiceLocations;
         }
 
+
+        private List<ServiceLocation> prepServiceLocations(List<ServiceLocation> serviceLocations)
+        {
+            List<ServiceLocation> updateServiceLocations = new List<ServiceLocation>();
+            string[] serviceLocationIdentifiers = serviceLocations.Select(sl => sl.Identifier).ToArray();
+
+
+            bool errorCaught = false;
+            string errorSLMessage = string.Empty;
+            try
+            {
+                updateServiceLocations = _ApexConsumer.RetrieveServiceLocations(out errorCaught, out errorSLMessage, serviceLocationIdentifiers).ToList();
+                if (!errorCaught)
+                {
+                    serviceLocations.Where(sl => updateServiceLocations.Any(x => x.Identifier == sl.Identifier)).ToList()
+                        .ForEach(x => { x.Action = ActionType.Update; x.EntityKey = updateServiceLocations.Find(sl => serviceLocations.Any(z => z.Identifier == sl.Identifier)).EntityKey; });
+
+
+                    return serviceLocations;
+                }
+                else
+                {
+                    Logger.Error("Error Checking RNA for SL's : " + errorSLMessage);
+                    return serviceLocations;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                errorCaught = true;
+                errorSLMessage = ex.Message;
+                Logger.Error("Error Checking RNA for SL's : " + errorSLMessage);
+            }
+            return updateServiceLocations;
+        }
+
         private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
         {
             bool errorCaught = false;
@@ -352,14 +400,15 @@ namespace Averitt_RNA
 
             try
             {
-                SaveResult[] slSaveResult = _ApexConsumer.SaveRNAServiceLocations(out errorCaught, out errorMessage, serviceLocations.ToArray());
-                if (!errorCaught)
+                foreach (ServiceLocation location in serviceLocations)
                 {
-                    if (slSaveResult != null && slSaveResult.Count() > 0)
+                    SaveResult saveResult = _ApexConsumer.SaveRNAServiceLocations(out errorCaught, out errorMessage, new ServiceLocation[] { location });
+                    if (!errorCaught)
                     {
-                        foreach (SaveResult saveResult in slSaveResult)
+                        if (saveResult != null)
                         {
-                            ServiceLocation serviceLocation = (ServiceLocation)saveResult.Object;
+
+
                             errorCaught = false;
                             errorMessage = string.Empty;
                             if (saveResult.Error != null)
@@ -367,56 +416,78 @@ namespace Averitt_RNA
 
                                 if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
-
+                                    string message = string.Empty;
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
-                                        Logger.Debug("A Validation Error Occured While Saving Service Locations. The " + validFailure.Property + " Property for Order " + serviceLocation.Identifier + " is not Valid");
-                                        Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " db record status to Error");
-                                        _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, serviceLocation.Identifier, "Validation Error For Properties " + validFailure.Property + "See Log", "ERROR", out errorMessage, out errorCaught);
-                                        if (errorCaught)
-                                        {
-                                            Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " error status in staging table failed | " + errorMessage);
+                                        message = message + " | " + string.Format(" ErrorCode: ValidationError ErrorProperty: " + validFailure.Property + " ErrorDetail: " + validFailure.FailureType_Type + "\r\n");
+                                        Logger.Debug("A Validation Error Occured While Saving Service Locations. The " + validFailure.Property + " Property for Order " + location.Identifier + " is not Valid");
+                                        Logger.Debug("Updating Service Location " + location.Identifier + " db record status to Error");
+                                      
+                                    }
+                                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, message + "See Log", "ERROR", out errorMessage, out errorCaught);
+                                    if (errorCaught)
+                                    {
+                                        Logger.Debug("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
 
-                                        }
-                                        else
-                                        {
-                                            Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " error status succesfull");
-                                        }
+                                    }
+                                    else
+                                    {
+                                        Logger.Debug("Updating Service Location " + location.Identifier + " error status succesfull");
                                     }
                                 }
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Saving Service Locations. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + serviceLocation.Identifier + " is not Valid");
-                                    Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " db records status to Error");
-                                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, serviceLocation.Identifier, "Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorMessage, out errorCaught);
+                                    Logger.Debug("An Error Occured While Saving Service Locations. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + location.Identifier + " is not Valid");
+                                    Logger.Debug("Updating Service Location " + location.Identifier + " db records status to Error");
+                                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorMessage, out errorCaught);
                                     if (errorCaught)
                                     {
-                                        Logger.Debug("Updating Service Location " + serviceLocation.Identifier + " error status in staging table failed | " + errorMessage);
+                                        Logger.Error("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
 
                                     }
                                     else
                                     {
-                                        Logger.Debug("Updating Order " + serviceLocation.Identifier + " error status succesfull");
+                                        Logger.Info("Updating Order " + location.Identifier + " error status succesfull");
                                     }
 
                                 }
                             }
                             else
                             {
-                                Logger.Debug("Saving/Updating Order : " + serviceLocation.Identifier + " to RNA Successfull ");
+                                Logger.Debug("Saving/Updating Order : " + location.Identifier + " to RNA Successfull ");
+                                _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "", "COMPLETE", out errorMessage, out errorCaught);
+                                if (errorCaught)
+                                {
+                                    Logger.Error("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
+
+                                }
+                                else
+                                {
+                                    Logger.Info("Updating Order " + location.Identifier + " error status succesfull");
+                                }
                             }
+
+
 
                         }
 
                     }
+                    else
+                    {
+                        Logger.Error("Error Saving Service Location " + location.Identifier + " | " + errorMessage);
+                        _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "ERROR: " + errorMessage, "ERROR", out errorMessage, out errorCaught);
+                        if (errorCaught)
+                        {
+                            Logger.Debug("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
 
+                        }
+                        else
+                        {
+                            Logger.Debug("Updating Order " + location.Identifier + " error status succesfull");
+                        }
+                    }
                 }
-                else
-                {
-
-                }
-
 
             }
             catch (Exception ex)
@@ -733,7 +804,7 @@ namespace Averitt_RNA
 
                     Route route = _ApexConsumer.RetrieveRoute(out errorCaught, out errorMessage, order.PreferredRouteIdentifier, sessionDate.ToString("yyyy-MM-dd"), order.OriginDepotIdentifier);
                     Order newRNAOrder = (Order)order;
-                   
+
                     if (!errorCaught)
                     {
                         if (route != null) // route found, assign order to route
@@ -763,7 +834,7 @@ namespace Averitt_RNA
                                 if (passEntityKey.HasValue)
                                 {
                                     long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newRNAOrder);
-                                  
+
                                     if (rtEntityKey.HasValue)
                                     {
                                         bool assignOrder = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
@@ -777,7 +848,7 @@ namespace Averitt_RNA
                                 {
                                     Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
                                 }
-                                
+
 
 
                             }
@@ -990,7 +1061,7 @@ namespace Averitt_RNA
                     }
                     else
                     {
-                        string  message = string.Empty;
+                        string message = string.Empty;
                         if (saveRouteResult.Error.ValidationFailures.Count() == 0)
                         {
                             message = String.Format("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
@@ -1005,7 +1076,7 @@ namespace Averitt_RNA
                                 Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
                             }
                         }
-                        
+
                         else
                         {
                             foreach (ValidationFailure validFailure in saveRouteResult.Error.ValidationFailures)
@@ -1058,7 +1129,7 @@ namespace Averitt_RNA
                 return null;
             }
 
-         
+
         }
 
         private long? GetorCreateRoutingSessionPass(DailyRoutingSession routingSession, Order rnaOrder)
@@ -1245,31 +1316,31 @@ namespace Averitt_RNA
 
 
 
-                try
+            try
+            {
+                List<SaveResult> saveOrdersResult = _ApexConsumer.DeleteRNAOrder(out errorCaught, out errorMessage, orders.ToArray()).ToList();
+                if (!errorCaught)
                 {
-                    List<SaveResult> saveOrdersResult = _ApexConsumer.DeleteRNAOrder(out errorCaught, out errorMessage, orders.ToArray()).ToList();
-                    if (!errorCaught)
+                    foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
                     {
-                        foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
+                        var tempOrder = (Order)saveResult.Object;
+                        bool errorUpdatingServiceLocation = false;
+                        string errorUpdatingServiceLocationMessage = string.Empty;
+                        if (saveResult.Error != null)
                         {
-                            var tempOrder = (Order)saveResult.Object;
-                            bool errorUpdatingServiceLocation = false;
-                            string errorUpdatingServiceLocationMessage = string.Empty;
-                            if (saveResult.Error != null)
+
+
+                            if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                             {
+                                string message = string.Empty;
 
-
-                                if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                                foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                 {
-                                    string message = string.Empty;
+                                    message = message + " | " + string.Format("ErrorCode: {0} ErrorDetail: {1} ErrorProperty: {2}", "ValidationError", validFailure.FailureType_Type, validFailure.Property);
+                                    Logger.Debug("A Validation Error Occured While Deleting Orders. The " + validFailure.Property + " Property for Order " + tempOrder.Identifier + " is not Valid");
 
-                                    foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
-                                    {
-                                        message = message + " | " + string.Format("ErrorCode: {0} ErrorDetail: {1} ErrorProperty: {2}", "ValidationError", validFailure.FailureType_Type, validFailure.Property);
-                                        Logger.Debug("A Validation Error Occured While Deleting Orders. The " + validFailure.Property + " Property for Order " + tempOrder.Identifier + " is not Valid");
-                                        
-                                      
-                                    }
+
+                                }
                                 _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order Failed | " + message + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                 if (errorUpdatingServiceLocation)
                                 {
@@ -1281,49 +1352,49 @@ namespace Averitt_RNA
                                     Logger.Debug("Updating Order Table | Order  " + tempOrder.Identifier + " error status succesfull");
                                 }
                             }
-                                else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                            else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                            {
+
+                                Logger.Debug("An Error Occured While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + tempOrder.Identifier + " is not Valid");
+
+                                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order failed | Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                if (errorUpdatingServiceLocation)
                                 {
-
-                                    Logger.Debug("An Error Occured While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + tempOrder.Identifier + " is not Valid");
-                                  
-                                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order failed | Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                    if (errorUpdatingServiceLocation)
-                                    {
-                                        Logger.Debug("Updating Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
-
-                                    }
-                                    else
-                                    {
-                                        Logger.Debug("Updating Order " + tempOrder.Identifier + " error status succesfull");
-                                    }
+                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
 
                                 }
-                            }
-                            else
-                            {
-                                Logger.Debug("Saving/Updating Order : " + tempOrder.Identifier + " to RNA Successfull ");
+                                else
+                                {
+                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " error status succesfull");
+                                }
+
                             }
                         }
-
+                        else
+                        {
+                            Logger.Debug("Saving/Updating Order : " + tempOrder.Identifier + " to RNA Successfull ");
+                        }
                     }
-                    else
-                    {
-                        Logger.Error("Error Caught Saving Orders to RNA : " + errorMessage);
-
-                    }
-
 
                 }
-                catch (Exception ex)
+                else
                 {
-                    errorCaught = true;
-                    errorMessage = ex.Message;
-                    Logger.Error("Error Saving/Updating/Deleting Service Locations into RNA: " + errorMessage);
+                    Logger.Error("Error Caught Saving Orders to RNA : " + errorMessage);
 
-              
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                errorCaught = true;
+                errorMessage = ex.Message;
+                Logger.Error("Error Saving/Updating/Deleting Service Locations into RNA: " + errorMessage);
+
+
             }
 
-            
+
 
         }
 
@@ -1652,12 +1723,13 @@ namespace Averitt_RNA
                     foreach (ManipulationResult.ManipulationError error in assignOrderResult.Errors)
                     {
                         Logger.ErrorFormat("Assiging Order {0} to Route {1} Failed | {2}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
-                        
+
                         _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error assigning Order to Route:  " + error.Reason.ErrorCode_Status + "See Log", "ERROR", out errorMessage, out errorCaught);
                         if (errorCaught)
                         {
                             Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
-                        } else
+                        }
+                        else
                         {
                             Logger.InfoFormat(" Updating Order Table for order {0} Successful ", rnaOrder.Identifier, errorMessage);
                         }
@@ -1686,9 +1758,9 @@ namespace Averitt_RNA
             }
             else
             {
-                
+
                 Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
-                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Assigning Order to Route " +  errorMessage, "Error", out errorMessage, out errorCaught);
+                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Assigning Order to Route " + errorMessage, "Error", out errorMessage, out errorCaught);
                 if (errorCaught)
                 {
                     Logger.ErrorFormat("Error Updating Order Table for order {0} | Error {1} ", rnaOrder.Identifier, errorMessage);
