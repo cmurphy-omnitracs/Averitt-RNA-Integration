@@ -1822,7 +1822,6 @@ namespace Averitt_RNA
                             Right = new ValueExpression { Value = identifiers }
                         },
 
-
                         PropertyInclusionMode = PropertyInclusionMode.All,
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
                     });
@@ -3718,13 +3717,13 @@ namespace Averitt_RNA
                         }
 
                         //List depots that don't have routing session
-                       
-                            if (!tomorrowsRoutingSession.Any(x => x.Description == originDepotIdentifier))
-                            {
-                                sessionsToCreate.Add(originDepotIdentifier);
-                            }
 
-                        
+                        if (!tomorrowsRoutingSession.Any(x => x.Description == originDepotIdentifier))
+                        {
+                            sessionsToCreate.Add(originDepotIdentifier);
+                        }
+
+
                     }
                     else if (errorCaught)
                     {
@@ -4632,9 +4631,8 @@ namespace Averitt_RNA
                     {
                         IgnoreEntityVersion = true,
                         InclusionMode = PropertyInclusionMode.All,
-                        ReturnSavedItems = true,
-
-
+                        ReturnSavedItems = false,
+                        
                     });
                 if (saveResults == null)
                 {
@@ -5209,7 +5207,7 @@ namespace Averitt_RNA
         {
             errorCaught = false;
             errorMessage = string.Empty;
-           
+
             try
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
@@ -5605,7 +5603,7 @@ namespace Averitt_RNA
           out string fatalErrorMessage,
           long passSessionEntityKey, string passIdentifier, long regionEntity)
         {
-           
+
             errorCaught = false;
             fatalErrorMessage = string.Empty;
             DailyPass dailySessionPass = null;
@@ -5705,7 +5703,7 @@ namespace Averitt_RNA
                                     Left = new PropertyExpression { Name = "Identifier" },
                                     Right = new ValueExpression { Value = passIdentifier }
                                 },
-                                
+
                                 new EqualToExpression
                                 {
                                     Left = new PropertyExpression { Name = "RegionEntityKey" },
@@ -5768,17 +5766,17 @@ namespace Averitt_RNA
             {
                 saveResult = _RoutingServiceClient.Save(
                     MainService.SessionHeader,
-                    _RegionContext, 
+                    _RegionContext,
                     new AggregateRootEntity[] { dailySessionPass },
                     new SaveOptions
                     {
                         InclusionMode = PropertyInclusionMode.All,
                         ReturnSavedItems = true,
                         IgnoreEntityVersion = true,
-                       
+
                     }
                  );
-               
+
             }
             catch (FaultException<TransferErrorCode> tec)
             {
@@ -6089,7 +6087,7 @@ namespace Averitt_RNA
                     },
                     placementOptions,
                     new RouteRetrievalOptions[] { options }
-                   
+
                     );
                 if (saveResults == null)
                 {
@@ -6102,11 +6100,11 @@ namespace Averitt_RNA
 
                     if (saveResults.Errors != null)
                     {
-                        foreach(ManipulationResult.ManipulationError error in saveResults.Errors)
+                        foreach (ManipulationResult.ManipulationError error in saveResults.Errors)
                         {
                             _Logger.ErrorFormat("Assiging Order {0} to Route {1} Failed | {2}", order.Identifier, order.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
                         }
-                       
+
                         errorCaught = false;
                     }
 

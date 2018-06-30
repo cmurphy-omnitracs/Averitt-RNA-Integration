@@ -103,6 +103,48 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="packages.config" />
+    <None Include="Service References\Apex\Averitt_RNA.Apex.ComplianceCompanySettings.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.Customer.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.DriverLogResults.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.EquipmentPosition.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.MatrixBuildRequestMessages.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.MatrixBuildResultExt.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.PasswordPolicy.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.RetrieveStopTemplateResults.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.RoadnetTelematicsFirmwareVersion.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.RoadnetTelematicsScriptVersion.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.RoadnetTelematicsVbusFileVersion.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.TelematicsDeviceStatus.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.UndeleteEntityResult.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
+    <None Include="Service References\Apex\Averitt_RNA.Apex.WorkerComplianceStatus.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </None>
     <None Include="Service References\Apex\RAWindowsService.Apex.AdminReport.datasource">
       <DependentUpon>Reference.svcmap</DependentUpon>
     </None>

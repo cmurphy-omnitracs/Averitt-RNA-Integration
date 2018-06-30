@@ -36,21 +36,28 @@ namespace Averitt_RNA
         #endregion
 
         #region Public Methods
-        public DictCache(string filePath, log4net.ILog logger)
+        public DictCache(string filePath, log4net.ILog logger, Region region, ApexConsumer apexConsumer)
         {
             dicFilePath = filePath;
             _Logger = logger;
-
+            regionEntityKeyDict = new Dictionary<string, long>();
+            serviceLocationDict = new Dictionary<string, ServiceLocation>();
+            timeWindowEntityKeyDict = new Dictionary<string, long>();
+            serviceTimeEntityKeyDict = new Dictionary<string, long>();
+            depotsForRegionDict = new Dictionary<string, long>();
+            orderClassesDict = new Dictionary<string, long>();
+            _ApexConsumer = apexConsumer;
+            _Region = region;
         }
         public void resetCache()
         {
 
-            regionEntityKeyDict.Clear();
-            serviceTimeEntityKeyDict.Clear();
-            timeWindowEntityKeyDict.Clear();
-            depotsForRegionDict.Clear();
-            orderClassesDict.Clear();
-            serviceLocationDict.Clear();
+            this.regionEntityKeyDict.Clear();
+            this.serviceTimeEntityKeyDict.Clear();
+            this.timeWindowEntityKeyDict.Clear();
+            this.depotsForRegionDict.Clear();
+            this.orderClassesDict.Clear();
+            this.serviceLocationDict.Clear();
 
         }
 
@@ -68,12 +75,16 @@ namespace Averitt_RNA
 
             try
             {
-                depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage, regionEntityKey);
-                orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
-                regionEntityKeyDict = _ApexConsumer.RetrieveRegionEntityKey(out errorLevel, out errorMessage);
-                serviceTimeEntityKeyDict = _ApexConsumer.RetrieveServiceTimeEntityKey(out errorLevel, out errorMessage);
-                timeWindowEntityKeyDict = _ApexConsumer.RetrieveTimeWindowEntityKey(out errorLevel, out errorMessage);
-                
+                long[] regEntityKey = new long[]{ _Region.EntityKey};
+
+               this.depotsForRegionDict = _ApexConsumer.RetrieveDepotsForRegion(out errorLevel, out errorMessage, regionEntityKey);
+               this.orderClassesDict = _ApexConsumer.RetrieveOrderClassesDict(out errorLevel, out errorMessage);
+               this.regionEntityKeyDict = _ApexConsumer.RetrieveRegionEntityKey(out errorLevel, out errorMessage);
+               this.serviceTimeEntityKeyDict = _ApexConsumer.RetrieveServiceTimeEntityKey(out errorLevel, out errorMessage);
+               this.timeWindowEntityKeyDict = _ApexConsumer.RetrieveTimeWindowEntityKey(out errorLevel, out errorMessage);
+                List<ServiceLocation> locations = _ApexConsumer.RetrieveServiceLocationsByRegion(out errorLevel, out errorMessage, regEntityKey).ToList();
+
+                this.serviceLocationDict = locations.ToDictionary(x => x.Identifier, y => y);
                 Newtonsoft.Json.JsonSerializerSettings settings = new Newtonsoft.Json.JsonSerializerSettings
                 {
                     PreserveReferencesHandling = Newtonsoft.Json.PreserveReferencesHandling.Objects,
@@ -83,7 +94,7 @@ namespace Averitt_RNA
 
 
 
-                string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(dictCache, Newtonsoft.Json.Formatting.None, settings);
+                string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(this, Newtonsoft.Json.Formatting.None, settings);
 
 
                 // StreamWriter writer = new StreamWriter(dictCacheFile, append: false);
@@ -134,6 +145,39 @@ namespace Averitt_RNA
                     _Logger.ErrorFormat("Error opening cache file: {0}", ex.Message);
                 }
             }
+        }
+
+
+        public void refreshServiceLocation()
+        {
+
+
+
+            ApexConsumer.ErrorLevel errorLevel = ApexConsumer.ErrorLevel.None;
+            string errorMessage = string.Empty;
+
+
+            _Logger.InfoFormat("Refresh Service Location Cache file to {0}", dicFilePath);
+
+
+            try
+            {
+                long[] regEntityKey = new long[] { _Region.EntityKey };
+
+                List<ServiceLocation> locations = _ApexConsumer.RetrieveServiceLocationsByRegion(out errorLevel, out errorMessage, regEntityKey).ToList();
+
+                this.serviceLocationDict = locations.ToDictionary(x => x.Identifier, y => y);
+               
+
+            }
+
+
+            catch (Exception ex)
+            {
+                _Logger.ErrorFormat("Error refreshing service location cache file: {0}", ex.Message);
+            }
+
+
         }
 
 

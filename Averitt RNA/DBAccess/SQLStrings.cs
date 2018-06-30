@@ -42,7 +42,8 @@ namespace Averitt_RNA.DBAccess
                 CAST([ServiceWindowOverride1Start] AS varchar) as ServiceWindowOverride1Start , CAST([ServiceWindowOverride1End] AS VARCHAR) as ServiceWindowOverride1End, CAST([ServiceWindowOverride2Start] AS VARCHAR) as ServiceWindowOverride2Start, CAST([ServiceWindowOverride2End] AS VARCHAR) as ServiceWindowOverride2End, 
                 [LiftgateOnly], [GuaranteedDelivery] AS GuaranteedDelivery , [Avail], [Delete], [Staged], [Error], [Status] 
                 FROM  [STAGED_ORDERS]
-                WHERE [RegionIdentifier] = '{0}'",
+                WHERE [RegionIdentifier] = '{0}' 
+                AND [Status] = 'NEW'",
                 regionID);
         }
 

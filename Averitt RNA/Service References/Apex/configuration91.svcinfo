@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<SavedWcfConfigurationInformation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Version="9.1" CheckSum="gu6o0NTNo53RjkcmQ/ANqO88qZ0=">
+<SavedWcfConfigurationInformation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Version="9.1" CheckSum="NvKkQHbwrh9MBCjwQMenn9OiMy8=">
   <bindingConfigurations>
     <bindingConfiguration bindingType="basicHttpBinding" name="BasicHttpBinding_ILoginService">
       <properties>
@@ -548,10 +548,10 @@
     </bindingConfiguration>
   </bindingConfigurations>
   <endpoints>
-    <endpoint name="BasicHttpBinding_ILoginService" contract="Apex.ILoginService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Login/LoginService.svc" bindingConfiguration="BasicHttpBinding_ILoginService">
+    <endpoint name="BasicHttpBinding_ILoginService" contract="Apex.ILoginService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Login/LoginService.svc" bindingConfiguration="BasicHttpBinding_ILoginService">
       <properties>
         <property path="/address" isComplexType="false" isExplicitlyDefined="true" clrType="System.Uri, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Login/LoginService.svc</serializedValue>
+          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Login/LoginService.svc</serializedValue>
         </property>
         <property path="/behaviorConfiguration" isComplexType="false" isExplicitlyDefined="false" clrType="System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
           <serializedValue />
@@ -633,10 +633,10 @@
         </property>
       </properties>
     </endpoint>
-    <endpoint name="BasicHttpBinding_IQueryService" contract="Apex.IQueryService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Query/QueryService.svc" bindingConfiguration="BasicHttpBinding_IQueryService">
+    <endpoint name="BasicHttpBinding_IQueryService" contract="Apex.IQueryService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Query/QueryService.svc" bindingConfiguration="BasicHttpBinding_IQueryService">
       <properties>
         <property path="/address" isComplexType="false" isExplicitlyDefined="true" clrType="System.Uri, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Query/QueryService.svc</serializedValue>
+          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Query/QueryService.svc</serializedValue>
         </property>
         <property path="/behaviorConfiguration" isComplexType="false" isExplicitlyDefined="false" clrType="System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
           <serializedValue />
@@ -718,10 +718,10 @@
         </property>
       </properties>
     </endpoint>
-    <endpoint name="BasicHttpBinding_IRoutingService" contract="Apex.IRoutingService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Routing/RoutingService.svc" bindingConfiguration="BasicHttpBinding_IRoutingService">
+    <endpoint name="BasicHttpBinding_IRoutingService" contract="Apex.IRoutingService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Routing/RoutingService.svc" bindingConfiguration="BasicHttpBinding_IRoutingService">
       <properties>
         <property path="/address" isComplexType="false" isExplicitlyDefined="true" clrType="System.Uri, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Routing/RoutingService.svc</serializedValue>
+          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Routing/RoutingService.svc</serializedValue>
         </property>
         <property path="/behaviorConfiguration" isComplexType="false" isExplicitlyDefined="false" clrType="System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
           <serializedValue />
@@ -803,10 +803,10 @@
         </property>
       </properties>
     </endpoint>
-    <endpoint name="BasicHttpBinding_IAdministrationService" contract="Apex.IAdministrationService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Administration/AdministrationService.svc" bindingConfiguration="BasicHttpBinding_IAdministrationService">
+    <endpoint name="BasicHttpBinding_IAdministrationService" contract="Apex.IAdministrationService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Administration/AdministrationService.svc" bindingConfiguration="BasicHttpBinding_IAdministrationService">
       <properties>
         <property path="/address" isComplexType="false" isExplicitlyDefined="true" clrType="System.Uri, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Administration/AdministrationService.svc</serializedValue>
+          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Administration/AdministrationService.svc</serializedValue>
         </property>
         <property path="/behaviorConfiguration" isComplexType="false" isExplicitlyDefined="false" clrType="System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
           <serializedValue />
@@ -888,10 +888,10 @@
         </property>
       </properties>
     </endpoint>
-    <endpoint name="BasicHttpBinding_IMappingService" contract="Apex.IMappingService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Mapping/MappingService.svc" bindingConfiguration="BasicHttpBinding_IMappingService">
+    <endpoint name="BasicHttpBinding_IMappingService" contract="Apex.IMappingService" bindingType="basicHttpBinding" address="http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Mapping/MappingService.svc" bindingConfiguration="BasicHttpBinding_IMappingService">
       <properties>
         <property path="/address" isComplexType="false" isExplicitlyDefined="true" clrType="System.Uri, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.5.12.1/Mapping/MappingService.svc</serializedValue>
+          <serializedValue>http://rn-pd-teamcity5.roadnet.local/4.9.21.1/Mapping/MappingService.svc</serializedValue>
         </property>
         <property path="/behaviorConfiguration" isComplexType="false" isExplicitlyDefined="false" clrType="System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
           <serializedValue />
