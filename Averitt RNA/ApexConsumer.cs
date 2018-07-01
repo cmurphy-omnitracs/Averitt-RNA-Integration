@@ -5572,14 +5572,11 @@ namespace Averitt_RNA
                         if (saveResults[i].Error != null)
                         {
                             _Logger.Error("DeleteOrders | " + ToString(deleteOrders[i]) + " | Failed with Error: " + ToString(saveResults[i].Error));
-                            errorCaught = true;
+                            errorCaught = false;
                         }
                     }
                 }
-                if (saveResults[0].Error != null)
-                {
-                    throw new Exception("Delete Order failed with Error: " + saveResults[0].Error.Code + " | " + saveResults[0].Error.Detail);
-                }
+               
 
 
 

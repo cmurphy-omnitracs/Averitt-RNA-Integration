@@ -526,11 +526,11 @@ namespace Averitt_RNA
                 List<Order> ordersFromRNA = _ApexConsumer.RetrieveOrdersFromRNA(out errorCaught, out errorMessage, orderIdentifiers.ToArray());
                 if (!errorCaught)
                 {
-                    updateOrders = ordersFromRNA.Where(order => order.Action != ActionType.Delete && orders.Any(rnOrder => rnOrder.Identifier == order.Identifier) && orders.
+                    updateOrders = ordersFromRNA.Where(order =>  orders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && orders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
                     newOrders = orders.Where(order => order.Action != ActionType.Delete && !ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
                     newOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey; x.RegionEntityKey = _Region.EntityKey; });
-                    deleteOrders = orders.Where(order => order.Action == ActionType.Delete && ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
+                    deleteOrders = orders.Where(order => order.Action == ActionType.Delete).ToList();
 
                 }
                 else
@@ -1429,69 +1429,81 @@ namespace Averitt_RNA
 
             try
             {
-                List<SaveResult> saveOrdersResult = _ApexConsumer.DeleteRNAOrder(out errorCaught, out errorMessage, orders.ToArray()).ToList();
-                if (!errorCaught)
+                foreach (Order dOrder in orders)
                 {
-                    foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
+                    List<SaveResult> saveOrdersResult = _ApexConsumer.DeleteRNAOrder(out errorCaught, out errorMessage, new Order[] { dOrder }).ToList();
+                    if (!errorCaught)
                     {
-                        var tempOrder = (Order)saveResult.Object;
-                        bool errorUpdatingServiceLocation = false;
-                        string errorUpdatingServiceLocationMessage = string.Empty;
-                        if (saveResult.Error != null)
+                        foreach (SaveResult saveResult in saveOrdersResult)
                         {
-
-
-                            if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                            bool errorUpdatingServiceLocation = false;
+                            string errorUpdatingServiceLocationMessage = string.Empty;
+                            if (saveResult.Error != null)
                             {
-                                string message = string.Empty;
 
-                                foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+
+                                if (saveResult.Error.Code.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
-                                    message = message + " | " + string.Format("ErrorCode: {0} ErrorDetail: {1} ErrorProperty: {2}", "ValidationError", validFailure.FailureType_Type, validFailure.Property);
-                                    Logger.Debug("A Validation Error Occured While Deleting Orders. The " + validFailure.Property + " Property for Order " + tempOrder.Identifier + " is not Valid");
+                                    string message = string.Empty;
 
+                                    foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
+                                    {
+                                        message = message + " | " + string.Format("ErrorCode: {0} ErrorDetail: {1} ErrorProperty: {2}", "ValidationError", validFailure.FailureType_Type, validFailure.Property);
+                                        Logger.Debug("A Validation Error Occured While Deleting Orders. The " + validFailure.Property + " Property for Order " + dOrder.Identifier + " is not Valid");
+
+
+                                    }
+                                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, dOrder.Identifier, "Deleting Order Failed | " + message + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                    if (errorUpdatingServiceLocation)
+                                    {
+                                        Logger.Debug("Updating Order Table | Order " + dOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+
+                                    }
+                                    else
+                                    {
+                                        Logger.Debug("Updating Order Table | Order  " + dOrder.Identifier + " error status succesfull");
+                                    }
+                                }
+                                else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
+                                {
+
+                                    Logger.Debug("An Error Occured While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + dOrder.Identifier + " is not Valid");
+
+                                    _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, dOrder.Identifier, "Deleting Order failed | Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                                    if (errorUpdatingServiceLocation)
+                                    {
+                                        Logger.Debug("Updating Order " + dOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+
+                                    }
+                                    else
+                                    {
+                                        Logger.Debug("Updating Order " + dOrder.Identifier + " error status succesfull");
+                                    }
 
                                 }
-                                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order Failed | " + message + "See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
+                            }
+                            else
+                            {
+                                Logger.Debug("Saving/Updating Order : " + dOrder.Identifier + " to RNA Successfull ");
+                                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, dOrder.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                 if (errorUpdatingServiceLocation)
                                 {
-                                    Logger.Debug("Updating Order Table | Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+                                    Logger.Debug("Updating Order " + dOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
 
                                 }
                                 else
                                 {
-                                    Logger.Debug("Updating Order Table | Order  " + tempOrder.Identifier + " error status succesfull");
+                                    Logger.Debug("Updating Order " + dOrder.Identifier + " error status succesfull");
                                 }
                             }
-                            else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
-                            {
-
-                                Logger.Debug("An Error Occured While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + tempOrder.Identifier + " is not Valid");
-
-                                _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, tempOrder.Identifier, "Deleting Order failed | Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
-                                if (errorUpdatingServiceLocation)
-                                {
-                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
-
-                                }
-                                else
-                                {
-                                    Logger.Debug("Updating Order " + tempOrder.Identifier + " error status succesfull");
-                                }
-
-                            }
                         }
-                        else
-                        {
-                            Logger.Debug("Saving/Updating Order : " + tempOrder.Identifier + " to RNA Successfull ");
-                        }
+
                     }
+                    else
+                    {
+                        Logger.ErrorFormat("Error Caught Saving Orders to RNA : " + errorMessage, dOrder.Identifier);
 
-                }
-                else
-                {
-                    Logger.Error("Error Caught Saving Orders to RNA : " + errorMessage);
-
+                    }
                 }
 
 
