@@ -8,6 +8,7 @@ using WindowsServiceUtility;
 using System.Threading;
 using System.IO;
 
+
 namespace Averitt_RNA
 {
     class RegionProcessor : Processor
@@ -122,8 +123,8 @@ namespace Averitt_RNA
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Service Locations from staging table");
                     List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier, dictCache.serviceTimeEntityKeyDict, dictCache.timeWindowEntityKeyDict);
-                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfull", newServiceLocations.Count());
-                    Logger.InfoFormat("---------------------------------------------------------------------------------");
+                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfull", newServiceLocations.Count()); 
+                   
                     Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
                     List<ServiceLocation> finalizedServiceLocations = prepServiceLocations(newServiceLocations);
                     SaveSLToRNA(_Region.Identifier, finalizedServiceLocations);
@@ -381,6 +382,8 @@ namespace Averitt_RNA
                     serviceLocations.Where(sl => updateServiceLocations.Any(x => x.Identifier == sl.Identifier)).ToList()
                         .ForEach(x => { x.Action = ActionType.Update; x.EntityKey = updateServiceLocations.Find(sl => serviceLocations.Any(z => z.Identifier == sl.Identifier)).EntityKey; });
 
+                    Logger.InfoFormat("Start Geocoding {0} Service Location", serviceLocations.Count());
+                    serviceLocations = GeoServiceLocations(serviceLocations);
 
                     return serviceLocations;
                 }
@@ -843,16 +846,37 @@ namespace Averitt_RNA
             return newOrders;
         }
 
-        private List<Order> PrepareOrders(List<Order> unprepOrders)
+        private List<ServiceLocation> GeoServiceLocations(List<ServiceLocation> serviceLocations)
         {
-            List<Order> preppedOrder = new List<Order>();
+            System.Collections.Concurrent.ConcurrentBag<ServiceLocation> serviceLocationBag = new System.Collections.Concurrent.ConcurrentBag<ServiceLocation>(serviceLocations);
 
-            System.Threading.Tasks.Parallel.ForEach(preppedOrder, (order) =>
+            System.Threading.Tasks.Parallel.ForEach(serviceLocationBag, (serviceLocation) =>
             {
+                bool errorCaught = false;
+                bool timeout = false;
+                string errorMessage = string.Empty;
+
+                Logger.ErrorFormat("Start Geocoding Service Locations {0}" , serviceLocation.Identifier);
+                GeocodeCandidate result = _ApexConsumer.GeocodeRNA(out errorCaught, out errorMessage, out timeout, new Address[] { serviceLocation.Address });
+                if (!errorCaught)
+                {
+                    serviceLocation.Coordinate = result.Coordinate;
+                    serviceLocation.GeocodeAccuracy_GeocodeAccuracy = result.GeocodeAccuracy_Quality;
+
+                    Logger.ErrorFormat("Geocoding Service Locations {0} Successful ", serviceLocation.Identifier);
+                }
+                else
+                {
+                    Logger.ErrorFormat("Error Geocoding Service Locations {0} : " + errorMessage, serviceLocation.Identifier);
+                }                       
+               
 
             });
 
-            return preppedOrder;
+
+
+
+            return serviceLocationBag.ToList();
 
         }
 

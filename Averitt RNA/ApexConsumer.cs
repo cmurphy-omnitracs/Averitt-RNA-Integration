@@ -8,7 +8,7 @@ using System.IO;
 using System.ComponentModel;
 using System.Reflection;
 using System.Data.SqlTypes;
-
+using MoreLinq;
 
 
 
@@ -1322,6 +1322,92 @@ namespace Averitt_RNA
                 timeout = ex is TimeoutException || ex is CommunicationException;
             }
             return geocodeResults;
+        }
+
+
+        public GeocodeCandidate GeocodeRNA(
+          out bool errorCaught,
+          out string fatalErrorMessage,
+          out bool timeout,
+          Address[] addresses)
+        {
+            List<GeocodeCandidate> listCandidate = new List<GeocodeCandidate>();
+            GeocodeResult[] geocodeResults = null;
+            errorCaught = false;
+            fatalErrorMessage = string.Empty;
+            timeout = false;
+            try
+            {
+                geocodeResults = _MappingServiceClient.Geocode(
+                    MainService.SessionHeader,
+                    _RegionContext,
+                    new GeocodeCriteria
+                    {
+                        NamedPlaces = addresses.Select(address => new NamedPlace { PlaceAddress = address }).ToArray()
+
+                    },
+                    new GeocodeOptions
+                    {
+                        NetworkArcCandidatePropertyInclusionMode = PropertyInclusionMode.All,
+                        NetworkPOICandidatePropertyInclusionMode = PropertyInclusionMode.All,
+                        NetworkPointAddressCandidatePropertyInclusionMode = PropertyInclusionMode.All
+
+                    });
+                if (geocodeResults == null)
+                {
+                    _Logger.Error("Geocode | " + string.Join(" | ", addresses.Select(address => ToString(address))) + " | Failed with a null result.");
+                    errorCaught = true ;
+                }
+                else
+                {
+
+                    for (int i = 0; i < geocodeResults.Length; i++)
+                    {
+                        if (geocodeResults[i] == null || geocodeResults[i].Results == null || geocodeResults[i].Results.Length == 0)
+                        {
+                            _Logger.Error("Geocode | " + ToString(addresses[i]) + " | Failed with a null result.");
+                            errorCaught = false;
+                        }
+                    }
+                    List<GeocodeResult> result = geocodeResults.Where(x => x.Results.All(y => y != null)).ToList();
+                    List<GeocodeCandidate[]> temp = result.Select(x => x.Results).ToList();
+                  
+                    foreach (GeocodeCandidate[] candidate in temp)
+                    {
+                        foreach(GeocodeCandidate c in candidate)
+                        {
+                            listCandidate.Add(c);
+                        }
+
+                    }
+                    
+                    return listCandidate.MinBy(x => (int)Enum.Parse(typeof(GeocodeAccuracy), x.GeocodeAccuracy_Quality)).First();
+
+                }
+            }
+            catch (FaultException<TransferErrorCode> tec)
+            {
+                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+                _Logger.Error("Geocode | " + string.Join(" | ", addresses.Select(address => ToString(address))) + " | " + errorMessage);
+                if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+                {
+                    _Logger.Info("Session has expired. New session required.");
+                    MainService.SessionRequired = true;
+                    errorCaught = true;
+                }
+                else
+                {
+                    errorCaught = true;
+                    fatalErrorMessage = errorMessage;
+                }
+            }
+            catch (Exception ex)
+            {
+                _Logger.Error("Geocode | " + string.Join(" | ", addresses.Select(address => ToString(address))), ex);
+                errorCaught = true;
+                timeout = ex is TimeoutException || ex is CommunicationException;
+            }
+            return listCandidate.MinBy(x => (int)Enum.Parse(typeof(GeocodeAccuracy), x.GeocodeAccuracy_Quality)).First();
         }
 
         public DailyRoutingSession[] RetrieveDailyRoutingSessions(
