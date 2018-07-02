@@ -1177,10 +1177,14 @@ namespace Averitt_RNA
                                 newRNAOrder.SessionDate = route.RoutingSessionDate;
                             }
 
-                            bool assignOrder = AssignOrderToRoute(newRNAOrder, route.EntityKey, route.Version);
-                            if (assignOrder)
+                            bool assignedOrderSuccess = AssignOrderToRoute(newRNAOrder, route.EntityKey, route.Version);
+                            if (assignedOrderSuccess)
                             {
-
+                                Logger.InfoFormat("Order {0} assigned to route {1} successfully", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
+                            }
+                            else
+                            {
+                                Logger.ErrorFormat("Error Order {0} assigned to route {1}. See logs and table", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
                             }
 
                         }
@@ -1201,7 +1205,15 @@ namespace Averitt_RNA
 
                                     if (rtEntityKey.HasValue)
                                     {
-                                        bool assignOrder = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
+                                        bool assignedOrderSuccess = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
+                                        if (assignedOrderSuccess)
+                                        {
+                                            Logger.InfoFormat("Order {0} assigned to route {1} successfully", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
+                                        } else
+                                        {
+                                            Logger.ErrorFormat("Error Order {0} assigned to route {1}. See logs and table", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
+                                        }
+
                                     }
 
 
@@ -1232,7 +1244,15 @@ namespace Averitt_RNA
                                         long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newRNAOrder);
                                         if (rtEntityKey.HasValue)
                                         {
-                                            bool assignOrder = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
+                                            bool assignedOrderSuccess = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
+                                            if (assignedOrderSuccess)
+                                            {
+                                                Logger.InfoFormat("Order {0} assigned to route {1} successfully", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
+                                            }
+                                            else
+                                            {
+                                                Logger.ErrorFormat("Error Order {0} assigned to route {1}. See logs and table", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
+                                            }
                                         }
 
                                     }
@@ -2196,7 +2216,7 @@ namespace Averitt_RNA
 
                             }
 
-                            return true;
+                            return false;
 
                         }
                         else

@@ -4593,12 +4593,7 @@ namespace Averitt_RNA
                     {
                         //TODO
                         InclusionMode = PropertyInclusionMode.All,
-                        ReturnInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                        ReturnPropertyOptions = new DailyRoutingSessionPropertyOptions
-                        {
-                            StartDate = true,
-                            Description = true
-                        },
+                        ReturnInclusionMode = PropertyInclusionMode.All,
                         ReturnSavedItems = true
                     });
                 if (saveResults == null)
