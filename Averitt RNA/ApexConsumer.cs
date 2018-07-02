@@ -5961,12 +5961,12 @@ namespace Averitt_RNA
         }
 
         public ManipulationResult UnassignOrders2(
-            out ErrorLevel errorLevel,
+            out bool errorCaught,
             out string fatalErrorMessage,
             Order[] orders)
         {
             ManipulationResult manipulationResult = null;
-            errorLevel = ErrorLevel.None;
+            errorCaught = false;
             fatalErrorMessage = string.Empty;
             try
             {
@@ -5983,14 +5983,14 @@ namespace Averitt_RNA
                 if (manipulationResult == null)
                 {
                     _Logger.Error("UnassignOrders | " + string.Join(" | ", orders.Select(order => ToString(order))) + " | Failed with a null result.");
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = false ;
                 }
                 else if (manipulationResult.Errors != null)
                 {
                     foreach (ManipulationResult.ManipulationError manipulationError in manipulationResult.Errors)
                     {
                         _Logger.Error("UnassignOrders | Failed with Error: " + ToString(manipulationError));
-                        errorLevel = ErrorLevel.Partial;
+                        errorCaught = false;
                     }
                 }
             }
@@ -6002,18 +6002,18 @@ namespace Averitt_RNA
                 {
                     _Logger.Info("Session has expired. New session required.");
                     MainService.SessionRequired = true;
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = true;
                 }
                 else
                 {
-                    errorLevel = ErrorLevel.Fatal;
+                    errorCaught = true;
                     fatalErrorMessage = errorMessage;
                 }
             }
             catch (Exception ex)
             {
                 _Logger.Error("UnassignOrders | " + string.Join(" | ", orders.Select(order => ToString(order))), ex);
-                errorLevel = ErrorLevel.Transient;
+                errorCaught = true;
             }
             return manipulationResult;
         }
