@@ -6148,7 +6148,7 @@ namespace Averitt_RNA
         public ManipulationResult AddOrderToRoute(
            out bool errorCaught,
            out string errorMessage,
-           Placement placementOptions,
+           OnRouteAutomaticPlacement placementOptions,
            RouteRetrievalOptions options,
            Order order)
         {
@@ -6158,18 +6158,18 @@ namespace Averitt_RNA
             try
             {
 
-                saveResults = _RoutingServiceClient.MoveUnassignedOrderGroups(
+                saveResults = _RoutingServiceClient.MoveUnassignedOrderGroupsToBestPosition(
                     MainService.SessionHeader,
                     _RegionContext,
                     new DomainInstance[]
                     {
                         new DomainInstance
                         {
-                            EntityKey = order.EntityKey,
+                            EntityKey = (long)order.UnassignedOrderGroupEntityKey,
                             Version = order.Version
                         }
-                    },
-                    placementOptions,
+                    }, placementOptions
+                   ,
                     new RouteRetrievalOptions[] { options }
 
                     );

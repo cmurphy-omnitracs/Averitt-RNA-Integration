@@ -1965,24 +1965,25 @@ namespace Averitt_RNA
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
-            Placement placement = new Placement
+            OnRouteAutomaticPlacement placement = new OnRouteAutomaticPlacement
             {
                 RouteInstance = new DomainInstance
                 {
                     EntityKey = routeEntityKey,
                     Version = versionNumber
-                }
+                },
+                AutomaticPlacementGoal_Goal = Enum.GetName(typeof(OnRouteAutomaticPlacement.AutomaticPlacementGoal), OnRouteAutomaticPlacement.AutomaticPlacementGoal.Default),
+                IgnoreFlags_RouteExceptionsToIgnore = "MaxTime, Template, RequiredOrigin, LocationEquipmentTypeRestrictions, CellBoundaries",
+                ShouldForcePlacement = false,
+                                
+
             };
 
             RouteRetrievalOptions options = new RouteRetrievalOptions
             {
                 EntityKey = routeEntityKey,
-                InclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                PropertyOptions = new RoutePropertyOptions
-                {
-                    Identifier = true,
-
-                }
+                InclusionMode = PropertyInclusionMode.AllWithoutChildren,
+                
             };
 
             OrderSpec orderSpec = ConvertOrderToOrderSpec(rnaOrder);
