@@ -131,8 +131,13 @@ namespace Averitt_RNA
                     List<ServiceLocation> geocoded = GeocodeServiceLocations(finalizedServiceLocations);
                     Logger.InfoFormat("Geocoding Successfull");
                     Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+
                     SaveSLToRNA(_Region.Identifier, geocoded);
-                    dictCache.refreshServiceLocation();
+                    if (geocoded.Count != 0)
+                    {
+                        dictCache.refreshServiceLocation();
+                    }
+                  
                     Logger.InfoFormat("Service Locations Save Process Finished", newServiceLocations.Count());
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
 
@@ -447,8 +452,8 @@ namespace Averitt_RNA
                     GeocodeCandidate candidate = _ApexConsumer.GeocodeRNA(out errorCaught, out errorSLMessage, out timeout,new Address[]{ location.Address });
                     if (!errorCaught && !timeout)
                     {
-                       
-
+                        location.Coordinate = candidate.Coordinate;
+                        location.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
                         Logger.InfoFormat("Start Geocoding {0} Service Location", serviceLocations.Count());
                         serviceLocations = GeoServiceLocations(serviceLocations);
 

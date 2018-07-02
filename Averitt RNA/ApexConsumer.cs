@@ -1605,8 +1605,11 @@ namespace Averitt_RNA
 
                                     foreach (StopAction action in tempStop.Actions)
                                     {
-
-                                        if (!unassignedOrders.Exists(x => x.OrderEntityKeys.Contains(action.EntityKey)))
+                                        if (unassignedOrders == null)
+                                        {
+                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
+                                        }
+                                        else if (!unassignedOrders.Exists(x => x.OrderEntityKeys.Contains(action.EntityKey)))
                                         {
                                             DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
                                         }
