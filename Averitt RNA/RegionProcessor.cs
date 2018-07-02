@@ -138,11 +138,14 @@ namespace Averitt_RNA
                     List<DBAccess.Records.StagedOrderRecord> dbOrderRecords = new List<DBAccess.Records.StagedOrderRecord>();
                     List<Order> newDBOrders = RetrieveOrdersSave(_Region.Identifier, out dbOrderRecords, dictCache.orderClassesDict, dictCache.depotsForRegionDict);
                     Logger.InfoFormat("Retrieved {0} Orders from staging table successfully", newDBOrders.Count);
+                    Logger.InfoFormat("Start Retrieving Dummy Orders from csv file");
+                    List<Order> dummyCSVOrders = RetrieveDummyOrdersSave(_Region.Identifier, dictCache.orderClassesDict, dictCache.depotsForRegionDict);
+
+                    Logger.InfoFormat("Retrieved {0} Dummy Orderssuccessfully", dummyCSVOrders.Count);
                     Logger.InfoFormat("Seperate Order Types and prepare for saving");
                     List<Order> updateOrders = new List<Order>();
                     List<Order> newOrders = new List<Order>();
                     List<Order> deleteOrders = new List<Order>();
-                    List<Order> dummyCSVOrders = new List<Order>();
                     List<Order> newDummyOrders = new List<Order>();
                     List<Order> updateDummyOrders = new List<Order>();
                     SeperateOrders(_Region.Identifier, newDBOrders, out updateOrders, out newOrders, out deleteOrders, dummyCSVOrders, out newDummyOrders,
@@ -546,7 +549,7 @@ namespace Averitt_RNA
                 {
                     updateOrders = ordersFromRNA.Where(order =>  orders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && orders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
-                    newOrders = orders.Where(order => order.Action != ActionType.Delete && !ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
+                    newOrders = orders.FindAll(order => order.Action != ActionType.Delete && !ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
                     newOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey;
                         x.CreatedBy = MainService.User.EmailAddress; x.RegionEntityKey = _Region.EntityKey;
                     });
@@ -602,7 +605,7 @@ namespace Averitt_RNA
                 {
                     updateDummyOrders = dummOrdersFromRNA.Where(order => dummyOrders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && orders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
-                    newDummyOrders = orders.Where(order => order.Action != ActionType.Delete && !dummyOrders.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
+                    newDummyOrders = dummyOrders.FindAll(order => order.Action != ActionType.Delete && !dummOrdersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
                     newDummyOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey; x.RegionEntityKey = _Region.EntityKey; });
                 }
                 else
@@ -863,6 +866,42 @@ namespace Averitt_RNA
             else
             {
                 Logger.Error("Error Ocurred Retrieving Orders form Database " + errorMessage);
+                return new List<Order>();
+
+            }
+
+
+        }
+
+
+        private List<Order> RetrieveDummyOrdersSave(string regionID, Dictionary<string, long> orderClassCache, Dictionary<string, long> depotCache)
+        {
+            bool errorCaught = false;
+            string errorMessage = string.Empty;
+
+            List<Order> newOrders = new List<Order>();
+
+            newOrders = _ApexConsumer.RetrieveDummyOrdersFromCSV(depotCache, orderClassCache,regionID, out errorCaught, out errorMessage);
+            if (!errorCaught)
+            {
+
+                if (newOrders.Count == 0)
+                {
+
+                    Logger.Info("No Dummy orders Found csv file");
+                    return new List<Order>();
+
+                }
+                else
+                {
+                    return newOrders;
+
+                }
+
+            }
+            else
+            {
+                Logger.Error("Error Ocurred Retrieving dummy Orders from CSV file " + errorMessage);
                 return new List<Order>();
 
             }
