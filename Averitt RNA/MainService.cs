@@ -176,23 +176,40 @@ namespace Averitt_RNA
 
         private void RetrieveRegions(QueryServiceClient queryServiceClient)
         {
+            List<Region> tempRegionList = new List<Region>();
             WSU.MainServiceLogger.Info("Retrieve Regions.");
-            RetrievalResults retrievalResults = queryServiceClient.RetrieveRegionsGrantingPermissions(
-                SessionHeader,
-                new RolePermission[] { },
-                false);
-            if (retrievalResults.Items == null)
+            foreach (long businessUnit in Config.BUSINESS_UNIT_ENTITY_KEY_FILTER)
             {
-                throw new Exception("Retrieve Regions failed with a null result.");
+
+                RetrievalResults retrievalResults = queryServiceClient.Retrieve(
+                    SessionHeader,
+                    new MultipleRegionContext
+                    {
+                        BusinessUnitEntityKey = businessUnit,
+                        Mode = MultipleRegionMode.All
+                    },
+                    new RetrievalOptions
+                    {
+                        PropertyInclusionMode = PropertyInclusionMode.All,
+                        Type = "Region"
+                    });
+                if (retrievalResults.Items == null)
+                {
+                    throw new Exception("Retrieve Regions failed with a null result.");
+                }
+                else if (retrievalResults.Items.Length == 0)
+                {
+                    throw new Exception("No Regions exist.");
+                } else
+                {
+                    tempRegionList.AddRange(retrievalResults.Items.Cast<Region>().OrderBy(region => region.Identifier).ToList());
+                }
             }
-            else if (retrievalResults.Items.Length == 0)
-            {
-                throw new Exception("No Regions exist.");
-            }
-            else
+
+            if(tempRegionList.Any())
             {
                 WSU.MainServiceLogger.Debug("Retrieve Regions completed successfully.");
-                Regions = retrievalResults.Items.Cast<Region>().OrderBy(region => region.Identifier).ToList();
+                Regions = tempRegionList.OrderBy(region => region.Identifier).ToList();
                 BusinessUnitEntityKeys = Regions.Select(region => region.BusinessUnitEntityKey).Distinct().ToList();
                 WSU.MainServiceLogger.Info(Config.BUSINESS_UNIT_ENTITY_KEY_FILTER.Length == 0 ? "Business Unit Entity Key Filter disabled. Use all Business Units." : ("Only use Business Units: " + string.Join(", ", Config.BUSINESS_UNIT_ENTITY_KEY_FILTER)));
                 if (Config.BUSINESS_UNIT_ENTITY_KEY_FILTER.Length > 0)

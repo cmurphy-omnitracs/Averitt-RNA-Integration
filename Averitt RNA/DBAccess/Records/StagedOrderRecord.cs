@@ -93,8 +93,7 @@ namespace Averitt_RNA.DBAccess.Records
 
         public bool Equals(StagedOrderRecord other)
         {
-            //TODO
-            return RegionIdentifier == other.RegionIdentifier
+            bool status = RegionIdentifier == other.RegionIdentifier
                 && ServiceLocationIdentifier == other.ServiceLocationIdentifier
                 && OrderIdentifier == other.OrderIdentifier
                 && BeginDate == other.BeginDate
@@ -116,6 +115,7 @@ namespace Averitt_RNA.DBAccess.Records
                 && Staged == other.Staged
                 && Error == other.Error
                 && Status == other.Status;
+            return status;
 
 
         }
@@ -168,6 +168,7 @@ namespace Averitt_RNA.DBAccess.Records
 
                 temp2ServiceWindowOverride = new TaskServiceWindowOverrideDetail
                 {
+                    Action = ActionType.Add,
                     DailyTimePeriod = new DailyTimePeriod
                     {
                         StartTime = record.ServiceWindowOverride2Start,

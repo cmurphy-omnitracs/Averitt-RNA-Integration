@@ -4717,7 +4717,7 @@ namespace Averitt_RNA
                     {
                         IgnoreEntityVersion = true,
                         InclusionMode = PropertyInclusionMode.All,
-                        ReturnSavedItems = false,
+                        ReturnSavedItems = true,
                         
                     });
                 if (saveResults == null)
@@ -5289,11 +5289,11 @@ namespace Averitt_RNA
             return null;
         }
 
-        public Route RetrieveRoute(out bool errorCaught, out string errorMessage, string RouteID, string sessionDate, string sessionDescription)
+        public Route RetrieveRoute(out bool errorCaught, out string errorMessage, string RouteID, DateTime sessionDate, string sessionDescription)
         {
             errorCaught = false;
             errorMessage = string.Empty;
-
+           
             try
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
@@ -5896,6 +5896,7 @@ namespace Averitt_RNA
             errorCaught = false;
             fatalErrorMessage = string.Empty;
 
+           
             try
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
@@ -5911,9 +5912,9 @@ namespace Averitt_RNA
                                 new EqualToExpression
                                 {
                                     Left = new PropertyExpression { Name = "StartDate" },
-                                    Right = new ValueExpression { Value = startDate.Date }
+                                    Right = new ValueExpression { Value = startDate }
                                 },
-                                new InExpression
+                                new EqualToExpression
                                 {
                                     Left = new PropertyExpression { Name = "Description" },
                                     Right = new ValueExpression { Value = originDepotsId }
