@@ -1897,6 +1897,8 @@ namespace Averitt_RNA
 
             errorCaught = false;
             errorMessage = string.Empty;
+            string identifiersStrings = string.Join(" ", identifiers);
+            _Logger.Debug("Retrieving RNAOrders the following DB Order Record Identifiers: " + identifiersStrings);
             try
             {
                 RetrievalResults retrievalResults = _QueryServiceClient.Retrieve(
@@ -1923,7 +1925,7 @@ namespace Averitt_RNA
                 else if (retrievalResults.Items.Length == 0)
                 {
                     string identifiersString = string.Join(" ", identifiers);
-                    _Logger.Debug("Retrieve Orders |  Orders Not Found for " + identifiersString);
+                    _Logger.Debug("Retrieve Orders |  Orders Not Found for the following Order Identifiers: " + identifiersString);
 
                     orders = retrievalResults.Items.Cast<Order>().ToList();
                 }
@@ -1960,12 +1962,12 @@ namespace Averitt_RNA
             return orders;
         }
 
-        public Order RetrieveDummyRNAOrders(out ErrorLevel errorLevel, out string fatalErrorMessage, string orderIdentifier)
+        public List<Order> RetrieveDummyRNAOrders(out bool errorCaught, out string fatalErrorMessage, string[] identifiers)
         {
-            Order orders = null;
+            List<Order> orders = null;
 
 
-            errorLevel = ErrorLevel.None;
+            errorCaught = false;
             fatalErrorMessage = string.Empty;
             try
             {
@@ -1975,70 +1977,57 @@ namespace Averitt_RNA
                     new RetrievalOptions
                     {
 
-                        Expression = new EqualToExpression
+                        Expression = new InExpression
                         {
                             Left = new PropertyExpression { Name = "Identifier" },
-                            Right = new ValueExpression { Value = orderIdentifier }
+                            Right = new ValueExpression { Value = identifiers }
                         },
 
 
-                        PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
-                        PropertyOptions = new OrderPropertyOptions
-                        {
-                            Identifier = true,
-                            RegionEntityKey = true,
-                            Tasks = true,
-                            TasksOptions = new TaskPropertyOptions
-                            {
-                                ServiceWindowOverrides = true,
-                                ServiceWindowOverridesOptions = new ServiceWindowDetailPropertyOptions
-                                {
-                                    DailyTimePeriod = true,
-
-                                }
-                            }
-
-
-                        },
+                        PropertyInclusionMode = PropertyInclusionMode.All,
+                       
                         Type = Enum.GetName(typeof(RetrieveType), RetrieveType.Order)
                     });
                 if (retrievalResults.Items == null)
                 {
-                    _Logger.Error("Retrieve Orders | Order Number " + orderIdentifier + " | Failed with a null result.");
-                    errorLevel = ErrorLevel.Transient;
+                    string identifiersString = string.Join(" ", identifiers);
+                    _Logger.Error("Retrieve Dummy Orders | Matching Orders " + identifiersString + " | Failed with a null result.");
+                    errorCaught = true;
                 }
                 else if (retrievalResults.Items.Length == 0)
                 {
-                    fatalErrorMessage = "Orders do not exist.";
-                    _Logger.Error("Retrieve Orders | Order Number " + orderIdentifier + " | " + fatalErrorMessage);
-                    errorLevel = ErrorLevel.None;
+                    fatalErrorMessage = "Dummy Orders  do not exist.";
+                    string identifiersString = string.Join(" ", identifiers);
+                    _Logger.Error("Retrieve Dummy Orders  | Matching Orders " + identifiersString + " | Orders do not exist.");
+                   
+                    errorCaught = false;
                     orders = null;
                 }
                 else
                 {
-                    orders = (Order)retrievalResults.Items.First();
+                    orders = retrievalResults.Items.Cast<Order>().ToList(); ;
                 }
             }
             catch (FaultException<TransferErrorCode> tec)
             {
-                string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-                _Logger.Error("Retrieve Orders | Order Number " + orderIdentifier + " | " + errorMessage);
+                _Logger.Error("Retrieve Dummy Orders  |  Matching Orders " + identifiers.ToString() + " | " + fatalErrorMessage);
                 if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
                 {
                     _Logger.Info("Session has expired. New session required.");
                     MainService.SessionRequired = true;
-                    errorLevel = ErrorLevel.Transient;
+                    errorCaught = true;
                 }
                 else
                 {
-                    errorLevel = ErrorLevel.Fatal;
-                    fatalErrorMessage = errorMessage;
+                    errorCaught = true;
+                    fatalErrorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
                 }
             }
             catch (Exception ex)
             {
-                _Logger.Error("Retrieve Orders | Order Number " + orderIdentifier, ex);
-                errorLevel = ErrorLevel.Transient;
+                fatalErrorMessage = "Error Occured: " + ex.Message;
+                _Logger.Error("Retrieve Dummy Orders  |  Matching Orders " + identifiers.ToString() + fatalErrorMessage);
+                errorCaught = true;
             }
             return orders;
         }

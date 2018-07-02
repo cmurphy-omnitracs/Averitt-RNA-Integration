@@ -150,7 +150,7 @@ namespace Averitt_RNA
                     Logger.InfoFormat("Start Retrieving Dummy Orders from csv file");
                     List<Order> dummyCSVOrders = RetrieveDummyOrdersSave(_Region.Identifier, dictCache.orderClassesDict, dictCache.depotsForRegionDict);
 
-                    Logger.InfoFormat("Retrieved {0} Dummy Orderssuccessfully", dummyCSVOrders.Count);
+                    Logger.InfoFormat("Retrieved {0} Dummy Orders Successfully", dummyCSVOrders.Count);
                     Logger.InfoFormat("Seperate Order Types and prepare for saving");
                     List<Order> updateOrders = new List<Order>();
                     List<Order> newOrders = new List<Order>();
@@ -668,7 +668,7 @@ namespace Averitt_RNA
                 {
                     bool temperrorCaught = false;
                     string temperrorMessage = string.Empty;
-                    Logger.ErrorFormat("Error seperating delete order {0} order not found in RNA", deleteORder);
+                    Logger.ErrorFormat("Error seperating delete order {0} order not found in RNA", deleteORder.Identifier);
                     _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, deleteORder.Identifier, "Delete Order not Found in RNA " + "See Log", "ERROR", out temperrorMessage, out temperrorCaught);
                     if (temperrorCaught)
                     {
@@ -720,10 +720,10 @@ namespace Averitt_RNA
                 }
 
 
-                List<Order> dummOrdersFromRNA = _ApexConsumer.RetrieveOrdersFromRNA(out errorCaught, out errorMessage, dummyOrderIdentifiers.ToArray());
+                List<Order> dummOrdersFromRNA = _ApexConsumer.RetrieveDummyRNAOrders(out errorCaught, out errorMessage, dummyOrderIdentifiers.ToArray());
                 if (!errorCaught)
                 {
-                    updateDummyOrders = dummOrdersFromRNA.Where(order => dummyOrders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && orders.
+                    updateDummyOrders = dummOrdersFromRNA.Where(order => dummyOrders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && dummyOrders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
                     newDummyOrders = dummyOrders.FindAll(order => order.Action != ActionType.Delete && !dummOrdersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
                     newDummyOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey; x.RegionEntityKey = _Region.EntityKey; });
@@ -2431,7 +2431,7 @@ namespace Averitt_RNA
                     ManipulationResult saveResult = _ApexConsumer.UnassignOrders2(out errorCaught, out errorMessage, new Order[] { order });
                     if (!errorCaught)
                     {
-                        if (saveResult.Errors != null)
+                        if (saveResult.Errors.Count() != 0)
                         {
 
                             foreach (ManipulationResult.ManipulationError saveResultError in saveResult.Errors)
@@ -2476,11 +2476,12 @@ namespace Averitt_RNA
 
 
             }
-
+            
             try
             {
                 foreach (Order dOrder in unAssignedDeleteOrders)
                 {
+                    dOrder.Action = ActionType.Delete;
                     List<SaveResult> saveOrdersResult = _ApexConsumer.DeleteRNAOrder(out errorCaught, out errorMessage, new Order[] { dOrder }).ToList();
                     if (!errorCaught)
                     {
