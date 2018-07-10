@@ -1589,43 +1589,48 @@ namespace Averitt_RNA
                 modifiedRoutes = RetrieveModifiedRNARoute(out errorLevel, out fatalErrorMessage, RegionProcessor.lastSuccessfulRunTime);
                 if (errorLevel == ErrorLevel.None)
                 {
-                    _Logger.DebugFormat("Completed Retrieving {0} Modified Routes", modifiedRoutes.Count);
-
-                    //Write Routes and Unassigned Orders to Routing Table
-                    foreach (Route route in modifiedRoutes)
+                    if (modifiedRoutes != null)
                     {
-                        if (route.Stops.Count() != 0 && route.RoutePhase_Phase != Enum.GetName(typeof(RoutePhase), RoutePhase.Archive))
+                        _Logger.DebugFormat("Completed Retrieving {0} Modified Routes", modifiedRoutes.Count);
+
+                        //Write Routes and Unassigned Orders to Routing Table
+                        foreach (Route route in modifiedRoutes)
                         {
-                            foreach (Stop stop in route.Stops)
+                            if (route.Stops.Count() != 0 && route.RoutePhase_Phase != Enum.GetName(typeof(RoutePhase), RoutePhase.Archive))
                             {
-
-                                if (stop is ServiceableStop)
+                                foreach (Stop stop in route.Stops)
                                 {
-                                    var tempStop = (ServiceableStop)stop;
 
-                                    foreach (StopAction action in tempStop.Actions)
+                                    if (stop is ServiceableStop)
                                     {
-                                        if (unassignedOrders == null)
+                                        var tempStop = (ServiceableStop)stop;
+
+                                        foreach (StopAction action in tempStop.Actions)
                                         {
-                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
+                                            if (unassignedOrders == null)
+                                            {
+                                                DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
+                                            }
+                                            else if (!unassignedOrders.Exists(x => x.OrderEntityKeys.Contains(action.EntityKey)))
+                                            {
+                                                DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
+                                            }
+
+
+
                                         }
-                                        else if (!unassignedOrders.Exists(x => x.OrderEntityKeys.Contains(action.EntityKey)))
-                                        {
-                                            DBAccessor.InsertStagedRoute(action.OrderIdentifier, _Region.Identifier, route.Identifier, route.StartTime.Value.ToString(), route.Description, tempStop.SequenceNumber.ToString(), DateTime.Now.ToString(), "", "NEW");
-                                        }
-
-
-
                                     }
                                 }
                             }
+                            else
+                            {
+                                _Logger.DebugFormat("Route {0} contains no stops. No Information was Added to the route table information ", route.Identifier);
+                            }
                         }
-                        else
-                        {
-                            _Logger.DebugFormat("Route {0} contains no stops. No Information was Added to the route table information ", route.Identifier);
-                        }
+                    } else
+                    {
+                        _Logger.DebugFormat("No Modiefied Routes Found");
                     }
-
                 }
                 else if (errorLevel == ErrorLevel.Fatal)
                 {
@@ -2688,983 +2693,7 @@ namespace Averitt_RNA
         }
 
 
-        //public void RetrieveOrdersandSaveToRNA(Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> orginDepotTypes, Dictionary<string, long> orderClassTypes, string regionId,
-        //   out bool errorRetrieveAndSavingOrdersFromStagingTable, out string errorRetrieveAndSavingOrdersFromStagingTableMessage, out string fatalErrorMessage, out bool timeOut)
-        //{
-
-        //    timeOut = false;
-        //    ErrorLevel errorLevel = ErrorLevel.None;
-        //    fatalErrorMessage = string.Empty;
-        //    errorRetrieveAndSavingOrdersFromStagingTable = false;
-        //    errorRetrieveAndSavingOrdersFromStagingTableMessage = string.Empty;
-        //    List<DBAccess.Records.StagedOrderRecord> retrieveList = new List<DBAccess.Records.StagedOrderRecord>();
-        //    DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
-        //    List<DBAccess.Records.StagedOrderRecord> checkedOrderRecordList = new List<DBAccess.Records.StagedOrderRecord>();
-        //    List<Order> saveOrders = new List<Order>();
-        //    List<Order> rnaOrders = new List<Order>();
-
-        //    List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
-
-        //    try
-        //    {
-        //        //Get Order Records from database
-        //        retrieveList = DBAccessor.SelectStagedOrders(regionId, "False");
-        //        List<DBAccess.Records.StagedOrderRecord> checkedStagedOrdersList = retrieveList;
-        //        List<DBAccess.Records.StagedOrderRecord> deleteOrderRecordList = DBAccessor.SelectStagedOrders(regionId, "True");
-
-        //        if (retrieveList == null & deleteOrderRecordList == null)// Database Staged Orders Table Null Might Delete this 
-        //        {
-        //            errorRetrieveAndSavingOrdersFromStagingTable = true;
-        //            _Logger.ErrorFormat(errorRetrieveAndSavingOrdersFromStagingTableMessage);
-
-
-        //        }
-        //        else if (retrieveList.Count == 0 && deleteOrderRecordList.Count == 0)//  Database Orders Table Empty
-        //        {
-        //            errorRetrieveAndSavingOrdersFromStagingTable = true;
-        //            errorRetrieveAndSavingOrdersFromStagingTableMessage = String.Format("No Orders found in Staged Orders table for {0}", regionId);
-        //            _Logger.ErrorFormat(errorRetrieveAndSavingOrdersFromStagingTableMessage);
-
-
-        //        }
-        //        else //Table has orders for region
-        //        {
-        //            List<Order> OrdersInRna = new List<Order>();
-        //            List<Order> checkedOrdersList = new List<Order>();
-
-        //            //Check for Duplicates Records in Table
-        //            if (retrieveList.Count != retrieveList.Distinct(new DBAccess.Records.OrderComparer()).Count())
-        //            {
-        //                checkedOrderRecordList = retrieveList.Distinct(new DBAccess.Records.OrderComparer()).ToList(); //filter out duplicates
-
-        //                bool errorDeletingDuplicateOrders = false;
-        //                string errorDeletingDuplicateOrdersMessage = string.Empty;
-
-        //                _Logger.DebugFormat("Duplicate Orders Found, Deleting them from Orders Table");
-
-        //                DBAccessor.DeleteDuplicatedOrders(out errorDeletingDuplicateOrdersMessage, out errorDeletingDuplicateOrders);
-        //                if (errorDeletingDuplicateOrders == true)
-        //                {
-        //                    _Logger.ErrorFormat("Error Deleting Duplicate Orders: " + errorDeletingDuplicateOrdersMessage);
-        //                }
-        //                else
-        //                {
-        //                    _Logger.DebugFormat("Deleting Orders from Staged Orders Table Sucessful");
-        //                }
-        //            }
-        //            else
-        //            {
-        //                checkedOrderRecordList = retrieveList;
-
-        //            }
-
-        //            //check for blank order identififer fields
-        //            List<DBAccess.Records.StagedOrderRecord> noneblankFieldRecords = new List<DBAccess.Records.StagedOrderRecord>();
-        //            foreach (DBAccess.Records.StagedOrderRecord record in checkedOrderRecordList)
-        //            {
-        //                if (record.OrderIdentifier == null || record.OrderIdentifier.Length == 0)
-        //                {
-        //                    //This record has blanks. Add error and switch status to error 
-        //                    string errorUpdatingOrderStatusMessage = string.Empty;
-        //                    bool errorUpdatingOrderStatus = false;
-        //                    _Logger.DebugFormat("Order record {0} in region {1} has a blank Order Identifier field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
-        //                    DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank order identifier field",
-        //                        "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-        //                    if (!errorUpdatingOrderStatus)
-        //                    {
-        //                        _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
-        //                    }
-        //                    else
-        //                    {
-        //                        _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
-        //                    }
-
-        //                }
-        //                else if (record.RegionIdentifier == null || record.RegionIdentifier.Length == 0)
-        //                {
-        //                    string errorUpdatingOrderStatusMessage = string.Empty;
-        //                    bool errorUpdatingOrderStatus = false;
-        //                    _Logger.DebugFormat("Order record {0} in region {1} has a blank Region Field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
-        //                    DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank order Region field",
-        //                        "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-        //                    if (!errorUpdatingOrderStatus)
-        //                    {
-        //                        _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
-        //                    }
-        //                    else
-        //                    {
-        //                        _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
-        //                    }
-
-        //                }
-        //                else if (record.ServiceLocationIdentifier == null || record.ServiceLocationIdentifier.Length == 0)
-        //                {
-        //                    string errorUpdatingOrderStatusMessage = string.Empty;
-        //                    bool errorUpdatingOrderStatus = false;
-        //                    _Logger.DebugFormat("Order record {0} in region {1} has a blank Service Location field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
-        //                    DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank Service Location field",
-        //                        "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-        //                    if (!errorUpdatingOrderStatus)
-        //                    {
-        //                        _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
-        //                    }
-        //                    else
-        //                    {
-        //                        _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
-        //                    }
-        //                }
-        //                else
-        //                {
-        //                    noneblankFieldRecords.Add(record);
-        //                }
-        //            }
-        //            //Retrieve Orders with status of New
-        //            checkedOrderRecordList = noneblankFieldRecords.FindAll(x => x.Status.ToUpper().Equals("NEW"));
-
-        //            //Retrieve Orders with Delete bit set
-
-
-        //            List<Order> deleteOrderList = new List<Order>();
-        //            string[] originDepotIdentifiers = checkedOrderRecordList.Select(x => x.OriginDepotIdentifier).ToArray();
-
-
-
-
-        //            //Add OrderClass, OrginDepot, and region Entity Keys to Orders if New Orders Exist
-        //            if (checkedOrderRecordList.Count != 0)
-        //            {
-        //                foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList)
-        //                {
-        //                    long orderClassEntity = 0;
-        //                    long originDepotKey = 0;
-        //                    long[] regionEntityKey = new long[] { 0 };
-        //                    var temp = (Order)order;
-
-        //                    //Add SerivceTimeType, region and timewindowType entity keys
-
-        //                    if (!orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntity))
-        //                    {
-        //                        _Logger.ErrorFormat("No match found for Order Class with identifier {0} in RNA", order.OrderClassIdentifier);
-        //                        temp.OrderClassEntityKey = 0;
-        //                    }
-        //                    else
-        //                    {
-        //                        temp.OrderClassEntityKey = orderClassEntity;
-        //                    }
-        //                    if (!orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out originDepotKey))
-        //                    {
-        //                        _Logger.ErrorFormat("No match found for Origin Depot with identifier {0} in RNA", order.OriginDepotIdentifier);
-        //                        temp.RequiredRouteOriginEntityKey = 0;
-        //                    }
-        //                    else
-        //                    {
-        //                        temp.RequiredRouteOriginEntityKey = originDepotKey;
-        //                    }
-
-        //                    if (!regionEntityKeyDic.TryGetValue(order.RegionIdentifier, out regionEntityKey[0]))
-        //                    {
-        //                        _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", order.RegionIdentifier);
-        //                        temp.RegionEntityKey = 0;
-        //                    }
-        //                    else
-        //                    {
-        //                        temp.RegionEntityKey = new long();
-        //                        temp.RegionEntityKey = regionEntityKey[0];
-        //                    }
-
-
-        //                    checkedOrdersList.Add(temp);
-        //                }
-        //            }
-
-        //            //Delete orders if Delete orders exist
-        //            if (deleteOrderRecordList.Count != 0)
-        //            {
-        //                foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
-        //                {
-        //                    if (order.Status.ToUpper().Contains("NEW"))
-        //                    {
-        //                        var temp = (Order)order;
-        //                        temp.Action = ActionType.Delete;
-        //                        deleteOrderList.Add(temp);
-        //                    }
-        //                }
-
-        //                //Unassign and Delete Orders
-        //                if (deleteOrderList.Any())
-        //                {
-        //                    _Logger.DebugFormat("Start Unassigning and Deleting Orders");
-        //                    try
-        //                    {
-        //                        errorLevel = ErrorLevel.None;
-        //                        _Logger.DebugFormat(" Start Unassigning Orders");
-        //                        string[] unassignOrderIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
-        //                        Order[] unassignOrdersInRna = new Order[] { };
-
-        //                        ManipulationResult unassignOrders = new ManipulationResult();
-        //                        string regularErrorMessage = string.Empty;
-        //                        try
-        //                        {
-        //                            unassignOrdersInRna = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, unassignOrderIdentifiers);
-
-
-        //                            if (errorLevel == ErrorLevel.None) //Getting list of orders to unassign that are in RNA Successfull
-        //                            {
-        //                                try
-        //                                {
-        //                                    //Unassign Orders
-        //                                    Order[] ordersToUnassign = unassignOrdersInRna.Where(x => !x.UnassignedOrderGroupEntityKey.HasValue).ToArray();
-
-        //                                    if (ordersToUnassign.Any())
-        //                                    {
-        //                                        unassignOrders = UnassignOrders2(out errorLevel, out fatalErrorMessage, ordersToUnassign.ToArray());
-
-        //                                        if (errorLevel == ErrorLevel.None)
-        //                                        {
-        //                                            _Logger.DebugFormat("Orders Unassign in RNA Successfully");
-        //                                        }
-        //                                        else if (errorLevel == ErrorLevel.Fatal)
-        //                                        {
-        //                                            _Logger.Error(fatalErrorMessage);
-        //                                        }
-
-        //                                    }
-        //                                    else
-        //                                    {
-        //                                        _Logger.DebugFormat("No Orders to Unassign in RNA");
-        //                                    }
-
-
-        //                                }
-        //                                catch (Exception ex)
-        //                                {
-        //                                    _Logger.Error("An error has occured Unassigning Orders" + ex.Message);
-        //                                }
-
-        //                            }
-        //                            else if (errorLevel != ErrorLevel.Fatal)
-        //                            {
-        //                                _Logger.Error(regularErrorMessage);
-        //                            }
-        //                            else
-        //                            {
-        //                                _Logger.Error(fatalErrorMessage);
-        //                            }
-
-        //                        }
-        //                        catch (Exception ex)
-        //                        {
-        //                            _Logger.Error("An error has occured during Retrieve Delete Orders Entity Keys" + ex.Message);
-        //                        }
-
-
-
-        //                        if (errorLevel != ErrorLevel.Fatal)
-        //                        {
-        //                            _Logger.DebugFormat("Unassigning Orders Successful.");
-
-        //                            //Get list of Delete Orders in RNA with Entity Keys
-        //                            string[] orderToDeleteIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
-        //                            try
-        //                            {
-        //                                Order[] orderToDelWithEntityKeys = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, orderToDeleteIdentifiers);
-
-        //                                foreach (Order order in orderToDelWithEntityKeys)
-        //                                {
-        //                                    order.Action = ActionType.Delete;
-        //                                }
-
-        //                                if (errorLevel == ErrorLevel.None)
-        //                                {
-        //                                    _Logger.DebugFormat(" Start Deleting Orders");
-        //                                    SaveResult[] deleteOrdersResult = DeleteOrders(out errorLevel, out fatalErrorMessage, orderToDelWithEntityKeys);
-
-        //                                    if (errorLevel == ErrorLevel.None)
-        //                                    {
-        //                                        _Logger.DebugFormat("Deleting Orders Successful");
-        //                                        foreach (String orderId in orderToDeleteIdentifiers)
-        //                                        {
-        //                                            string databaseErrorMessage = string.Empty;
-        //                                            bool datbaseErrorCaught = false;
-        //                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage, out datbaseErrorCaught);
-
-        //                                            if (datbaseErrorCaught == false)
-        //                                            {
-        //                                                _Logger.DebugFormat("Update Staged Orders Table for order " + orderId);
-        //                                            }
-        //                                            else
-        //                                            {
-
-        //                                                _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
-
-
-        //                                            }
-        //                                        }
-        //                                    }
-        //                                    else
-        //                                    {
-        //                                        foreach (SaveResult saveResult in deleteOrdersResult)
-        //                                        {
-        //                                            var temp = (Order)saveResult.Object;
-        //                                            _Logger.ErrorFormat("Error Deleting Order {0} | {1}: {2} ", temp.Identifier, saveResult.Error.Code, saveResult.Error.Detail.ToString());
-        //                                        }
-
-        //                                    }
-        //                                }
-        //                                else if (errorLevel == ErrorLevel.Transient)
-        //                                {
-        //                                    _Logger.DebugFormat(" No Orders to Delete from RNA. Orders do not Exist in RNA");
-        //                                    foreach (String orderId in orderToDeleteIdentifiers)
-        //                                    {
-        //                                        string databaseErrorMessage = string.Empty;
-        //                                        bool datbaseErrorCaught = false;
-        //                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage, out datbaseErrorCaught);
-
-        //                                        if (datbaseErrorCaught == false)
-        //                                        {
-        //                                            _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
-        //                                        }
-        //                                        else
-        //                                        {
-
-        //                                            _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
-
-
-        //                                        }
-        //                                    }
-        //                                }
-        //                                else
-        //                                {
-        //                                    _Logger.Error(fatalErrorMessage);
-        //                                    foreach (String orderId in orderToDeleteIdentifiers)
-        //                                    {
-        //                                        string databaseErrorMessage = string.Empty;
-        //                                        bool datbaseErrorCaught = false;
-        //                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, fatalErrorMessage, "ERROR", out databaseErrorMessage, out datbaseErrorCaught);
-
-        //                                        if (datbaseErrorCaught == false)
-        //                                        {
-        //                                            _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
-        //                                        }
-        //                                        else
-        //                                        {
-
-        //                                            _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
-
-
-        //                                        }
-        //                                    }
-        //                                }
-        //                            }
-        //                            catch (Exception ex)
-        //                            {
-        //                                _Logger.Error("An error has occured during delete Orders" + ex.Message);
-        //                            }
-        //                        }
-        //                        else
-        //                        {
-        //                            _Logger.ErrorFormat("Fatal Error Unassigning Orders: " + fatalErrorMessage);
-        //                        }
-
-        //                    }
-        //                    catch (Exception ex)
-        //                    {
-        //                        _Logger.Error("An error has occured during Unassigning and Deleting Orders" + ex.Message);
-        //                    }
-        //                }
-        //            }
-
-
-        //            try
-        //            {
-        //                List<string> sessionsToCreate = new List<string>();
-        //                errorLevel = ErrorLevel.None;
-
-        //                //Retrieve Tomorrows Routing Session and Create Routing Sessions
-
-        //                _Logger.Debug("Start Retrieving DailyRoutingSessions");
-        //                DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorLevel, out fatalErrorMessage, DateTime.Now.AddDays(1), originDepotIdentifiers);
-
-        //                if (errorLevel == ErrorLevel.None)
-        //                {
-        //                    _Logger.Debug("Retreived DailyRoutingSessions Successfully");
-        //                    //Create list of daily routing session for tomorrow
-        //                    foreach (DailyRoutingSession session in tomorrowsRoutingSession)
-        //                    {
-        //                        saveRoutingSession.Add(session);
-        //                    }
-
-        //                    //List depots that don't have routing session
-        //                    foreach (String origindepot in originDepotIdentifiers)
-        //                    {
-        //                        if (!tomorrowsRoutingSession.Any(x => x.Description == origindepot))
-        //                        {
-        //                            sessionsToCreate.Add(origindepot);
-        //                        }
-
-        //                    }
-        //                }
-        //                else if (errorLevel == ErrorLevel.Fatal)
-        //                {
-        //                    _Logger.Error("An error has occured during Retrieving DailyRoutingSession " + fatalErrorMessage);
-        //                }
-
-        //                //create routing sessions for depots that don't have routing sessions
-
-        //                if (sessionsToCreate.Any())
-        //                {
-        //                    try
-        //                    {
-        //                        _Logger.DebugFormat(" Start Creating Daily Routing Sessions for Depots");
-        //                        SaveResult[] newRoutingSessions = SaveDailyRoutingSessions(out errorLevel, out fatalErrorMessage, new DateTime[] { DateTime.Now.AddDays(1) }, sessionsToCreate.ToArray());
-
-        //                        if (errorLevel == ErrorLevel.None)
-        //                        {
-
-        //                            foreach (SaveResult saveResult in newRoutingSessions)
-        //                            {
-
-
-        //                                if (saveResult.Error != null)
-        //                                {
-        //                                    var temp = (DailyRoutingSession)saveResult.Object;
-        //                                    _Logger.Error("An error has occured while creating session for Depot " + temp.Description + ":" + saveResult.Error.Code + " " + saveResult.Error.Detail);
-        //                                }
-        //                                else
-        //                                {
-        //                                    var temp = (DailyRoutingSession)saveResult.Object;
-        //                                    _Logger.Debug("Created Session for session for Depot " + temp.Description);
-        //                                    saveRoutingSession.Add(temp);
-
-        //                                }
-        //                            }
-        //                            _Logger.DebugFormat(" Creating Daily Routing Sessions for Depots Ended");
-        //                        }
-        //                        else if (errorLevel == ErrorLevel.Fatal)
-        //                        {
-        //                            _Logger.Error("A Fatal Error has occured while creating session" + fatalErrorMessage);
-        //                        }
-
-
-
-        //                    }
-        //                    catch (Exception ex)
-        //                    {
-        //                        _Logger.Error("An error has occured during Creating Routing Sessions" + ex.Message);
-        //                    }
-        //                }
-
-
-
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                _Logger.Error("An error has occured during Retrieving DailyRoutingSessions" + ex.Message);
-        //            }
-
-        //            try
-        //            {
-        //                _Logger.Debug("Retreiving Matching Orders In RNA Since " + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
-
-        //                //Retrive Modified and Matching Orders
-
-        //                string[] orderIDDatabase = checkedOrderRecordList.Select(x => x.OrderIdentifier).ToArray();
-
-        //                rnaOrders = RetrieveOrdersFromRNA(out errorLevel, out fatalErrorMessage, orderIDDatabase);
-
-        //                if (errorLevel == ErrorLevel.None && !rnaOrders.Any())
-        //                {
-        //                    _Logger.DebugFormat("No Orders Modified Since last execution time");
-        //                }
-        //                else if (errorLevel == ErrorLevel.Fatal)
-        //                {
-        //                    _Logger.Error(fatalErrorMessage);
-        //                }
-
-
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                _Logger.Error("An error has occured retrieving modified orders" + ex.Message);
-        //            }
-
-        //            List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
-
-
-
-
-        //            if (rnaOrders.Count == 0 || rnaOrders == null) //Orders have not been found, Add Orders to RNA
-        //            {
-
-
-
-        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
-
-
-
-        //                try
-        //                {
-
-        //                    try//Get Region Service Locations
-        //                    {
-        //                        long[] regionEntityKey = new long[] { _Region.EntityKey };
-        //                        _Logger.Debug("Start Retrieved Service Locations for Orders");
-        //                        serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
-        //                        if (errorLevel == ErrorLevel.None)
-        //                        {
-        //                            _Logger.Debug("Successfully Retrieved Service Locations");
-
-        //                        }
-        //                        else if (errorLevel == ErrorLevel.Fatal)
-        //                        {
-        //                            _Logger.Error("Fatal Error Retrieving Service Locations for Orders" + fatalErrorMessage);
-        //                        }
-        //                        else
-        //                        {
-        //                            _Logger.Error("Error Retrieving Service Locations for Orders");
-        //                        }
-
-        //                    }
-        //                    catch (Exception ex)
-        //                    {
-        //                        _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
-        //                    }
-
-        //                    List<Order> ordersToSaveInRNA = new List<Order>();
-
-        //                    if (checkedOrderRecordList.Count != 0)
-        //                    {
-        //                        foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
-        //                        {
-        //                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
-        //                            Order tempOrder = new Order();
-        //                            Task orderTask = new Task();
-        //                            List<TaskServiceWindowOverrideDetail> serviceWindowOverides = new List<TaskServiceWindowOverrideDetail>();
-        //                            List<TaskOpenCloseOverrideDetail> openCloseOverride = new List<TaskOpenCloseOverrideDetail>();
-        //                            if (order.ServiceWindowOverride1End.Any() && order.ServiceWindowOverride1Start.Any())
-        //                            {
-        //                                var temp = new TaskServiceWindowOverrideDetail
-        //                                {
-        //                                    Action = ActionType.Add,
-        //                                    DailyTimePeriod = new DailyTimePeriod
-        //                                    {
-        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-        //                                        StartTime = order.ServiceWindowOverride1Start,
-        //                                        EndTime = order.ServiceWindowOverride1End,
-
-
-
-        //                                    }
-
-        //                                };
-        //                                var temp2 = new TaskOpenCloseOverrideDetail
-        //                                {
-        //                                    Action = ActionType.Add,
-        //                                    DailyTimePeriod = new DailyTimePeriod
-        //                                    {
-        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-        //                                        StartTime = order.ServiceWindowOverride1Start,
-        //                                        EndTime = order.ServiceWindowOverride1End
-
-        //                                    }
-        //                                };
-
-
-        //                                serviceWindowOverides.Add(temp);
-        //                                openCloseOverride.Add(temp2);
-        //                            }
-        //                            if (order.ServiceWindowOverride2End.Any() && order.ServiceWindowOverride2Start.Any())
-        //                            {
-        //                                var temp = new TaskServiceWindowOverrideDetail
-        //                                {
-
-        //                                    Action = ActionType.Add,
-        //                                    DailyTimePeriod = new DailyTimePeriod
-        //                                    {
-        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-        //                                        StartTime = order.ServiceWindowOverride2Start,
-        //                                        EndTime = order.ServiceWindowOverride2End,
-
-        //                                    },
-
-
-        //                                };
-        //                                var temp2 = new TaskOpenCloseOverrideDetail
-        //                                {
-        //                                    Action = ActionType.Add,
-        //                                    DailyTimePeriod = new DailyTimePeriod
-        //                                    {
-        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-        //                                        StartTime = order.ServiceWindowOverride2Start,
-        //                                        EndTime = order.ServiceWindowOverride2End,
-
-        //                                    }
-        //                                };
-
-
-        //                                serviceWindowOverides.Add(temp);
-        //                                openCloseOverride.Add(temp2);
-        //                            }
-        //                            if (tempLocation == null) // order service location found in RNA service locations
-        //                            {
-        //                                _Logger.DebugFormat(" Service Location {1} for Order {0} not Found in RNA ", order.OrderIdentifier, order.ServiceLocationIdentifier);
-
-
-        //                            }
-        //                            else
-        //                            {
-        //                                orderTask = new Task
-        //                                {
-        //                                    Action = ActionType.Add,
-        //                                    LocationAddress = tempLocation.Address,
-        //                                    LocationPhoneNumber = tempLocation.PhoneNumber,
-        //                                    LocationEntityKey = tempLocation.EntityKey,
-        //                                    LocationCoordinate = tempLocation.Coordinate,
-        //                                    LocationDescription = tempLocation.Description,
-        //                                    LocationStandardInstructions = tempLocation.StandardInstructions,
-        //                                    ServiceWindowOverrides = serviceWindowOverides.ToArray(),
-        //                                    TaskType_Type = "Delivery",
-        //                                    OpenCloseOverrides = openCloseOverride.ToArray()
-
-
-
-        //                                };
-
-
-
-        //                                tempOrder = (Order)order;
-        //                                tempOrder.PreferredRouteIdentifierOverride = tempOrder.PreferredRouteIdentifier;
-        //                                tempOrder.Action = ActionType.Add;
-        //                                tempOrder.Tasks = new Task[] { orderTask };
-        //                                long orderClassEntityKey = 0;
-        //                                long origionDepotEntityKey = 0;
-
-        //                                if (orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntityKey))
-        //                                {
-        //                                    tempOrder.OrderClassEntityKey = Convert.ToInt64(orderClassEntityKey);
-        //                                }
-        //                                else
-        //                                {
-        //                                    _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
-        //                                }
-
-
-
-        //                                if (orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out origionDepotEntityKey))
-        //                                {
-        //                                    tempOrder.RequiredRouteOriginEntityKey = Convert.ToInt64(origionDepotEntityKey);
-        //                                }
-        //                                else
-        //                                {
-        //                                    _Logger.Debug("Error Getting Entity Key For Origin Depot " + order.OriginDepotIdentifier);
-        //                                }
-
-        //                                //Add session entity key to order for routings session with matching depots
-        //                                foreach (DailyRoutingSession session in saveRoutingSession)
-        //                                {
-        //                                    if (order.OriginDepotIdentifier == session.Description)
-        //                                    {
-        //                                        tempOrder.SessionEntityKey = session.EntityKey;
-        //                                        // tempOrder.BeginDate = session.StartDate.ToString();
-        //                                    }
-        //                                }
-
-
-        //                                ordersToSaveInRNA.Add(tempOrder);
-
-        //                            }
-        //                        }
-
-
-        //                        foreach (Order orderSave in ordersToSaveInRNA)
-        //                        {
-        //                            if (orderSave.Action == ActionType.Update)
-        //                            {
-        //                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
-        //                            }
-        //                            else if (orderSave.Action == ActionType.Add)
-        //                            {
-        //                                var temp = ConvertOrderToOrderSpec(orderSave);
-        //                                temp.OrderInstance = null;
-        //                                convertedOrderSpecs.Add(temp);
-        //                            }
-
-        //                        }
-
-        //                    }
-        //                }
-        //                catch (Exception ex)
-        //                {
-        //                    _Logger.Error("An error has occured during saving Orders" + ex.Message);
-        //                }
-        //            }
-
-        //            else  //Orders have a been found in RNA
-        //            {
-        //                // Order Checked List and Returned RNA List
-        //                checkedOrdersList.OrderBy(x => x.Identifier); // New Orders
-        //                rnaOrders.OrderBy(x => x.Identifier); //Orders in RNA
-        //                long[] regionEntityKey = new long[] { _Region.EntityKey };
-        //                List<Order> updateOrders = new List<Order>(); //Orders to Update in RNA
-        //                List<Order> regOrders = new List<Order>(); //Orders to Add to RNA
-        //                List<Order> saveOrdersList = new List<Order>();
-        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
-
-        //                List<Order> ordersInRnaOrders = checkedOrdersList.Where(x => rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
-        //                List<Order> ordersNotInRnaOrders = checkedOrdersList.Where(x => !rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
-
-
-        //                foreach (Order orderInRNA in ordersInRnaOrders)// found matching order in RNA
-        //                {
-        //                    Order tempOrder = rnaOrders.FirstOrDefault(x => x.Identifier == orderInRNA.Identifier);
-        //                    orderInRNA.Action = ActionType.Update;
-        //                    orderInRNA.Tasks[0].TaskType_Type = "Delivery";
-        //                    orderInRNA.EntityKey = tempOrder.EntityKey;
-        //                    orderInRNA.Version = tempOrder.Version;
-        //                    orderInRNA.PreferredRouteIdentifierOverride = orderInRNA.PreferredRouteIdentifier;
-        //                    orderInRNA.SessionDate = tempOrder.SessionDate;
-        //                    orderInRNA.SessionEntityKey = tempOrder.SessionEntityKey;
-        //                    orderInRNA.SessionDescription = tempOrder.SessionDescription;
-        //                    orderInRNA.SessionMode_SessionMode = tempOrder.SessionMode_SessionMode;
-
-        //                    //Change Service Windows entity Keys
-        //                    //if rna order has service windows overrides and database orders have service window overrides
-
-
-
-        //                    if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null && orderInRNA.Tasks[0].ServiceWindowOverrides.Length != 0)
-        //                    {
-        //                        for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
-        //                        {
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
-        //                        }
-        //                    }
-        //                    else if ((tempOrder.Tasks[0].ServiceWindowOverrides == null || tempOrder.Tasks[0].ServiceWindowOverrides.Length == 0) && orderInRNA.Tasks[0].ServiceWindowOverrides.Length != 0)
-        //                    {
-        //                        for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
-        //                        {
-        //                            if (orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey == 0)
-        //                            {
-        //                                orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
-        //                            }
-        //                            else
-        //                            {
-        //                                orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
-        //                                orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
-        //                            }
-
-
-        //                        }
-        //                    }
-        //                    else
-        //                    {
-
-        //                        if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 1 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 2)
-        //                        {
-
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[1].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[1].EntityKey;
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Delete;
-
-        //                        }
-        //                        else if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 2 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 1)
-        //                        {
-
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
-        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Add;
-
-        //                        }
-
-
-        //                    }
-
-
-        //                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderInRNA.Tasks[0].LocationIdentifier); //Find service location that matched order
-
-        //                    if (tempLocation != null) // order service location found in RNA service locations
-        //                    {
-        //                        orderInRNA.Tasks[0].Action = ActionType.Update;
-        //                        orderInRNA.Tasks[0].LocationAddress = tempLocation.Address;
-        //                        orderInRNA.Tasks[0].LocationPhoneNumber = tempLocation.PhoneNumber;
-        //                        orderInRNA.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
-        //                        orderInRNA.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
-        //                        orderInRNA.Tasks[0].LocationDescription = tempLocation.Description;
-        //                    }
-
-        //                    string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Key;
-        //                    orderInRNA.RequiredRouteOriginEntityKey = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Value;
-
-
-        //                    //Don't add session entity key for updated orders
-        //                    /*foreach (DailyRoutingSession session in saveRoutingSession)
-        //                    {
-        //                        if (originDepotForOrder == session.Description)
-        //                        {
-        //                            orderInRNA.SessionEntityKey = session.EntityKey;
-        //                            orderInRNA.BeginDate = session.StartDate.ToString();
-        //                        }
-        //                    }*/
-        //                    updateOrders.Add(orderInRNA);
-        //                }
-        //                foreach (Order orderNotInRNAs in ordersNotInRnaOrders) // No matching Order Found. Add location/coordinate to order and save in regOrder List
-        //                {
-        //                    orderNotInRNAs.Action = ActionType.Add;
-
-
-        //                    ServiceLocation tempLocation2 = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderNotInRNAs.Tasks[0].LocationIdentifier); //Find service location that matched order
-
-        //                    if (tempLocation2 != null) // order service location found in RNA service locations
-        //                    {
-        //                        orderNotInRNAs.Tasks[0].Action = ActionType.Add;
-        //                        orderNotInRNAs.Tasks[0].LocationAddress = tempLocation2.Address;
-        //                        orderNotInRNAs.Tasks[0].LocationPhoneNumber = tempLocation2.PhoneNumber;
-        //                        orderNotInRNAs.Tasks[0].LocationEntityKey = tempLocation2.EntityKey;
-        //                        orderNotInRNAs.Tasks[0].LocationCoordinate = tempLocation2.Coordinate;
-        //                        orderNotInRNAs.Tasks[0].LocationDescription = tempLocation2.Description;
-        //                        orderNotInRNAs.Tasks[0].LocationStandardInstructions = tempLocation2.StandardInstructions;
-        //                    }
-
-        //                    string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Key;
-        //                    orderNotInRNAs.RequiredRouteOriginEntityKey = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Value;
-
-        //                    //Add session entity key to order for routings session with matching depots
-        //                    foreach (DailyRoutingSession session in saveRoutingSession)
-        //                    {
-        //                        if (originDepotForOrder == session.Description)
-        //                        {
-        //                            orderNotInRNAs.SessionEntityKey = session.EntityKey;
-        //                            //orderNotInRNAs.BeginDate = session.StartDate.ToString();
-        //                        }
-        //                    }
-        //                    regOrders.Add(orderNotInRNAs);
-        //                }
-
-
-
-        //                //Add Update and Reg orders to a list
-
-        //                saveOrdersList = updateOrders.Concat(regOrders).ToList();
-
-        //                //Convert Order to OrderSpec
-        //                foreach (Order order in saveOrdersList)
-        //                {
-        //                    if (order.Action == ActionType.Update)
-        //                    {
-        //                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
-        //                    }
-        //                    else if (order.Action == ActionType.Add)
-        //                    {
-        //                        var temp = ConvertOrderToOrderSpec(order);
-        //                        temp.OrderInstance = null;
-        //                        convertedOrderSpecs.Add(temp);
-        //                    }
-
-        //                }
-        //            } //matching orders found in rna
-
-
-
-
-
-
-        //            //Save Orders to RNA
-        //            try
-        //            {
-
-        //                foreach (OrderSpec order in convertedOrderSpecs)
-        //                {
-        //                    order.RegionEntityKey = _Region.EntityKey;
-        //                    order.ManagedByUserEntityKey = MainService.User.EntityKey;
-        //                    order.Identifier = order.Identifier.ToUpper();
-
-        //                };
-
-        //                if (convertedOrderSpecs.Count != 0)
-        //                {
-        //                    foreach (OrderSpec orderSpec in convertedOrderSpecs)
-        //                    {
-        //                        SaveResult[] savedOrdersResult = new SaveResult[] { };
-        //                        savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, new OrderSpec[] { orderSpec });
-
-        //                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal || savedOrdersResult == null)
-        //                        {
-        //                            _Logger.Debug("Fatel Error Occured Saving Orders : " + fatalErrorMessage);
-        //                        }
-        //                        else
-        //                        {
-        //                            string errorUpdatingOrderStatusMessage = string.Empty;
-        //                            bool errorUpdatingOrderStatus = false;
-
-        //                            foreach (SaveResult result in savedOrdersResult)
-        //                            {
-        //                                var tempOrder = (Order)result.Object;
-        //                                if (result.Error == null)
-        //                                {
-        //                                    _Logger.DebugFormat("Successfully Saved Order {0} to RNA", orderSpec.Identifier);
-        //                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Successfully Saved Order", "COMPLETE", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-        //                                }
-        //                                else if ((result.Error != null || tempOrder != null) && result.Error.ValidationFailures == null)
-        //                                {
-        //                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", orderSpec.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-        //                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Error Occured: " + result.Error.Code.ErrorCode_Status, "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-        //                                }
-        //                                else if (result.Error.ValidationFailures != null)
-        //                                {
-        //                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", orderSpec.Identifier, result.Error.ValidationFailures[0].Property);
-        //                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Validation Error For Properties " + result.Error.ValidationFailures[0].Property + "See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
-        //                                }
-
-        //                                _Logger.DebugFormat("Saving Order {0} Completed", tempOrder.Identifier);
-        //                            }
-
-        //                        }
-        //                    }
-        //                }
-        //                else
-        //                {
-        //                    _Logger.Debug("No Orders to Save to RNA");
-        //                }
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                _Logger.Error(ex.Message);
-        //                errorRetrieveAndSavingOrdersFromStagingTable = true;
-        //                errorRetrieveAndSavingOrdersFromStagingTableMessage = ex.Message;
-        //            }
-        //        }
-        //    }
-
-        //    catch (FaultException<TransferErrorCode> tec)
-        //    {
-        //        string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
-        //        _Logger.Error("Retrieve Service Location | " + errorMessage);
-
-        //        if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
-        //        {
-        //            _Logger.Info("Session has expired. New session required.");
-        //            MainService.SessionRequired = true;
-        //            errorLevel = ErrorLevel.Transient;
-        //        }
-        //        else
-        //        {
-        //            errorLevel = ErrorLevel.Fatal;
-        //            fatalErrorMessage = errorMessage;
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _Logger.Error(ex.Message);
-        //        errorLevel = ErrorLevel.Transient;
-        //    }
-
-
-
-
-        //}
-
+     
         public List<Order> RetrieveOrdersFromStagingTable(Dictionary<string, long> RetrieveDepotsForRegion, string regionId, string staged, out bool errorRetrieveOrdersFromStagingTable, out string errorRetrieveOrdersFromStagingTableMessage)
         {
 
@@ -3730,475 +2759,7 @@ namespace Averitt_RNA
             return null;
         }
 
-        //public void RetrieveDummyOrdersAndSave(Dictionary<string, long> RetrieveDepotsForRegionDict, Dictionary<string, long> RetrieveOrderClassDict,
-        //    string regionId, out bool errorRetrieveOrdersFromCSV, out string errorRetrieveOrdersFromCSVMessage)
-        //{
-
-        //    errorRetrieveOrdersFromCSV = false;
-        //    errorRetrieveOrdersFromCSVMessage = string.Empty;
-        //    List<DBAccess.Records.StagedOrderRecord> retrieveListOrders = new List<DBAccess.Records.StagedOrderRecord>();
-        //    DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
-        //    List<Order> dummyOrdersFromCSV = new List<Order>();
-        //    bool errorCaught = false; ;
-        //    List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
-        //    string fatalErrorMessage = string.Empty;
-        //    List<Order> rnaOrders = new List<Order>();
-        //    string[] dummyOrderIDs = new string[] { };
-        //    List<Order> modifiedRnaOrders = new List<Order>();
-
-
-
-
-
-        //    try
-        //    {
-        //        //Get Dummy Orders
-        //        _Logger.Debug("Start Retrieving Dummy Orders");
-        //        dummyOrdersFromCSV = RetrieveDummyOrdersFromCSV(RetrieveDepotsForRegionDict, RetrieveOrderClassDict, regionId, out errorRetrieveOrdersFromCSV, out errorRetrieveOrdersFromCSVMessage);
-
-
-
-        //        if (errorRetrieveOrdersFromCSV)
-        //        {
-        //            _Logger.Error(errorRetrieveOrdersFromCSVMessage);
-
-        //        }
-        //        else if (dummyOrdersFromCSV == null || dummyOrdersFromCSV.Count == 0)
-        //        {
-        //            _Logger.Debug("Dummy Orders Retrieved Successfully");
-        //            _Logger.Debug("No Dummy Orders Found in Dummy Order File");
-        //        }
-        //        else
-        //        {
-        //            _Logger.Debug("Dummy Orders Retrieved Successfully");
-        //            _Logger.DebugFormat("{0} Dummy Orders Found in Dummy Order File", dummyOrdersFromCSV.Count());
-        //            dummyOrderIDs = dummyOrdersFromCSV.Select(x => x.Identifier).ToArray();
-
-        //            //Get Origin Depot Keys
-        //            string originDepotIdentifier = dummyOrdersFromCSV.Select(x => RetrieveDepotsForRegionDict.FirstOrDefault(y => y.Value == x.RequiredRouteOriginEntityKey).Key).First();
-
-        //            List<string> sessionsToCreate = new List<string>();
-        //            errorCaught = false;
-
-        //            //Retrieve Tomorrows Routing Session and Create Routing Sessions
-
-        //            _Logger.Debug("Start Retrieving DailyRoutingSessions");
-        //            DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out fatalErrorMessage, DateTime.Now, originDepotIdentifier);
-
-        //            if (!errorCaught)
-        //            {
-        //                _Logger.Debug("Retreived DailyRoutingSessions Successfully");
-        //                //Create list of daily routing session for tomorrow
-        //                foreach (DailyRoutingSession session in tomorrowsRoutingSession)
-        //                {
-        //                    saveRoutingSession.Add(session);
-        //                }
-
-        //                //List depots that don't have routing session
-
-        //                if (!tomorrowsRoutingSession.Any(x => x.Description == originDepotIdentifier))
-        //                {
-        //                    sessionsToCreate.Add(originDepotIdentifier);
-        //                }
-
-
-        //            }
-        //            else if (errorCaught)
-        //            {
-        //                _Logger.Error("An error has occured during Retrieving DailyRoutingSession " + fatalErrorMessage);
-        //            }
-
-        //            //create routing sessions for depots that don't have routing sessions
-
-        //            if (sessionsToCreate.Any())
-        //            {
-        //                try
-        //                {
-        //                    _Logger.DebugFormat(" Start Creating Daily Routing Sessions for Depots");
-        //                    SaveResult[] newRoutingSessions = SaveDailyRoutingSessions(out errorCaught, out fatalErrorMessage, new DateTime[] { DateTime.Now.AddDays(1) }, sessionsToCreate.ToArray());
-
-        //                    if (!errorCaught)
-        //                    {
-
-        //                        foreach (SaveResult saveResult in newRoutingSessions)
-        //                        {
-
-
-        //                            if (saveResult.Error != null)
-        //                            {
-        //                                var temp = (DailyRoutingSession)saveResult.Object;
-        //                                _Logger.Error("An error has occured while creating session for Depot " + temp.Description + ":" + saveResult.Error.Code + " " + saveResult.Error.Detail);
-        //                            }
-        //                            else
-        //                            {
-        //                                var temp = (DailyRoutingSession)saveResult.Object;
-        //                                _Logger.Debug("Created Session for session for Depot " + temp.Description);
-        //                                saveRoutingSession.Add(temp);
-
-        //                            }
-        //                        }
-        //                        _Logger.DebugFormat(" Creating Daily Routing Sessions for Depots Ended");
-        //                    }
-        //                    else if (!errorCaught)
-        //                    {
-        //                        _Logger.Error("A Fatal Error has occured while creating session" + fatalErrorMessage);
-        //                    }
-
-
-
-        //                }
-        //                catch (Exception ex)
-        //                {
-        //                    _Logger.Error("An error has occured during Creating Routing Sessions" + ex.Message);
-        //                }
-        //            }
-
-        //            //Get matching Orders from RNA
-
-        //            try
-        //            {
-        //                _Logger.Debug("Retrieve Matching Pick Up Dummy Orders created in RNA Since " + RegionProcessor.lastSuccessfulRunTime.ToString());
-
-        //                foreach (String orderNumber in dummyOrderIDs)
-        //                {
-        //                    ErrorLevel errorLevel = ErrorLevel.None;
-
-        //                    Order tempOrder = RetrieveDummyRNAOrders(out errorLevel, out fatalErrorMessage, orderNumber);
-
-
-        //                    if (errorLevel == ErrorLevel.None && tempOrder == null)
-        //                    {
-
-        //                        _Logger.DebugFormat("No Dummy Orders in RNA matching Order Number " + orderNumber);
-        //                    }
-        //                    else if (errorLevel == ErrorLevel.Fatal)
-        //                    {
-        //                        _Logger.Error(fatalErrorMessage);
-
-        //                    }
-        //                    else if (errorLevel == ErrorLevel.None && tempOrder != null)
-        //                    {
-        //                        modifiedRnaOrders.Add(tempOrder);
-        //                        _Logger.Debug("Sucessfully found and Retrieved Dummy Order" + orderNumber + " in RNA");
-
-        //                    }
-        //                }
-
-        //                _Logger.Debug("Sucessfully Retrieved " + modifiedRnaOrders.Count.ToString() + " dummy orders from RNA");
-
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                _Logger.Error("An error has occured retrieving modified dummy orders" + ex.Message);
-        //            }
-
-        //            List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
-
-        //            //Check if Matching orders Exist in RNA
-
-        //            rnaOrders = modifiedRnaOrders;
-
-
-        //            if (rnaOrders.Count == 0 || rnaOrders == null) //Orders have not been found that match dummy pickup orders, Add Orders to RNA
-        //            {
-        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
-
-        //                try
-        //                {
-
-        //                    try//Get Region Service Locations
-        //                    {
-        //                        ErrorLevel errorLevel = ErrorLevel.None;
-        //                        long[] regionEntityKey = new long[] { _Region.EntityKey };
-        //                        _Logger.Debug("Start Retrieved Service Locations for Dummy Orders");
-        //                        serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
-        //                        if (errorLevel == ErrorLevel.None)
-        //                        {
-        //                            _Logger.Debug("Successfully Retrieved Service Locations for Dummy Orders");
-
-        //                        }
-        //                        else if (errorLevel == ErrorLevel.Fatal)
-        //                        {
-        //                            _Logger.Error("Fatal Error Retrieving Service Locations for Dummy Orders:" + fatalErrorMessage);
-        //                        }
-        //                        else
-        //                        {
-        //                            _Logger.Error("Error Retrieving Service Locations for Dummy Orders");
-        //                        }
-
-        //                    }
-        //                    catch (Exception ex)
-        //                    {
-        //                        _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
-        //                    }
-
-        //                    List<Order> ordersToSaveInRNA = new List<Order>();
-        //                    foreach (Order dummyorder in dummyOrdersFromCSV) //Find Order with Matching service Location and convert them to Order Spec
-        //                    {
-        //                        Task orderTask = new Task();
-        //                        ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
-
-        //                        if (tempLocation == null) // order service location found in RNA service locations
-        //                        {
-        //                            _Logger.DebugFormat("Could not find service location {0} for Dummy Order {1} in RNA", dummyorder.Tasks[0].LocationIdentifier, dummyorder.Identifier);
-        //                        }
-        //                        else
-        //                        {
-        //                            dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
-        //                            dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
-        //                            dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
-        //                            dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
-        //                            dummyorder.Tasks[0].TaskType_Type = "Pickup";
-
-        //                            string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
-
-        //                            //Add session entity key to order for routings session with matching depots
-        //                            foreach (DailyRoutingSession session in saveRoutingSession)
-        //                            {
-        //                                if (originDepotForOrder == session.Description)
-        //                                {
-        //                                    dummyorder.SessionEntityKey = session.EntityKey;
-        //                                    //dummyorder.BeginDate = session.StartDate.ToString();
-        //                                }
-        //                            }
-
-        //                            ordersToSaveInRNA.Add(dummyorder);
-
-
-
-        //                            if (dummyorder.Tasks[0].ServiceWindowOverrides != null)
-        //                            {
-        //                                dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Add;
-        //                            }
-
-        //                            else
-        //                            {
-        //                                _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", dummyorder.Identifier, dummyorder.Tasks[0].LocationIdentifier);
-        //                            }
-
-        //                        }
-
-
-
-        //                    }
-        //                    foreach (Order orderSave in ordersToSaveInRNA)
-        //                    {
-        //                        if (orderSave.Action == ActionType.Update)
-        //                        {
-        //                            convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
-        //                        }
-        //                        else if (orderSave.Action == ActionType.Add)
-        //                        {
-        //                            var temp = ConvertOrderToOrderSpec(orderSave);
-        //                            temp.OrderInstance = null;
-        //                            convertedOrderSpecs.Add(temp);
-        //                        }
-
-        //                    }
-
-
-
-
-        //                }
-        //                catch (Exception ex)
-        //                {
-        //                    _Logger.Error("An error has occured during saving Orders" + ex.Message);
-        //                }
-        //            }
-
-        //            else  //Orders have a been found in RNA
-        //            {
-        //                // Order Checked List and Returned RNA List
-        //                dummyOrdersFromCSV.OrderBy(x => x.Identifier); // New Orders
-        //                rnaOrders.OrderBy(x => x.Identifier); //Orders in RNA
-        //                long[] regionEntityKey = new long[] { _Region.EntityKey };
-        //                List<Order> updateOrders = new List<Order>(); //Orders to Update in RNA
-        //                List<Order> regOrders = new List<Order>(); //Orders to Add to RNA
-        //                List<Order> saveOrdersList = new List<Order>();
-        //                ErrorLevel errorLevel = ErrorLevel.None;
-        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
-
-        //                List<Order> dummyOrdersInRnaOrders = dummyOrdersFromCSV.Where(x => rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
-        //                List<Order> dummyOrdersNotInRnaOrders = dummyOrdersFromCSV.Where(x => !rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
-
-        //                foreach (Order dummyorder in dummyOrdersInRnaOrders)
-        //                {
-        //                    Order matchingRNAOrder = rnaOrders.Where(order => order.Identifier == dummyorder.Identifier).First();
-        //                    dummyorder.Action = ActionType.Update;
-        //                    dummyorder.EntityKey = matchingRNAOrder.EntityKey;
-        //                    dummyorder.Version = matchingRNAOrder.Version;
-
-        //                    if (matchingRNAOrder.Tasks != null && dummyorder.Tasks != null)
-        //                    {
-        //                        if (dummyorder.Tasks[0].ServiceWindowOverrides != null && matchingRNAOrder.Tasks[0].ServiceWindowOverrides != null)
-        //                        {
-        //                            dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
-        //                            dummyorder.Tasks[0].ServiceWindowOverrides[0].EntityKey = matchingRNAOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
-
-        //                        }
-
-        //                    }
-        //                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
-        //                    if (tempLocation == null) // order service location found in RNA service locations
-        //                    {
-        //                        _Logger.DebugFormat("Could not find service location {0} for Dummy Order {1} in RNA", dummyorder.Tasks[0].LocationIdentifier, dummyorder.Identifier);
-        //                    }
-        //                    else // order service location found in RNA service locations
-        //                    {
-        //                        dummyorder.Coordinate = tempLocation.Coordinate;
-        //                        dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
-        //                        dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
-        //                        dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
-        //                        dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
-
-
-
-        //                        string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
-
-        //                        //Add session entity key to order for routings session with matching depots
-        //                        foreach (DailyRoutingSession session in saveRoutingSession)
-        //                        {
-        //                            if (originDepotForOrder == session.Description)
-        //                            {
-        //                                dummyorder.SessionEntityKey = session.EntityKey;
-        //                                //dummyorder.BeginDate = session.StartDate.ToString();
-        //                            }
-        //                        }
-        //                        updateOrders.Add(dummyorder);
-        //                    }
-        //                }
-        //                foreach (Order dummyorder in dummyOrdersNotInRnaOrders)
-        //                {
-        //                    dummyorder.Action = ActionType.Add;
-        //                    dummyorder.Tasks[0].TaskType_Type = "Pickup";
-        //                    if (dummyorder.Tasks[0].ServiceWindowOverrides != null)
-        //                    {
-        //                        dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Add;
-        //                    }
-
-
-        //                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
-
-        //                    //Add session entity key to order for routings session with matching depots
-        //                    foreach (DailyRoutingSession session in saveRoutingSession)
-        //                    {
-        //                        if (originDepotForOrder == session.Description)
-        //                        {
-        //                            dummyorder.SessionEntityKey = session.EntityKey;
-        //                            //dummyorder.BeginDate = session.StartDate.ToString();
-        //                        }
-        //                    }
-
-        //                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
-        //                    if (tempLocation == null) // order service location found in RNA service locations
-        //                    {
-        //                        _Logger.DebugFormat("Could not find service location {0} for Dummy Order {1} in RNA", dummyorder.Tasks[0].LocationIdentifier, dummyorder.Identifier);
-        //                    }
-        //                    else
-        //                    {
-
-        //                        dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
-        //                        dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
-        //                        dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
-        //                        dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
-
-
-
-
-        //                        regOrders.Add(dummyorder);
-        //                    }
-        //                }
-
-
-        //                //Add Update and Reg orders to a list
-
-        //                saveOrdersList = updateOrders.Concat(regOrders).ToList();
-
-        //                //Convert Order to OrderSpec
-        //                foreach (Order order in saveOrdersList)
-        //                {
-        //                    if (order.Action == ActionType.Update)
-        //                    {
-        //                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
-        //                    }
-        //                    else if (order.Action == ActionType.Add)
-        //                    {
-        //                        var temp = ConvertOrderToOrderSpec(order);
-        //                        temp.OrderInstance = null;
-        //                        convertedOrderSpecs.Add(temp);
-        //                    }
-
-        //                }
-        //            }
-
-        //            //Save Dummy Orders to RNA if Matching orders Exist in RNA
-
-        //            try
-        //            {
-
-
-        //                ErrorLevel errorLevel = ErrorLevel.None;
-        //                foreach (OrderSpec order in convertedOrderSpecs)
-        //                {
-        //                    order.RegionEntityKey = _Region.EntityKey;
-        //                    order.ManagedByUserEntityKey = MainService.User.EntityKey;
-
-
-        //                };
-
-
-
-
-        //                SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
-
-
-
-        //                if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
-        //                {
-        //                    _Logger.Debug("Fatel Error Occured Saving Dummy Order  : " + fatalErrorMessage);
-        //                }
-        //                else
-        //                {
-
-
-        //                    foreach (SaveResult result in savedOrdersResult)
-        //                    {
-        //                        var tempOrder = (Order)result.Object;
-        //                        if (result.Error == null)
-        //                        {
-        //                            _Logger.DebugFormat("Successfully Saved/Updated Dummy Order  {0} to RNA", tempOrder.Identifier);
-        //                        }
-        //                        else if (result.Error.ValidationFailures != null)
-        //                        {
-        //                            _Logger.ErrorFormat("An error has occured during saving/updating Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
-        //                        }
-        //                        else if (result.Error != null)
-        //                        {
-        //                            _Logger.ErrorFormat("An error has occured during saving/updating Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
-        //                        }
-
-        //                    }
-        //                    _Logger.Debug("Saving Dummy Order Completed");
-        //                }
-
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                _Logger.Error(ex.Message);
-        //                errorRetrieveOrdersFromCSV = true;
-        //                errorRetrieveOrdersFromCSVMessage = ex.Message;
-        //            }
-
-        //        }
-
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _Logger.Error(ex.Message);
-        //    }
-
-        //}
+      
 
         public List<Order> RetrieveDummyOrdersFromCSV(Dictionary<string, long> originDict, Dictionary<string, long> orderClassDict, string regionId, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
         {
@@ -6211,6 +4772,1456 @@ namespace Averitt_RNA
             }
             return saveResults;
         }
+
+
+
+        //public void RetrieveOrdersandSaveToRNA(Dictionary<string, long> regionEntityKeyDic, Dictionary<string, long> orginDepotTypes, Dictionary<string, long> orderClassTypes, string regionId,
+        //   out bool errorRetrieveAndSavingOrdersFromStagingTable, out string errorRetrieveAndSavingOrdersFromStagingTableMessage, out string fatalErrorMessage, out bool timeOut)
+        //{
+
+        //    timeOut = false;
+        //    ErrorLevel errorLevel = ErrorLevel.None;
+        //    fatalErrorMessage = string.Empty;
+        //    errorRetrieveAndSavingOrdersFromStagingTable = false;
+        //    errorRetrieveAndSavingOrdersFromStagingTableMessage = string.Empty;
+        //    List<DBAccess.Records.StagedOrderRecord> retrieveList = new List<DBAccess.Records.StagedOrderRecord>();
+        //    DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+        //    List<DBAccess.Records.StagedOrderRecord> checkedOrderRecordList = new List<DBAccess.Records.StagedOrderRecord>();
+        //    List<Order> saveOrders = new List<Order>();
+        //    List<Order> rnaOrders = new List<Order>();
+
+        //    List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
+
+        //    try
+        //    {
+        //        //Get Order Records from database
+        //        retrieveList = DBAccessor.SelectStagedOrders(regionId, "False");
+        //        List<DBAccess.Records.StagedOrderRecord> checkedStagedOrdersList = retrieveList;
+        //        List<DBAccess.Records.StagedOrderRecord> deleteOrderRecordList = DBAccessor.SelectStagedOrders(regionId, "True");
+
+        //        if (retrieveList == null & deleteOrderRecordList == null)// Database Staged Orders Table Null Might Delete this 
+        //        {
+        //            errorRetrieveAndSavingOrdersFromStagingTable = true;
+        //            _Logger.ErrorFormat(errorRetrieveAndSavingOrdersFromStagingTableMessage);
+
+
+        //        }
+        //        else if (retrieveList.Count == 0 && deleteOrderRecordList.Count == 0)//  Database Orders Table Empty
+        //        {
+        //            errorRetrieveAndSavingOrdersFromStagingTable = true;
+        //            errorRetrieveAndSavingOrdersFromStagingTableMessage = String.Format("No Orders found in Staged Orders table for {0}", regionId);
+        //            _Logger.ErrorFormat(errorRetrieveAndSavingOrdersFromStagingTableMessage);
+
+
+        //        }
+        //        else //Table has orders for region
+        //        {
+        //            List<Order> OrdersInRna = new List<Order>();
+        //            List<Order> checkedOrdersList = new List<Order>();
+
+        //            //Check for Duplicates Records in Table
+        //            if (retrieveList.Count != retrieveList.Distinct(new DBAccess.Records.OrderComparer()).Count())
+        //            {
+        //                checkedOrderRecordList = retrieveList.Distinct(new DBAccess.Records.OrderComparer()).ToList(); //filter out duplicates
+
+        //                bool errorDeletingDuplicateOrders = false;
+        //                string errorDeletingDuplicateOrdersMessage = string.Empty;
+
+        //                _Logger.DebugFormat("Duplicate Orders Found, Deleting them from Orders Table");
+
+        //                DBAccessor.DeleteDuplicatedOrders(out errorDeletingDuplicateOrdersMessage, out errorDeletingDuplicateOrders);
+        //                if (errorDeletingDuplicateOrders == true)
+        //                {
+        //                    _Logger.ErrorFormat("Error Deleting Duplicate Orders: " + errorDeletingDuplicateOrdersMessage);
+        //                }
+        //                else
+        //                {
+        //                    _Logger.DebugFormat("Deleting Orders from Staged Orders Table Sucessful");
+        //                }
+        //            }
+        //            else
+        //            {
+        //                checkedOrderRecordList = retrieveList;
+
+        //            }
+
+        //            //check for blank order identififer fields
+        //            List<DBAccess.Records.StagedOrderRecord> noneblankFieldRecords = new List<DBAccess.Records.StagedOrderRecord>();
+        //            foreach (DBAccess.Records.StagedOrderRecord record in checkedOrderRecordList)
+        //            {
+        //                if (record.OrderIdentifier == null || record.OrderIdentifier.Length == 0)
+        //                {
+        //                    //This record has blanks. Add error and switch status to error 
+        //                    string errorUpdatingOrderStatusMessage = string.Empty;
+        //                    bool errorUpdatingOrderStatus = false;
+        //                    _Logger.DebugFormat("Order record {0} in region {1} has a blank Order Identifier field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
+        //                    DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank order identifier field",
+        //                        "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+        //                    if (!errorUpdatingOrderStatus)
+        //                    {
+        //                        _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
+        //                    }
+        //                    else
+        //                    {
+        //                        _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
+        //                    }
+
+        //                }
+        //                else if (record.RegionIdentifier == null || record.RegionIdentifier.Length == 0)
+        //                {
+        //                    string errorUpdatingOrderStatusMessage = string.Empty;
+        //                    bool errorUpdatingOrderStatus = false;
+        //                    _Logger.DebugFormat("Order record {0} in region {1} has a blank Region Field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
+        //                    DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank order Region field",
+        //                        "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+        //                    if (!errorUpdatingOrderStatus)
+        //                    {
+        //                        _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
+        //                    }
+        //                    else
+        //                    {
+        //                        _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
+        //                    }
+
+        //                }
+        //                else if (record.ServiceLocationIdentifier == null || record.ServiceLocationIdentifier.Length == 0)
+        //                {
+        //                    string errorUpdatingOrderStatusMessage = string.Empty;
+        //                    bool errorUpdatingOrderStatus = false;
+        //                    _Logger.DebugFormat("Order record {0} in region {1} has a blank Service Location field. Error will be added to Order Record", record.OrderIdentifier, record.RegionIdentifier);
+        //                    DBAccessor.UpdateOrderStatus(record.RegionIdentifier, record.OrderIdentifier, "Order has blank Service Location field",
+        //                        "Error", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+        //                    if (!errorUpdatingOrderStatus)
+        //                    {
+        //                        _Logger.DebugFormat("Order record {0} in region {1} updated successfully", record.OrderIdentifier, record.RegionIdentifier);
+        //                    }
+        //                    else
+        //                    {
+        //                        _Logger.DebugFormat("Error Updating Order record {0} in region {1}: {2}", record.OrderIdentifier, record.RegionIdentifier, errorUpdatingOrderStatusMessage);
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    noneblankFieldRecords.Add(record);
+        //                }
+        //            }
+        //            //Retrieve Orders with status of New
+        //            checkedOrderRecordList = noneblankFieldRecords.FindAll(x => x.Status.ToUpper().Equals("NEW"));
+
+        //            //Retrieve Orders with Delete bit set
+
+
+        //            List<Order> deleteOrderList = new List<Order>();
+        //            string[] originDepotIdentifiers = checkedOrderRecordList.Select(x => x.OriginDepotIdentifier).ToArray();
+
+
+
+
+        //            //Add OrderClass, OrginDepot, and region Entity Keys to Orders if New Orders Exist
+        //            if (checkedOrderRecordList.Count != 0)
+        //            {
+        //                foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList)
+        //                {
+        //                    long orderClassEntity = 0;
+        //                    long originDepotKey = 0;
+        //                    long[] regionEntityKey = new long[] { 0 };
+        //                    var temp = (Order)order;
+
+        //                    //Add SerivceTimeType, region and timewindowType entity keys
+
+        //                    if (!orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntity))
+        //                    {
+        //                        _Logger.ErrorFormat("No match found for Order Class with identifier {0} in RNA", order.OrderClassIdentifier);
+        //                        temp.OrderClassEntityKey = 0;
+        //                    }
+        //                    else
+        //                    {
+        //                        temp.OrderClassEntityKey = orderClassEntity;
+        //                    }
+        //                    if (!orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out originDepotKey))
+        //                    {
+        //                        _Logger.ErrorFormat("No match found for Origin Depot with identifier {0} in RNA", order.OriginDepotIdentifier);
+        //                        temp.RequiredRouteOriginEntityKey = 0;
+        //                    }
+        //                    else
+        //                    {
+        //                        temp.RequiredRouteOriginEntityKey = originDepotKey;
+        //                    }
+
+        //                    if (!regionEntityKeyDic.TryGetValue(order.RegionIdentifier, out regionEntityKey[0]))
+        //                    {
+        //                        _Logger.ErrorFormat("No match found for Region Entity Key with identifier {0} in RNA", order.RegionIdentifier);
+        //                        temp.RegionEntityKey = 0;
+        //                    }
+        //                    else
+        //                    {
+        //                        temp.RegionEntityKey = new long();
+        //                        temp.RegionEntityKey = regionEntityKey[0];
+        //                    }
+
+
+        //                    checkedOrdersList.Add(temp);
+        //                }
+        //            }
+
+        //            //Delete orders if Delete orders exist
+        //            if (deleteOrderRecordList.Count != 0)
+        //            {
+        //                foreach (DBAccess.Records.StagedOrderRecord order in deleteOrderRecordList)
+        //                {
+        //                    if (order.Status.ToUpper().Contains("NEW"))
+        //                    {
+        //                        var temp = (Order)order;
+        //                        temp.Action = ActionType.Delete;
+        //                        deleteOrderList.Add(temp);
+        //                    }
+        //                }
+
+        //                //Unassign and Delete Orders
+        //                if (deleteOrderList.Any())
+        //                {
+        //                    _Logger.DebugFormat("Start Unassigning and Deleting Orders");
+        //                    try
+        //                    {
+        //                        errorLevel = ErrorLevel.None;
+        //                        _Logger.DebugFormat(" Start Unassigning Orders");
+        //                        string[] unassignOrderIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
+        //                        Order[] unassignOrdersInRna = new Order[] { };
+
+        //                        ManipulationResult unassignOrders = new ManipulationResult();
+        //                        string regularErrorMessage = string.Empty;
+        //                        try
+        //                        {
+        //                            unassignOrdersInRna = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, unassignOrderIdentifiers);
+
+
+        //                            if (errorLevel == ErrorLevel.None) //Getting list of orders to unassign that are in RNA Successfull
+        //                            {
+        //                                try
+        //                                {
+        //                                    //Unassign Orders
+        //                                    Order[] ordersToUnassign = unassignOrdersInRna.Where(x => !x.UnassignedOrderGroupEntityKey.HasValue).ToArray();
+
+        //                                    if (ordersToUnassign.Any())
+        //                                    {
+        //                                        unassignOrders = UnassignOrders2(out errorLevel, out fatalErrorMessage, ordersToUnassign.ToArray());
+
+        //                                        if (errorLevel == ErrorLevel.None)
+        //                                        {
+        //                                            _Logger.DebugFormat("Orders Unassign in RNA Successfully");
+        //                                        }
+        //                                        else if (errorLevel == ErrorLevel.Fatal)
+        //                                        {
+        //                                            _Logger.Error(fatalErrorMessage);
+        //                                        }
+
+        //                                    }
+        //                                    else
+        //                                    {
+        //                                        _Logger.DebugFormat("No Orders to Unassign in RNA");
+        //                                    }
+
+
+        //                                }
+        //                                catch (Exception ex)
+        //                                {
+        //                                    _Logger.Error("An error has occured Unassigning Orders" + ex.Message);
+        //                                }
+
+        //                            }
+        //                            else if (errorLevel != ErrorLevel.Fatal)
+        //                            {
+        //                                _Logger.Error(regularErrorMessage);
+        //                            }
+        //                            else
+        //                            {
+        //                                _Logger.Error(fatalErrorMessage);
+        //                            }
+
+        //                        }
+        //                        catch (Exception ex)
+        //                        {
+        //                            _Logger.Error("An error has occured during Retrieve Delete Orders Entity Keys" + ex.Message);
+        //                        }
+
+
+
+        //                        if (errorLevel != ErrorLevel.Fatal)
+        //                        {
+        //                            _Logger.DebugFormat("Unassigning Orders Successful.");
+
+        //                            //Get list of Delete Orders in RNA with Entity Keys
+        //                            string[] orderToDeleteIdentifiers = deleteOrderList.Select(x => x.Identifier).ToArray();
+        //                            try
+        //                            {
+        //                                Order[] orderToDelWithEntityKeys = GetOrdersToUnassignOrDeleteInRNA(out errorLevel, out fatalErrorMessage, out regularErrorMessage, orderToDeleteIdentifiers);
+
+        //                                foreach (Order order in orderToDelWithEntityKeys)
+        //                                {
+        //                                    order.Action = ActionType.Delete;
+        //                                }
+
+        //                                if (errorLevel == ErrorLevel.None)
+        //                                {
+        //                                    _Logger.DebugFormat(" Start Deleting Orders");
+        //                                    SaveResult[] deleteOrdersResult = DeleteOrders(out errorLevel, out fatalErrorMessage, orderToDelWithEntityKeys);
+
+        //                                    if (errorLevel == ErrorLevel.None)
+        //                                    {
+        //                                        _Logger.DebugFormat("Deleting Orders Successful");
+        //                                        foreach (String orderId in orderToDeleteIdentifiers)
+        //                                        {
+        //                                            string databaseErrorMessage = string.Empty;
+        //                                            bool datbaseErrorCaught = false;
+        //                                            DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage, out datbaseErrorCaught);
+
+        //                                            if (datbaseErrorCaught == false)
+        //                                            {
+        //                                                _Logger.DebugFormat("Update Staged Orders Table for order " + orderId);
+        //                                            }
+        //                                            else
+        //                                            {
+
+        //                                                _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
+
+
+        //                                            }
+        //                                        }
+        //                                    }
+        //                                    else
+        //                                    {
+        //                                        foreach (SaveResult saveResult in deleteOrdersResult)
+        //                                        {
+        //                                            var temp = (Order)saveResult.Object;
+        //                                            _Logger.ErrorFormat("Error Deleting Order {0} | {1}: {2} ", temp.Identifier, saveResult.Error.Code, saveResult.Error.Detail.ToString());
+        //                                        }
+
+        //                                    }
+        //                                }
+        //                                else if (errorLevel == ErrorLevel.Transient)
+        //                                {
+        //                                    _Logger.DebugFormat(" No Orders to Delete from RNA. Orders do not Exist in RNA");
+        //                                    foreach (String orderId in orderToDeleteIdentifiers)
+        //                                    {
+        //                                        string databaseErrorMessage = string.Empty;
+        //                                        bool datbaseErrorCaught = false;
+        //                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, "", "COMPLETE", out databaseErrorMessage, out datbaseErrorCaught);
+
+        //                                        if (datbaseErrorCaught == false)
+        //                                        {
+        //                                            _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
+        //                                        }
+        //                                        else
+        //                                        {
+
+        //                                            _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
+
+
+        //                                        }
+        //                                    }
+        //                                }
+        //                                else
+        //                                {
+        //                                    _Logger.Error(fatalErrorMessage);
+        //                                    foreach (String orderId in orderToDeleteIdentifiers)
+        //                                    {
+        //                                        string databaseErrorMessage = string.Empty;
+        //                                        bool datbaseErrorCaught = false;
+        //                                        DBAccessor.UpdateOrderStatus(_Region.Identifier, orderId, fatalErrorMessage, "ERROR", out databaseErrorMessage, out datbaseErrorCaught);
+
+        //                                        if (datbaseErrorCaught == false)
+        //                                        {
+        //                                            _Logger.DebugFormat("Updated Staged Orders Table for order " + orderId);
+        //                                        }
+        //                                        else
+        //                                        {
+
+        //                                            _Logger.ErrorFormat("Error Updating Staged Order table for order {0} | {1}: {2} ", orderId, databaseErrorMessage);
+
+
+        //                                        }
+        //                                    }
+        //                                }
+        //                            }
+        //                            catch (Exception ex)
+        //                            {
+        //                                _Logger.Error("An error has occured during delete Orders" + ex.Message);
+        //                            }
+        //                        }
+        //                        else
+        //                        {
+        //                            _Logger.ErrorFormat("Fatal Error Unassigning Orders: " + fatalErrorMessage);
+        //                        }
+
+        //                    }
+        //                    catch (Exception ex)
+        //                    {
+        //                        _Logger.Error("An error has occured during Unassigning and Deleting Orders" + ex.Message);
+        //                    }
+        //                }
+        //            }
+
+
+        //            try
+        //            {
+        //                List<string> sessionsToCreate = new List<string>();
+        //                errorLevel = ErrorLevel.None;
+
+        //                //Retrieve Tomorrows Routing Session and Create Routing Sessions
+
+        //                _Logger.Debug("Start Retrieving DailyRoutingSessions");
+        //                DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorLevel, out fatalErrorMessage, DateTime.Now.AddDays(1), originDepotIdentifiers);
+
+        //                if (errorLevel == ErrorLevel.None)
+        //                {
+        //                    _Logger.Debug("Retreived DailyRoutingSessions Successfully");
+        //                    //Create list of daily routing session for tomorrow
+        //                    foreach (DailyRoutingSession session in tomorrowsRoutingSession)
+        //                    {
+        //                        saveRoutingSession.Add(session);
+        //                    }
+
+        //                    //List depots that don't have routing session
+        //                    foreach (String origindepot in originDepotIdentifiers)
+        //                    {
+        //                        if (!tomorrowsRoutingSession.Any(x => x.Description == origindepot))
+        //                        {
+        //                            sessionsToCreate.Add(origindepot);
+        //                        }
+
+        //                    }
+        //                }
+        //                else if (errorLevel == ErrorLevel.Fatal)
+        //                {
+        //                    _Logger.Error("An error has occured during Retrieving DailyRoutingSession " + fatalErrorMessage);
+        //                }
+
+        //                //create routing sessions for depots that don't have routing sessions
+
+        //                if (sessionsToCreate.Any())
+        //                {
+        //                    try
+        //                    {
+        //                        _Logger.DebugFormat(" Start Creating Daily Routing Sessions for Depots");
+        //                        SaveResult[] newRoutingSessions = SaveDailyRoutingSessions(out errorLevel, out fatalErrorMessage, new DateTime[] { DateTime.Now.AddDays(1) }, sessionsToCreate.ToArray());
+
+        //                        if (errorLevel == ErrorLevel.None)
+        //                        {
+
+        //                            foreach (SaveResult saveResult in newRoutingSessions)
+        //                            {
+
+
+        //                                if (saveResult.Error != null)
+        //                                {
+        //                                    var temp = (DailyRoutingSession)saveResult.Object;
+        //                                    _Logger.Error("An error has occured while creating session for Depot " + temp.Description + ":" + saveResult.Error.Code + " " + saveResult.Error.Detail);
+        //                                }
+        //                                else
+        //                                {
+        //                                    var temp = (DailyRoutingSession)saveResult.Object;
+        //                                    _Logger.Debug("Created Session for session for Depot " + temp.Description);
+        //                                    saveRoutingSession.Add(temp);
+
+        //                                }
+        //                            }
+        //                            _Logger.DebugFormat(" Creating Daily Routing Sessions for Depots Ended");
+        //                        }
+        //                        else if (errorLevel == ErrorLevel.Fatal)
+        //                        {
+        //                            _Logger.Error("A Fatal Error has occured while creating session" + fatalErrorMessage);
+        //                        }
+
+
+
+        //                    }
+        //                    catch (Exception ex)
+        //                    {
+        //                        _Logger.Error("An error has occured during Creating Routing Sessions" + ex.Message);
+        //                    }
+        //                }
+
+
+
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                _Logger.Error("An error has occured during Retrieving DailyRoutingSessions" + ex.Message);
+        //            }
+
+        //            try
+        //            {
+        //                _Logger.Debug("Retreiving Matching Orders In RNA Since " + RegionProcessor.lastSuccessfulRunTime.ToLongDateString());
+
+        //                //Retrive Modified and Matching Orders
+
+        //                string[] orderIDDatabase = checkedOrderRecordList.Select(x => x.OrderIdentifier).ToArray();
+
+        //                rnaOrders = RetrieveOrdersFromRNA(out errorLevel, out fatalErrorMessage, orderIDDatabase);
+
+        //                if (errorLevel == ErrorLevel.None && !rnaOrders.Any())
+        //                {
+        //                    _Logger.DebugFormat("No Orders Modified Since last execution time");
+        //                }
+        //                else if (errorLevel == ErrorLevel.Fatal)
+        //                {
+        //                    _Logger.Error(fatalErrorMessage);
+        //                }
+
+
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                _Logger.Error("An error has occured retrieving modified orders" + ex.Message);
+        //            }
+
+        //            List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
+
+
+
+
+        //            if (rnaOrders.Count == 0 || rnaOrders == null) //Orders have not been found, Add Orders to RNA
+        //            {
+
+
+
+        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
+
+
+
+        //                try
+        //                {
+
+        //                    try//Get Region Service Locations
+        //                    {
+        //                        long[] regionEntityKey = new long[] { _Region.EntityKey };
+        //                        _Logger.Debug("Start Retrieved Service Locations for Orders");
+        //                        serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+        //                        if (errorLevel == ErrorLevel.None)
+        //                        {
+        //                            _Logger.Debug("Successfully Retrieved Service Locations");
+
+        //                        }
+        //                        else if (errorLevel == ErrorLevel.Fatal)
+        //                        {
+        //                            _Logger.Error("Fatal Error Retrieving Service Locations for Orders" + fatalErrorMessage);
+        //                        }
+        //                        else
+        //                        {
+        //                            _Logger.Error("Error Retrieving Service Locations for Orders");
+        //                        }
+
+        //                    }
+        //                    catch (Exception ex)
+        //                    {
+        //                        _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
+        //                    }
+
+        //                    List<Order> ordersToSaveInRNA = new List<Order>();
+
+        //                    if (checkedOrderRecordList.Count != 0)
+        //                    {
+        //                        foreach (DBAccess.Records.StagedOrderRecord order in checkedOrderRecordList) //Find Order with Matching service Location and convert them to Order Spec
+        //                        {
+        //                            ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == order.ServiceLocationIdentifier.ToUpper());
+        //                            Order tempOrder = new Order();
+        //                            Task orderTask = new Task();
+        //                            List<TaskServiceWindowOverrideDetail> serviceWindowOverides = new List<TaskServiceWindowOverrideDetail>();
+        //                            List<TaskOpenCloseOverrideDetail> openCloseOverride = new List<TaskOpenCloseOverrideDetail>();
+        //                            if (order.ServiceWindowOverride1End.Any() && order.ServiceWindowOverride1Start.Any())
+        //                            {
+        //                                var temp = new TaskServiceWindowOverrideDetail
+        //                                {
+        //                                    Action = ActionType.Add,
+        //                                    DailyTimePeriod = new DailyTimePeriod
+        //                                    {
+        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+        //                                        StartTime = order.ServiceWindowOverride1Start,
+        //                                        EndTime = order.ServiceWindowOverride1End,
+
+
+
+        //                                    }
+
+        //                                };
+        //                                var temp2 = new TaskOpenCloseOverrideDetail
+        //                                {
+        //                                    Action = ActionType.Add,
+        //                                    DailyTimePeriod = new DailyTimePeriod
+        //                                    {
+        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+        //                                        StartTime = order.ServiceWindowOverride1Start,
+        //                                        EndTime = order.ServiceWindowOverride1End
+
+        //                                    }
+        //                                };
+
+
+        //                                serviceWindowOverides.Add(temp);
+        //                                openCloseOverride.Add(temp2);
+        //                            }
+        //                            if (order.ServiceWindowOverride2End.Any() && order.ServiceWindowOverride2Start.Any())
+        //                            {
+        //                                var temp = new TaskServiceWindowOverrideDetail
+        //                                {
+
+        //                                    Action = ActionType.Add,
+        //                                    DailyTimePeriod = new DailyTimePeriod
+        //                                    {
+        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+        //                                        StartTime = order.ServiceWindowOverride2Start,
+        //                                        EndTime = order.ServiceWindowOverride2End,
+
+        //                                    },
+
+
+        //                                };
+        //                                var temp2 = new TaskOpenCloseOverrideDetail
+        //                                {
+        //                                    Action = ActionType.Add,
+        //                                    DailyTimePeriod = new DailyTimePeriod
+        //                                    {
+        //                                        DayOfWeekFlags_DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+        //                                        StartTime = order.ServiceWindowOverride2Start,
+        //                                        EndTime = order.ServiceWindowOverride2End,
+
+        //                                    }
+        //                                };
+
+
+        //                                serviceWindowOverides.Add(temp);
+        //                                openCloseOverride.Add(temp2);
+        //                            }
+        //                            if (tempLocation == null) // order service location found in RNA service locations
+        //                            {
+        //                                _Logger.DebugFormat(" Service Location {1} for Order {0} not Found in RNA ", order.OrderIdentifier, order.ServiceLocationIdentifier);
+
+
+        //                            }
+        //                            else
+        //                            {
+        //                                orderTask = new Task
+        //                                {
+        //                                    Action = ActionType.Add,
+        //                                    LocationAddress = tempLocation.Address,
+        //                                    LocationPhoneNumber = tempLocation.PhoneNumber,
+        //                                    LocationEntityKey = tempLocation.EntityKey,
+        //                                    LocationCoordinate = tempLocation.Coordinate,
+        //                                    LocationDescription = tempLocation.Description,
+        //                                    LocationStandardInstructions = tempLocation.StandardInstructions,
+        //                                    ServiceWindowOverrides = serviceWindowOverides.ToArray(),
+        //                                    TaskType_Type = "Delivery",
+        //                                    OpenCloseOverrides = openCloseOverride.ToArray()
+
+
+
+        //                                };
+
+
+
+        //                                tempOrder = (Order)order;
+        //                                tempOrder.PreferredRouteIdentifierOverride = tempOrder.PreferredRouteIdentifier;
+        //                                tempOrder.Action = ActionType.Add;
+        //                                tempOrder.Tasks = new Task[] { orderTask };
+        //                                long orderClassEntityKey = 0;
+        //                                long origionDepotEntityKey = 0;
+
+        //                                if (orderClassTypes.TryGetValue(order.OrderClassIdentifier, out orderClassEntityKey))
+        //                                {
+        //                                    tempOrder.OrderClassEntityKey = Convert.ToInt64(orderClassEntityKey);
+        //                                }
+        //                                else
+        //                                {
+        //                                    _Logger.Debug("Error Getting Entity Key For Order Class " + order.OrderClassIdentifier);
+        //                                }
+
+
+
+        //                                if (orginDepotTypes.TryGetValue(order.OriginDepotIdentifier, out origionDepotEntityKey))
+        //                                {
+        //                                    tempOrder.RequiredRouteOriginEntityKey = Convert.ToInt64(origionDepotEntityKey);
+        //                                }
+        //                                else
+        //                                {
+        //                                    _Logger.Debug("Error Getting Entity Key For Origin Depot " + order.OriginDepotIdentifier);
+        //                                }
+
+        //                                //Add session entity key to order for routings session with matching depots
+        //                                foreach (DailyRoutingSession session in saveRoutingSession)
+        //                                {
+        //                                    if (order.OriginDepotIdentifier == session.Description)
+        //                                    {
+        //                                        tempOrder.SessionEntityKey = session.EntityKey;
+        //                                        // tempOrder.BeginDate = session.StartDate.ToString();
+        //                                    }
+        //                                }
+
+
+        //                                ordersToSaveInRNA.Add(tempOrder);
+
+        //                            }
+        //                        }
+
+
+        //                        foreach (Order orderSave in ordersToSaveInRNA)
+        //                        {
+        //                            if (orderSave.Action == ActionType.Update)
+        //                            {
+        //                                convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
+        //                            }
+        //                            else if (orderSave.Action == ActionType.Add)
+        //                            {
+        //                                var temp = ConvertOrderToOrderSpec(orderSave);
+        //                                temp.OrderInstance = null;
+        //                                convertedOrderSpecs.Add(temp);
+        //                            }
+
+        //                        }
+
+        //                    }
+        //                }
+        //                catch (Exception ex)
+        //                {
+        //                    _Logger.Error("An error has occured during saving Orders" + ex.Message);
+        //                }
+        //            }
+
+        //            else  //Orders have a been found in RNA
+        //            {
+        //                // Order Checked List and Returned RNA List
+        //                checkedOrdersList.OrderBy(x => x.Identifier); // New Orders
+        //                rnaOrders.OrderBy(x => x.Identifier); //Orders in RNA
+        //                long[] regionEntityKey = new long[] { _Region.EntityKey };
+        //                List<Order> updateOrders = new List<Order>(); //Orders to Update in RNA
+        //                List<Order> regOrders = new List<Order>(); //Orders to Add to RNA
+        //                List<Order> saveOrdersList = new List<Order>();
+        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+
+        //                List<Order> ordersInRnaOrders = checkedOrdersList.Where(x => rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+        //                List<Order> ordersNotInRnaOrders = checkedOrdersList.Where(x => !rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+
+
+        //                foreach (Order orderInRNA in ordersInRnaOrders)// found matching order in RNA
+        //                {
+        //                    Order tempOrder = rnaOrders.FirstOrDefault(x => x.Identifier == orderInRNA.Identifier);
+        //                    orderInRNA.Action = ActionType.Update;
+        //                    orderInRNA.Tasks[0].TaskType_Type = "Delivery";
+        //                    orderInRNA.EntityKey = tempOrder.EntityKey;
+        //                    orderInRNA.Version = tempOrder.Version;
+        //                    orderInRNA.PreferredRouteIdentifierOverride = orderInRNA.PreferredRouteIdentifier;
+        //                    orderInRNA.SessionDate = tempOrder.SessionDate;
+        //                    orderInRNA.SessionEntityKey = tempOrder.SessionEntityKey;
+        //                    orderInRNA.SessionDescription = tempOrder.SessionDescription;
+        //                    orderInRNA.SessionMode_SessionMode = tempOrder.SessionMode_SessionMode;
+
+        //                    //Change Service Windows entity Keys
+        //                    //if rna order has service windows overrides and database orders have service window overrides
+
+
+
+        //                    if ((orderInRNA.Tasks[0].ServiceWindowOverrides.Length == tempOrder.Tasks[0].ServiceWindowOverrides.Length) && orderInRNA.Tasks[0].ServiceWindowOverrides != null && orderInRNA.Tasks[0].ServiceWindowOverrides.Length != 0)
+        //                    {
+        //                        for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
+        //                        {
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
+        //                        }
+        //                    }
+        //                    else if ((tempOrder.Tasks[0].ServiceWindowOverrides == null || tempOrder.Tasks[0].ServiceWindowOverrides.Length == 0) && orderInRNA.Tasks[0].ServiceWindowOverrides.Length != 0)
+        //                    {
+        //                        for (int i = 0; i < orderInRNA.Tasks[0].ServiceWindowOverrides.Length; i++)
+        //                        {
+        //                            if (orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey == 0)
+        //                            {
+        //                                orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Add;
+        //                            }
+        //                            else
+        //                            {
+        //                                orderInRNA.Tasks[0].ServiceWindowOverrides[i].Action = ActionType.Update;
+        //                                orderInRNA.Tasks[0].ServiceWindowOverrides[i].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[i].EntityKey;
+        //                            }
+
+
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+
+        //                        if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 1 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 2)
+        //                        {
+
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[1].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[1].EntityKey;
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Delete;
+
+        //                        }
+        //                        else if (orderInRNA.Tasks[0].ServiceWindowOverrides.Length == 2 && tempOrder.Tasks[0].ServiceWindowOverrides.Length == 1)
+        //                        {
+
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[0].EntityKey = tempOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+        //                            orderInRNA.Tasks[0].ServiceWindowOverrides[1].Action = ActionType.Add;
+
+        //                        }
+
+
+        //                    }
+
+
+        //                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderInRNA.Tasks[0].LocationIdentifier); //Find service location that matched order
+
+        //                    if (tempLocation != null) // order service location found in RNA service locations
+        //                    {
+        //                        orderInRNA.Tasks[0].Action = ActionType.Update;
+        //                        orderInRNA.Tasks[0].LocationAddress = tempLocation.Address;
+        //                        orderInRNA.Tasks[0].LocationPhoneNumber = tempLocation.PhoneNumber;
+        //                        orderInRNA.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+        //                        orderInRNA.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+        //                        orderInRNA.Tasks[0].LocationDescription = tempLocation.Description;
+        //                    }
+
+        //                    string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Key;
+        //                    orderInRNA.RequiredRouteOriginEntityKey = orginDepotTypes.FirstOrDefault(x => x.Value == orderInRNA.RequiredRouteOriginEntityKey).Value;
+
+
+        //                    //Don't add session entity key for updated orders
+        //                    /*foreach (DailyRoutingSession session in saveRoutingSession)
+        //                    {
+        //                        if (originDepotForOrder == session.Description)
+        //                        {
+        //                            orderInRNA.SessionEntityKey = session.EntityKey;
+        //                            orderInRNA.BeginDate = session.StartDate.ToString();
+        //                        }
+        //                    }*/
+        //                    updateOrders.Add(orderInRNA);
+        //                }
+        //                foreach (Order orderNotInRNAs in ordersNotInRnaOrders) // No matching Order Found. Add location/coordinate to order and save in regOrder List
+        //                {
+        //                    orderNotInRNAs.Action = ActionType.Add;
+
+
+        //                    ServiceLocation tempLocation2 = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier == orderNotInRNAs.Tasks[0].LocationIdentifier); //Find service location that matched order
+
+        //                    if (tempLocation2 != null) // order service location found in RNA service locations
+        //                    {
+        //                        orderNotInRNAs.Tasks[0].Action = ActionType.Add;
+        //                        orderNotInRNAs.Tasks[0].LocationAddress = tempLocation2.Address;
+        //                        orderNotInRNAs.Tasks[0].LocationPhoneNumber = tempLocation2.PhoneNumber;
+        //                        orderNotInRNAs.Tasks[0].LocationEntityKey = tempLocation2.EntityKey;
+        //                        orderNotInRNAs.Tasks[0].LocationCoordinate = tempLocation2.Coordinate;
+        //                        orderNotInRNAs.Tasks[0].LocationDescription = tempLocation2.Description;
+        //                        orderNotInRNAs.Tasks[0].LocationStandardInstructions = tempLocation2.StandardInstructions;
+        //                    }
+
+        //                    string originDepotForOrder = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Key;
+        //                    orderNotInRNAs.RequiredRouteOriginEntityKey = orginDepotTypes.FirstOrDefault(x => x.Value == orderNotInRNAs.RequiredRouteOriginEntityKey).Value;
+
+        //                    //Add session entity key to order for routings session with matching depots
+        //                    foreach (DailyRoutingSession session in saveRoutingSession)
+        //                    {
+        //                        if (originDepotForOrder == session.Description)
+        //                        {
+        //                            orderNotInRNAs.SessionEntityKey = session.EntityKey;
+        //                            //orderNotInRNAs.BeginDate = session.StartDate.ToString();
+        //                        }
+        //                    }
+        //                    regOrders.Add(orderNotInRNAs);
+        //                }
+
+
+
+        //                //Add Update and Reg orders to a list
+
+        //                saveOrdersList = updateOrders.Concat(regOrders).ToList();
+
+        //                //Convert Order to OrderSpec
+        //                foreach (Order order in saveOrdersList)
+        //                {
+        //                    if (order.Action == ActionType.Update)
+        //                    {
+        //                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+        //                    }
+        //                    else if (order.Action == ActionType.Add)
+        //                    {
+        //                        var temp = ConvertOrderToOrderSpec(order);
+        //                        temp.OrderInstance = null;
+        //                        convertedOrderSpecs.Add(temp);
+        //                    }
+
+        //                }
+        //            } //matching orders found in rna
+
+
+
+
+
+
+        //            //Save Orders to RNA
+        //            try
+        //            {
+
+        //                foreach (OrderSpec order in convertedOrderSpecs)
+        //                {
+        //                    order.RegionEntityKey = _Region.EntityKey;
+        //                    order.ManagedByUserEntityKey = MainService.User.EntityKey;
+        //                    order.Identifier = order.Identifier.ToUpper();
+
+        //                };
+
+        //                if (convertedOrderSpecs.Count != 0)
+        //                {
+        //                    foreach (OrderSpec orderSpec in convertedOrderSpecs)
+        //                    {
+        //                        SaveResult[] savedOrdersResult = new SaveResult[] { };
+        //                        savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, new OrderSpec[] { orderSpec });
+
+        //                        if (errorLevel == ApexConsumer.ErrorLevel.Fatal || savedOrdersResult == null)
+        //                        {
+        //                            _Logger.Debug("Fatel Error Occured Saving Orders : " + fatalErrorMessage);
+        //                        }
+        //                        else
+        //                        {
+        //                            string errorUpdatingOrderStatusMessage = string.Empty;
+        //                            bool errorUpdatingOrderStatus = false;
+
+        //                            foreach (SaveResult result in savedOrdersResult)
+        //                            {
+        //                                var tempOrder = (Order)result.Object;
+        //                                if (result.Error == null)
+        //                                {
+        //                                    _Logger.DebugFormat("Successfully Saved Order {0} to RNA", orderSpec.Identifier);
+        //                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Successfully Saved Order", "COMPLETE", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+        //                                }
+        //                                else if ((result.Error != null || tempOrder != null) && result.Error.ValidationFailures == null)
+        //                                {
+        //                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} has the following error {1}: {2}", orderSpec.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+        //                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Error Occured: " + result.Error.Code.ErrorCode_Status, "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+        //                                }
+        //                                else if (result.Error.ValidationFailures != null)
+        //                                {
+        //                                    _Logger.ErrorFormat("An error has occured during saving Orders. The Order {0} property {1} is not valid or in the proper format", orderSpec.Identifier, result.Error.ValidationFailures[0].Property);
+        //                                    DBAccessor.UpdateOrderStatus(_Region.Identifier, orderSpec.Identifier, "Validation Error For Properties " + result.Error.ValidationFailures[0].Property + "See Log", "ERROR", out errorUpdatingOrderStatusMessage, out errorUpdatingOrderStatus);
+        //                                }
+
+        //                                _Logger.DebugFormat("Saving Order {0} Completed", tempOrder.Identifier);
+        //                            }
+
+        //                        }
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    _Logger.Debug("No Orders to Save to RNA");
+        //                }
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                _Logger.Error(ex.Message);
+        //                errorRetrieveAndSavingOrdersFromStagingTable = true;
+        //                errorRetrieveAndSavingOrdersFromStagingTableMessage = ex.Message;
+        //            }
+        //        }
+        //    }
+
+        //    catch (FaultException<TransferErrorCode> tec)
+        //    {
+        //        string errorMessage = "TransferErrorCode: " + tec.Action + " | " + tec.Code.Name + " | " + tec.Detail.ErrorCode_Status + " | " + tec.Message;
+        //        _Logger.Error("Retrieve Service Location | " + errorMessage);
+
+        //        if (tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.SessionAuthenticationFailed) || tec.Detail.ErrorCode_Status == Enum.GetName(typeof(ErrorCode), ErrorCode.InvalidEndpointRequest))
+        //        {
+        //            _Logger.Info("Session has expired. New session required.");
+        //            MainService.SessionRequired = true;
+        //            errorLevel = ErrorLevel.Transient;
+        //        }
+        //        else
+        //        {
+        //            errorLevel = ErrorLevel.Fatal;
+        //            fatalErrorMessage = errorMessage;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _Logger.Error(ex.Message);
+        //        errorLevel = ErrorLevel.Transient;
+        //    }
+
+
+
+
+        //}
+
+        //public void RetrieveDummyOrdersAndSave(Dictionary<string, long> RetrieveDepotsForRegionDict, Dictionary<string, long> RetrieveOrderClassDict,
+        //    string regionId, out bool errorRetrieveOrdersFromCSV, out string errorRetrieveOrdersFromCSVMessage)
+        //{
+
+        //    errorRetrieveOrdersFromCSV = false;
+        //    errorRetrieveOrdersFromCSVMessage = string.Empty;
+        //    List<DBAccess.Records.StagedOrderRecord> retrieveListOrders = new List<DBAccess.Records.StagedOrderRecord>();
+        //    DBAccess.IntegrationDBAccessor DBAccessor = new DBAccess.IntegrationDBAccessor(_Logger);
+        //    List<Order> dummyOrdersFromCSV = new List<Order>();
+        //    bool errorCaught = false; ;
+        //    List<DailyRoutingSession> saveRoutingSession = new List<DailyRoutingSession>();
+        //    string fatalErrorMessage = string.Empty;
+        //    List<Order> rnaOrders = new List<Order>();
+        //    string[] dummyOrderIDs = new string[] { };
+        //    List<Order> modifiedRnaOrders = new List<Order>();
+
+
+
+
+
+        //    try
+        //    {
+        //        //Get Dummy Orders
+        //        _Logger.Debug("Start Retrieving Dummy Orders");
+        //        dummyOrdersFromCSV = RetrieveDummyOrdersFromCSV(RetrieveDepotsForRegionDict, RetrieveOrderClassDict, regionId, out errorRetrieveOrdersFromCSV, out errorRetrieveOrdersFromCSVMessage);
+
+
+
+        //        if (errorRetrieveOrdersFromCSV)
+        //        {
+        //            _Logger.Error(errorRetrieveOrdersFromCSVMessage);
+
+        //        }
+        //        else if (dummyOrdersFromCSV == null || dummyOrdersFromCSV.Count == 0)
+        //        {
+        //            _Logger.Debug("Dummy Orders Retrieved Successfully");
+        //            _Logger.Debug("No Dummy Orders Found in Dummy Order File");
+        //        }
+        //        else
+        //        {
+        //            _Logger.Debug("Dummy Orders Retrieved Successfully");
+        //            _Logger.DebugFormat("{0} Dummy Orders Found in Dummy Order File", dummyOrdersFromCSV.Count());
+        //            dummyOrderIDs = dummyOrdersFromCSV.Select(x => x.Identifier).ToArray();
+
+        //            //Get Origin Depot Keys
+        //            string originDepotIdentifier = dummyOrdersFromCSV.Select(x => RetrieveDepotsForRegionDict.FirstOrDefault(y => y.Value == x.RequiredRouteOriginEntityKey).Key).First();
+
+        //            List<string> sessionsToCreate = new List<string>();
+        //            errorCaught = false;
+
+        //            //Retrieve Tomorrows Routing Session and Create Routing Sessions
+
+        //            _Logger.Debug("Start Retrieving DailyRoutingSessions");
+        //            DailyRoutingSession[] tomorrowsRoutingSession = RetrieveDailyRoutingSessionwithOrigin(out errorCaught, out fatalErrorMessage, DateTime.Now, originDepotIdentifier);
+
+        //            if (!errorCaught)
+        //            {
+        //                _Logger.Debug("Retreived DailyRoutingSessions Successfully");
+        //                //Create list of daily routing session for tomorrow
+        //                foreach (DailyRoutingSession session in tomorrowsRoutingSession)
+        //                {
+        //                    saveRoutingSession.Add(session);
+        //                }
+
+        //                //List depots that don't have routing session
+
+        //                if (!tomorrowsRoutingSession.Any(x => x.Description == originDepotIdentifier))
+        //                {
+        //                    sessionsToCreate.Add(originDepotIdentifier);
+        //                }
+
+
+        //            }
+        //            else if (errorCaught)
+        //            {
+        //                _Logger.Error("An error has occured during Retrieving DailyRoutingSession " + fatalErrorMessage);
+        //            }
+
+        //            //create routing sessions for depots that don't have routing sessions
+
+        //            if (sessionsToCreate.Any())
+        //            {
+        //                try
+        //                {
+        //                    _Logger.DebugFormat(" Start Creating Daily Routing Sessions for Depots");
+        //                    SaveResult[] newRoutingSessions = SaveDailyRoutingSessions(out errorCaught, out fatalErrorMessage, new DateTime[] { DateTime.Now.AddDays(1) }, sessionsToCreate.ToArray());
+
+        //                    if (!errorCaught)
+        //                    {
+
+        //                        foreach (SaveResult saveResult in newRoutingSessions)
+        //                        {
+
+
+        //                            if (saveResult.Error != null)
+        //                            {
+        //                                var temp = (DailyRoutingSession)saveResult.Object;
+        //                                _Logger.Error("An error has occured while creating session for Depot " + temp.Description + ":" + saveResult.Error.Code + " " + saveResult.Error.Detail);
+        //                            }
+        //                            else
+        //                            {
+        //                                var temp = (DailyRoutingSession)saveResult.Object;
+        //                                _Logger.Debug("Created Session for session for Depot " + temp.Description);
+        //                                saveRoutingSession.Add(temp);
+
+        //                            }
+        //                        }
+        //                        _Logger.DebugFormat(" Creating Daily Routing Sessions for Depots Ended");
+        //                    }
+        //                    else if (!errorCaught)
+        //                    {
+        //                        _Logger.Error("A Fatal Error has occured while creating session" + fatalErrorMessage);
+        //                    }
+
+
+
+        //                }
+        //                catch (Exception ex)
+        //                {
+        //                    _Logger.Error("An error has occured during Creating Routing Sessions" + ex.Message);
+        //                }
+        //            }
+
+        //            //Get matching Orders from RNA
+
+        //            try
+        //            {
+        //                _Logger.Debug("Retrieve Matching Pick Up Dummy Orders created in RNA Since " + RegionProcessor.lastSuccessfulRunTime.ToString());
+
+        //                foreach (String orderNumber in dummyOrderIDs)
+        //                {
+        //                    ErrorLevel errorLevel = ErrorLevel.None;
+
+        //                    Order tempOrder = RetrieveDummyRNAOrders(out errorLevel, out fatalErrorMessage, orderNumber);
+
+
+        //                    if (errorLevel == ErrorLevel.None && tempOrder == null)
+        //                    {
+
+        //                        _Logger.DebugFormat("No Dummy Orders in RNA matching Order Number " + orderNumber);
+        //                    }
+        //                    else if (errorLevel == ErrorLevel.Fatal)
+        //                    {
+        //                        _Logger.Error(fatalErrorMessage);
+
+        //                    }
+        //                    else if (errorLevel == ErrorLevel.None && tempOrder != null)
+        //                    {
+        //                        modifiedRnaOrders.Add(tempOrder);
+        //                        _Logger.Debug("Sucessfully found and Retrieved Dummy Order" + orderNumber + " in RNA");
+
+        //                    }
+        //                }
+
+        //                _Logger.Debug("Sucessfully Retrieved " + modifiedRnaOrders.Count.ToString() + " dummy orders from RNA");
+
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                _Logger.Error("An error has occured retrieving modified dummy orders" + ex.Message);
+        //            }
+
+        //            List<OrderSpec> convertedOrderSpecs = new List<OrderSpec>();
+
+        //            //Check if Matching orders Exist in RNA
+
+        //            rnaOrders = modifiedRnaOrders;
+
+
+        //            if (rnaOrders.Count == 0 || rnaOrders == null) //Orders have not been found that match dummy pickup orders, Add Orders to RNA
+        //            {
+        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = new List<ServiceLocation>();
+
+        //                try
+        //                {
+
+        //                    try//Get Region Service Locations
+        //                    {
+        //                        ErrorLevel errorLevel = ErrorLevel.None;
+        //                        long[] regionEntityKey = new long[] { _Region.EntityKey };
+        //                        _Logger.Debug("Start Retrieved Service Locations for Dummy Orders");
+        //                        serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+        //                        if (errorLevel == ErrorLevel.None)
+        //                        {
+        //                            _Logger.Debug("Successfully Retrieved Service Locations for Dummy Orders");
+
+        //                        }
+        //                        else if (errorLevel == ErrorLevel.Fatal)
+        //                        {
+        //                            _Logger.Error("Fatal Error Retrieving Service Locations for Dummy Orders:" + fatalErrorMessage);
+        //                        }
+        //                        else
+        //                        {
+        //                            _Logger.Error("Error Retrieving Service Locations for Dummy Orders");
+        //                        }
+
+        //                    }
+        //                    catch (Exception ex)
+        //                    {
+        //                        _Logger.Error("An error has occured retrieving service locations for orders during saving Orders" + ex.Message);
+        //                    }
+
+        //                    List<Order> ordersToSaveInRNA = new List<Order>();
+        //                    foreach (Order dummyorder in dummyOrdersFromCSV) //Find Order with Matching service Location and convert them to Order Spec
+        //                    {
+        //                        Task orderTask = new Task();
+        //                        ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
+
+        //                        if (tempLocation == null) // order service location found in RNA service locations
+        //                        {
+        //                            _Logger.DebugFormat("Could not find service location {0} for Dummy Order {1} in RNA", dummyorder.Tasks[0].LocationIdentifier, dummyorder.Identifier);
+        //                        }
+        //                        else
+        //                        {
+        //                            dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+        //                            dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
+        //                            dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
+        //                            dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+        //                            dummyorder.Tasks[0].TaskType_Type = "Pickup";
+
+        //                            string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+        //                            //Add session entity key to order for routings session with matching depots
+        //                            foreach (DailyRoutingSession session in saveRoutingSession)
+        //                            {
+        //                                if (originDepotForOrder == session.Description)
+        //                                {
+        //                                    dummyorder.SessionEntityKey = session.EntityKey;
+        //                                    //dummyorder.BeginDate = session.StartDate.ToString();
+        //                                }
+        //                            }
+
+        //                            ordersToSaveInRNA.Add(dummyorder);
+
+
+
+        //                            if (dummyorder.Tasks[0].ServiceWindowOverrides != null)
+        //                            {
+        //                                dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Add;
+        //                            }
+
+        //                            else
+        //                            {
+        //                                _Logger.DebugFormat("Order {0} with Service Location {1} not Found in RNA", dummyorder.Identifier, dummyorder.Tasks[0].LocationIdentifier);
+        //                            }
+
+        //                        }
+
+
+
+        //                    }
+        //                    foreach (Order orderSave in ordersToSaveInRNA)
+        //                    {
+        //                        if (orderSave.Action == ActionType.Update)
+        //                        {
+        //                            convertedOrderSpecs.Add(ConvertOrderToOrderSpec(orderSave));
+        //                        }
+        //                        else if (orderSave.Action == ActionType.Add)
+        //                        {
+        //                            var temp = ConvertOrderToOrderSpec(orderSave);
+        //                            temp.OrderInstance = null;
+        //                            convertedOrderSpecs.Add(temp);
+        //                        }
+
+        //                    }
+
+
+
+
+        //                }
+        //                catch (Exception ex)
+        //                {
+        //                    _Logger.Error("An error has occured during saving Orders" + ex.Message);
+        //                }
+        //            }
+
+        //            else  //Orders have a been found in RNA
+        //            {
+        //                // Order Checked List and Returned RNA List
+        //                dummyOrdersFromCSV.OrderBy(x => x.Identifier); // New Orders
+        //                rnaOrders.OrderBy(x => x.Identifier); //Orders in RNA
+        //                long[] regionEntityKey = new long[] { _Region.EntityKey };
+        //                List<Order> updateOrders = new List<Order>(); //Orders to Update in RNA
+        //                List<Order> regOrders = new List<Order>(); //Orders to Add to RNA
+        //                List<Order> saveOrdersList = new List<Order>();
+        //                ErrorLevel errorLevel = ErrorLevel.None;
+        //                List<ServiceLocation> serviceLocationsforOrdersInRegion = RetrieveServiceLocationsByRegion(out errorLevel, out fatalErrorMessage, regionEntityKey).ToList();
+
+        //                List<Order> dummyOrdersInRnaOrders = dummyOrdersFromCSV.Where(x => rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+        //                List<Order> dummyOrdersNotInRnaOrders = dummyOrdersFromCSV.Where(x => !rnaOrders.Any(y => y.Identifier == x.Identifier)).ToList();
+
+        //                foreach (Order dummyorder in dummyOrdersInRnaOrders)
+        //                {
+        //                    Order matchingRNAOrder = rnaOrders.Where(order => order.Identifier == dummyorder.Identifier).First();
+        //                    dummyorder.Action = ActionType.Update;
+        //                    dummyorder.EntityKey = matchingRNAOrder.EntityKey;
+        //                    dummyorder.Version = matchingRNAOrder.Version;
+
+        //                    if (matchingRNAOrder.Tasks != null && dummyorder.Tasks != null)
+        //                    {
+        //                        if (dummyorder.Tasks[0].ServiceWindowOverrides != null && matchingRNAOrder.Tasks[0].ServiceWindowOverrides != null)
+        //                        {
+        //                            dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Update;
+        //                            dummyorder.Tasks[0].ServiceWindowOverrides[0].EntityKey = matchingRNAOrder.Tasks[0].ServiceWindowOverrides[0].EntityKey;
+
+        //                        }
+
+        //                    }
+        //                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
+        //                    if (tempLocation == null) // order service location found in RNA service locations
+        //                    {
+        //                        _Logger.DebugFormat("Could not find service location {0} for Dummy Order {1} in RNA", dummyorder.Tasks[0].LocationIdentifier, dummyorder.Identifier);
+        //                    }
+        //                    else // order service location found in RNA service locations
+        //                    {
+        //                        dummyorder.Coordinate = tempLocation.Coordinate;
+        //                        dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+        //                        dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
+        //                        dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
+        //                        dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+
+
+
+        //                        string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+        //                        //Add session entity key to order for routings session with matching depots
+        //                        foreach (DailyRoutingSession session in saveRoutingSession)
+        //                        {
+        //                            if (originDepotForOrder == session.Description)
+        //                            {
+        //                                dummyorder.SessionEntityKey = session.EntityKey;
+        //                                //dummyorder.BeginDate = session.StartDate.ToString();
+        //                            }
+        //                        }
+        //                        updateOrders.Add(dummyorder);
+        //                    }
+        //                }
+        //                foreach (Order dummyorder in dummyOrdersNotInRnaOrders)
+        //                {
+        //                    dummyorder.Action = ActionType.Add;
+        //                    dummyorder.Tasks[0].TaskType_Type = "Pickup";
+        //                    if (dummyorder.Tasks[0].ServiceWindowOverrides != null)
+        //                    {
+        //                        dummyorder.Tasks[0].ServiceWindowOverrides[0].Action = ActionType.Add;
+        //                    }
+
+
+        //                    string originDepotForOrder = RetrieveDepotsForRegionDict.FirstOrDefault(x => x.Value == dummyorder.RequiredRouteOriginEntityKey).Key;
+
+        //                    //Add session entity key to order for routings session with matching depots
+        //                    foreach (DailyRoutingSession session in saveRoutingSession)
+        //                    {
+        //                        if (originDepotForOrder == session.Description)
+        //                        {
+        //                            dummyorder.SessionEntityKey = session.EntityKey;
+        //                            //dummyorder.BeginDate = session.StartDate.ToString();
+        //                        }
+        //                    }
+
+        //                    ServiceLocation tempLocation = serviceLocationsforOrdersInRegion.FirstOrDefault(x => x.Identifier.ToUpper() == dummyorder.Tasks[0].LocationIdentifier.ToUpper());
+        //                    if (tempLocation == null) // order service location found in RNA service locations
+        //                    {
+        //                        _Logger.DebugFormat("Could not find service location {0} for Dummy Order {1} in RNA", dummyorder.Tasks[0].LocationIdentifier, dummyorder.Identifier);
+        //                    }
+        //                    else
+        //                    {
+
+        //                        dummyorder.Tasks[0].LocationEntityKey = tempLocation.EntityKey;
+        //                        dummyorder.Tasks[0].LocationIdentifier = tempLocation.Identifier;
+        //                        dummyorder.Tasks[0].LocationAddress = tempLocation.Address;
+        //                        dummyorder.Tasks[0].LocationCoordinate = tempLocation.Coordinate;
+
+
+
+
+        //                        regOrders.Add(dummyorder);
+        //                    }
+        //                }
+
+
+        //                //Add Update and Reg orders to a list
+
+        //                saveOrdersList = updateOrders.Concat(regOrders).ToList();
+
+        //                //Convert Order to OrderSpec
+        //                foreach (Order order in saveOrdersList)
+        //                {
+        //                    if (order.Action == ActionType.Update)
+        //                    {
+        //                        convertedOrderSpecs.Add(ConvertOrderToOrderSpec(order));
+        //                    }
+        //                    else if (order.Action == ActionType.Add)
+        //                    {
+        //                        var temp = ConvertOrderToOrderSpec(order);
+        //                        temp.OrderInstance = null;
+        //                        convertedOrderSpecs.Add(temp);
+        //                    }
+
+        //                }
+        //            }
+
+        //            //Save Dummy Orders to RNA if Matching orders Exist in RNA
+
+        //            try
+        //            {
+
+
+        //                ErrorLevel errorLevel = ErrorLevel.None;
+        //                foreach (OrderSpec order in convertedOrderSpecs)
+        //                {
+        //                    order.RegionEntityKey = _Region.EntityKey;
+        //                    order.ManagedByUserEntityKey = MainService.User.EntityKey;
+
+
+        //                };
+
+
+
+
+        //                SaveResult[] savedOrdersResult = SaveOrders(out errorLevel, out fatalErrorMessage, convertedOrderSpecs.ToArray());
+
+
+
+        //                if (errorLevel == ApexConsumer.ErrorLevel.Fatal)
+        //                {
+        //                    _Logger.Debug("Fatel Error Occured Saving Dummy Order  : " + fatalErrorMessage);
+        //                }
+        //                else
+        //                {
+
+
+        //                    foreach (SaveResult result in savedOrdersResult)
+        //                    {
+        //                        var tempOrder = (Order)result.Object;
+        //                        if (result.Error == null)
+        //                        {
+        //                            _Logger.DebugFormat("Successfully Saved/Updated Dummy Order  {0} to RNA", tempOrder.Identifier);
+        //                        }
+        //                        else if (result.Error.ValidationFailures != null)
+        //                        {
+        //                            _Logger.ErrorFormat("An error has occured during saving/updating Dummy Order . The Dummy Order  {0} property {1} is not valid or in the proper format", tempOrder.Identifier, result.Error.ValidationFailures[0].Property);
+        //                        }
+        //                        else if (result.Error != null)
+        //                        {
+        //                            _Logger.ErrorFormat("An error has occured during saving/updating Dummy Order . The Dummy Order  {0} has the following error {1}: {2}", tempOrder.Identifier, result.Error.Code.ErrorCode_Status, result.Error.Detail);
+        //                        }
+
+        //                    }
+        //                    _Logger.Debug("Saving Dummy Order Completed");
+        //                }
+
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                _Logger.Error(ex.Message);
+        //                errorRetrieveOrdersFromCSV = true;
+        //                errorRetrieveOrdersFromCSVMessage = ex.Message;
+        //            }
+
+        //        }
+
+
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _Logger.Error(ex.Message);
+        //    }
+
+        //}
+
         #endregion
 
 

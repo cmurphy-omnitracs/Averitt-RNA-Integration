@@ -25,7 +25,7 @@ namespace Averitt_RNA
         public static readonly string DummyOrderCSVFile = ConfigurationManager.AppSettings["DummyOrderCSVFile"];
         public static readonly int DictServiceTimeRefresh = Convert.ToInt32(ConfigurationManager.AppSettings["DictServiceTimeRefresh"]);
         public static readonly string DefaultRoutingPassIdentifier = ConfigurationManager.AppSettings["DefaultRoutingPassIdentifier"];
-
+        public static readonly string DictPath = ConfigurationManager.AppSettings["DictPath"];
 
         
     }

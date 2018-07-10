@@ -36,7 +36,7 @@ namespace Averitt_RNA
             _Region = region;
             _ApexConsumer = new ApexConsumer(region, Logger);
             _IntegrationDBAccessor = new IntegrationDBAccessor(Logger);
-            dictCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dicts_" + _Region.Identifier + ".json");
+            dictCacheFile = Config.DictPath + "Dicts_" + _Region.Identifier + ".json";
             dictCache = new DictCache(dictCacheFile, Logger, region, _ApexConsumer);
 
         }
@@ -53,7 +53,7 @@ namespace Averitt_RNA
                 string fatalErrorMessage = string.Empty;
 
 
-                string successfullRunCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), String.Format("{0}-SuccessfulRunTimeCache.json", _Region.Identifier));
+                string successfullRunCacheFile =Config.DictPath + String.Format("{0}-SuccessfulRunTimeCache.json", _Region.Identifier);
 
                 //Get last successfull Rune Time
                 Logger.Info("Retrieve Last Successful Run Time");
@@ -70,7 +70,7 @@ namespace Averitt_RNA
                 Logger.Debug("Start Retrieving Region Cache Files");
 
                 //Write cache file if it doesn't exist or if it needs to get refreshed
-                if (((DateTime.Now.Minute % Config.DictServiceTimeRefresh) == 0) || !File.Exists(dictCacheFile))
+                if (((DateTime.Now - DateTime.MinValue).TotalHours > Config.DictServiceTimeRefresh) || !File.Exists(dictCacheFile))
                 {
                     try
                     {
@@ -125,19 +125,25 @@ namespace Averitt_RNA
                     List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier, dictCache.serviceTimeEntityKeyDict, dictCache.timeWindowEntityKeyDict);
                     Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfull", newServiceLocations.Count());
 
-                    
-                    List<ServiceLocation> finalizedServiceLocations = prepServiceLocations(newServiceLocations);
-                    Logger.InfoFormat("Geocoding {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
-                    List<ServiceLocation> geocoded = GeocodeServiceLocations(finalizedServiceLocations);
-                    Logger.InfoFormat("Geocoding Successfull");
-                    Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
-
-                    SaveSLToRNA(_Region.Identifier, geocoded);
-                    if (geocoded.Count != 0)
+                    if (newServiceLocations != null)
                     {
-                        dictCache.refreshServiceLocation();
+                        if (newServiceLocations.Count != 0)
+                        {
+
+                            List<ServiceLocation> finalizedServiceLocations = prepServiceLocations(newServiceLocations);
+                            Logger.InfoFormat("Geocoding {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+                            List<ServiceLocation> geocoded = GeocodeServiceLocations(finalizedServiceLocations);
+                            Logger.InfoFormat("Geocoding Complete");
+                            Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+
+                            
+                            if (geocoded.Count != 0)
+                            {
+                                SaveSLToRNA(_Region.Identifier, geocoded);
+                                dictCache.refreshServiceLocation();
+                            }
+                        }
                     }
-                  
                     Logger.InfoFormat("Service Locations Save Process Finished", newServiceLocations.Count());
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
 
@@ -315,12 +321,31 @@ namespace Averitt_RNA
 
                     foreach (DBAccess.Records.StagedServiceLocationRecord locationRecord in retrieveNewSLRecords)
                     {
-                        if (!errorSLRecords.Contains(locationRecord))
+                        try
                         {
-                            ServiceLocation location = (ServiceLocation)locationRecord;
-                            location.ServiceTimeTypeEntityKey = serviceTimeCache[locationRecord.ServiceTimeTypeIdentifier];
-                            location.TimeWindowTypeEntityKey = timeWindowCache[locationRecord.ServiceWindowTypeIdentifier];
-                            newServiceLocations.Add(location);
+                            if (!errorSLRecords.Contains(locationRecord))
+                            {
+                                ServiceLocation location = (ServiceLocation)locationRecord;
+                                location.ServiceTimeTypeEntityKey = serviceTimeCache[locationRecord.ServiceTimeTypeIdentifier];
+                                location.TimeWindowTypeEntityKey = timeWindowCache[locationRecord.ServiceWindowTypeIdentifier];
+                                newServiceLocations.Add(location);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                           
+                            errorSLMessage = ex.Message;
+                            Logger.Error("Error Retrieveing New SL's from Database: " + errorSLMessage);
+                            _IntegrationDBAccessor.UpdateServiceLocationStatus(locationRecord.RegionIdentifier, locationRecord.ServiceLocationIdentifier, errorSLMessage, "ERROR", out errorSLMessage, out errorCaught);
+                            if (errorCaught)
+                            {
+                                Logger.Error("Error Updating SL " + locationRecord.ServiceLocationIdentifier + " with Error Status | " + errorSLMessage);
+
+                            }
+                            else
+                            {
+                                Logger.Debug("Service Location " + locationRecord.ServiceLocationIdentifier + " error status update successfully");
+                            }
                         }
 
                     }
@@ -390,6 +415,7 @@ namespace Averitt_RNA
                 errorCaught = true;
                 errorSLMessage = ex.Message;
                 Logger.Error("Error Retrieveing New SL's from Database: " + errorSLMessage);
+                
             }
             return newServiceLocations;
         }
@@ -503,11 +529,12 @@ namespace Averitt_RNA
                     if (errorCaught)
                     {
                         Logger.Debug("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorSLMessage);
-
+                        geocodeServiceLocations.Add(location);
                     }
                     else
                     {
                         Logger.Debug("Updating Service Location " + location.Identifier + " error status succesfull");
+                        geocodeServiceLocations.Add(location);
                     }
                 }
             }
@@ -581,12 +608,12 @@ namespace Averitt_RNA
                                 _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "", "COMPLETE", out errorMessage, out errorCaught);
                                 if (errorCaught)
                                 {
-                                    Logger.Error("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
+                                    Logger.Error("Updating Service Location " + location.Identifier + " status in staging table failed | " + errorMessage);
 
                                 }
                                 else
                                 {
-                                    Logger.Info("Updating Order " + location.Identifier + " error status succesfull");
+                                    Logger.Info("Updating Order " + location.Identifier + " status succesfull");
                                 }
                             }
 
@@ -632,6 +659,7 @@ namespace Averitt_RNA
             List<string> orderIdentifiers = orders.Select(order => order.Identifier).ToList();
             List<string> dummyOrderIdentifiers = dummyOrders.Select(order => order.Identifier).ToList();
             List<Order> errorDeletOrders = new List<Order>();
+            List<Order> potentialNewOrder = new List<Order>();
             newOrders = new List<Order>();
             updateOrders = new List<Order>();
             deleteOrders = new List<Order>();
@@ -646,9 +674,9 @@ namespace Averitt_RNA
                 {
                     updateOrders = ordersFromRNA.FindAll(order => orders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && orders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
-                    newOrders = orders.FindAll(order => order.Action != ActionType.Delete && !ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier &&
+                    potentialNewOrder = orders.FindAll(order => order.Action != ActionType.Delete && !ordersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier &&
                     rnOrder.BeginDate == order.BeginDate)).ToList();
-                    newOrders.ForEach(x =>
+                    potentialNewOrder.ForEach(x =>
                     {
                         x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey;
                         x.CreatedBy = MainService.User.EmailAddress; x.RegionEntityKey = _Region.EntityKey;
@@ -709,34 +737,79 @@ namespace Averitt_RNA
                     deleteOrder.RegionEntityKey = _Region.EntityKey;
 
                 }
-                foreach (Order newOrder in newOrders)
+                foreach (Order newOrder in potentialNewOrder)
                 {
+                    ServiceLocation location = new ServiceLocation();
                     Order databaseOrder = orders.Find(order => (order.Identifier == newOrder.Identifier) &&
-                    (order.BeginDate == newOrder.BeginDate));
-                    newOrder.Tasks[0].LocationEntityKey = serviceLocationsDict[databaseOrder.Tasks[0].LocationIdentifier].EntityKey;
-                    newOrder.LineItems = new LineItem[] { };
+                       (order.BeginDate == newOrder.BeginDate));
+                    bool locationEKFound = serviceLocationsDict.TryGetValue(databaseOrder.Tasks[0].LocationIdentifier, out location);
+                    if(locationEKFound)
+                    {
+                        newOrder.Tasks[0].LocationEntityKey = serviceLocationsDict[databaseOrder.Tasks[0].LocationIdentifier].EntityKey;
+                        newOrder.LineItems = new LineItem[] { };
+                        newOrders.Add(newOrder);
+                    }
+                    else
+                    {
+                      
+                        bool errorSave = false;
+                        string errorSaveMessage = string.Empty;
+                        string message = String.Format("Order {0} | ServiceLocation {1} not found in RNA", databaseOrder.Identifier, databaseOrder.Tasks[0].LocationIdentifier);
+                        Logger.Error(message);
+                        _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, databaseOrder.Identifier, message + "See Log", "ERROR", out errorSaveMessage, out errorSave);
+                        if (errorSave)
+                        {
+                            Logger.Debug("Updating Order " + databaseOrder.Identifier + " error status in staging table failed | " + errorSaveMessage);
+
+                        }
+                        else
+                        {
+                            Logger.Debug("Updating Order " + databaseOrder.Identifier + " error status succesfull");
+                        }
+                    }
+
+                       
+                     
+                    
 
 
                 }
 
 
                 List<Order> dummOrdersFromRNA = _ApexConsumer.RetrieveDummyRNAOrders(out errorCaught, out errorMessage, dummyOrderIdentifiers.ToArray());
+                List<Order> tempNewDummyOrders = new List<Order>();
                 if (!errorCaught)
                 {
                     updateDummyOrders = dummOrdersFromRNA.Where(order => dummyOrders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && dummyOrders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
-                    newDummyOrders = dummyOrders.FindAll(order => order.Action != ActionType.Delete && !dummOrdersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
-                    newDummyOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey; x.RegionEntityKey = _Region.EntityKey; });
+                    tempNewDummyOrders = dummyOrders.FindAll(order => order.Action != ActionType.Delete && !dummOrdersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
+                    tempNewDummyOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey; x.RegionEntityKey = _Region.EntityKey; });
                 }
                 else
                 {
                     Logger.Error("Error Caught Checking if Dummy Orders Exist in RNA : " + errorMessage);
                 }
 
-                foreach (Order newDummyOrder in newDummyOrders)
+                foreach (Order newDummyOrder in tempNewDummyOrders)
                 {
                     Order csvDummyOrder = newDummyOrders.Find(order => (order.Identifier == newDummyOrder.Identifier));
                     newDummyOrder.Tasks[0].LocationEntityKey = serviceLocationsDict[csvDummyOrder.Tasks[0].LocationIdentifier].EntityKey;
+                    ServiceLocation location = new ServiceLocation();
+                    bool locationEKFound = serviceLocationsDict.TryGetValue(csvDummyOrder.Tasks[0].LocationIdentifier, out location);
+                    if (locationEKFound)
+                    {
+                        newDummyOrder.Tasks[0].LocationEntityKey = serviceLocationsDict[csvDummyOrder.Tasks[0].LocationIdentifier].EntityKey;
+
+                        newDummyOrders.Add(newDummyOrder);
+                    }
+                    else
+                    {
+
+                       
+                        string message = String.Format("Order {0} | ServiceLocation {1} not found in RNA", csvDummyOrder.Identifier, csvDummyOrder.Tasks[0].LocationIdentifier);
+                        Logger.Error(message);
+                       
+                    }
                 }
 
                 foreach (Order updateDummyOrder in updateDummyOrders)
@@ -746,11 +819,12 @@ namespace Averitt_RNA
                     updateDummyOrder.Action = ActionType.Update;
                     updateDummyOrder.Tasks[0].ServiceWindowOverrides = ServiceWindowConsolidation(updateDummyOrder, csvOrder);
                     updateDummyOrder.ManagedByUserEntityKey = MainService.User.EntityKey;
-                    updateDummyOrder.Tasks[0].LocationEntityKey = serviceLocationsDict[csvOrder.Tasks[0].LocationIdentifier].EntityKey;
-                    updateDummyOrder.PlannedDeliveryQuantities.Size1 = csvOrder.PlannedDeliveryQuantities.Size1;
-                    updateDummyOrder.PlannedDeliveryQuantities.Size2 = csvOrder.PlannedDeliveryQuantities.Size2;
-                    updateDummyOrder.PlannedDeliveryQuantities.Size3 = csvOrder.PlannedDeliveryQuantities.Size3;
-
+                    updateDummyOrder.PlannedPickupQuantities.Size1 = csvOrder.PlannedPickupQuantities.Size1;
+                    updateDummyOrder.PlannedPickupQuantities.Size2 = csvOrder.PlannedPickupQuantities.Size2;
+                    updateDummyOrder.PlannedPickupQuantities.Size3 = csvOrder.PlannedPickupQuantities.Size3;
+                  
+                  
+                   
 
                 }
 
@@ -1320,13 +1394,13 @@ namespace Averitt_RNA
         {
             System.Collections.Concurrent.ConcurrentBag<ServiceLocation> serviceLocationBag = new System.Collections.Concurrent.ConcurrentBag<ServiceLocation>(serviceLocations);
 
-            System.Threading.Tasks.Parallel.ForEach(serviceLocationBag, (serviceLocation) =>
+            foreach(ServiceLocation serviceLocation in serviceLocationBag)
             {
                 bool errorCaught = false;
                 bool timeout = false;
                 string errorMessage = string.Empty;
 
-                Logger.ErrorFormat("Start Geocoding Service Locations {0}", serviceLocation.Identifier);
+                Logger.DebugFormat("Start Geocoding Service Locations {0}", serviceLocation.Identifier);
                 GeocodeCandidate result = _ApexConsumer.GeocodeRNA(out errorCaught, out errorMessage, out timeout, new Address[] { serviceLocation.Address });
                 if (!errorCaught)
                 {
@@ -1341,7 +1415,7 @@ namespace Averitt_RNA
                 }
 
 
-            });
+            }
 
 
 
@@ -1357,7 +1431,7 @@ namespace Averitt_RNA
             string errorMessage = string.Empty;
             System.Collections.Concurrent.ConcurrentBag<Order> newOrdersBag = new System.Collections.Concurrent.ConcurrentBag<Order>(newOrders);
 
-            System.Threading.Tasks.Parallel.ForEach(newOrderRecords, (order) =>
+            foreach(DBAccess.Records.StagedOrderRecord order in newOrderRecords)
             {
                 Order newRNAOrder = newOrdersBag.Where(x => x.Identifier == order.OrderIdentifier).First();
                 DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
@@ -1426,7 +1500,7 @@ namespace Averitt_RNA
                                 }
                                 else
                                 {
-                                    Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
+                                    Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}, not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
                                     _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, newRNAOrder.Identifier, "Error assigning Order to Route: No Daily Routing Pass Found for RoutingSession , See Log", "ERROR", out errorMessage, out errorCaught);
                                     if (errorCaught)
                                     {
@@ -1472,7 +1546,7 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", rtSession.Description, rtSession.StartDate);
+                                        Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1} not created, cannot create Route", rtSession.Description, rtSession.StartDate);
                                         _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, newRNAOrder.Identifier, "Error assigning Order to Route: No Daily Routing Pass Found for RoutingSession , See Log", "ERROR", out errorMessage, out errorCaught);
                                         if (errorCaught)
                                         {
@@ -1573,7 +1647,7 @@ namespace Averitt_RNA
                 }
 
 
-            });
+            }
 
 
 
@@ -1659,7 +1733,7 @@ namespace Averitt_RNA
                                 }
                                 else
                                 {
-                                    Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
+                                    Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1} not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
                                     
                                 }
 
@@ -1697,7 +1771,7 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1}not created, cannot create Route", rtSession.Description, rtSession.StartDate);
+                                        Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1} not created, cannot create Route", rtSession.Description, rtSession.StartDate);
                                        
                                     }
                                 }
@@ -2204,7 +2278,7 @@ namespace Averitt_RNA
                     //    return null;
                     //}
 
-                    Logger.ErrorFormat("Error No Route Pass Template Found ");
+                    Logger.ErrorFormat("Error No Route Pass Template Found {0} ", Config.DefaultRoutingPassIdentifier);
                     return null;
 
                 }
