@@ -123,22 +123,32 @@ namespace Averitt_RNA
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Service Locations from staging table");
                     List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier, dictCache.serviceTimeEntityKeyDict, dictCache.timeWindowEntityKeyDict);
-                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfull", newServiceLocations.Count());
+                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfully", newServiceLocations.Count());
 
                     if (newServiceLocations != null)
                     {
                         if (newServiceLocations.Count != 0)
                         {
-
+                            Logger.InfoFormat("Preparing {0} Service Locations for Save in RNA", newServiceLocations.Count());
                             List<ServiceLocation> finalizedServiceLocations = prepServiceLocations(newServiceLocations);
-                            Logger.InfoFormat("Geocoding {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
-                            List<ServiceLocation> geocoded = GeocodeServiceLocations(finalizedServiceLocations);
-                            Logger.InfoFormat("Geocoding Complete");
-                            Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+                            Logger.InfoFormat("Preparing Complete");
+                            List<ServiceLocation> geocoded = new List<ServiceLocation>();
+                            if (Config.GeocodeLocations)
+                            {
 
+
+                                Logger.InfoFormat("Geocoding {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+                                geocoded = GeocodeServiceLocations(finalizedServiceLocations);
+                                Logger.InfoFormat("Geocoding Complete");
+                                
+                            } else
+                            {
+                                geocoded = finalizedServiceLocations;
+                            }
                             
                             if (geocoded.Count != 0)
                             {
+                                Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
                                 SaveSLToRNA(_Region.Identifier, geocoded);
                                 dictCache.refreshServiceLocation();
                             }
@@ -460,86 +470,89 @@ namespace Averitt_RNA
 
         private List<ServiceLocation> GeocodeServiceLocations(List<ServiceLocation> serviceLocations)
         {
-            List<ServiceLocation> geocodeServiceLocations = new List<ServiceLocation>();
+            System.Collections.Concurrent.ConcurrentBag<ServiceLocation> geocodeServiceLocations = new System.Collections.Concurrent.ConcurrentBag<ServiceLocation>();
+            System.Collections.Concurrent.ConcurrentDictionary<ServiceLocation, string> failedGeocodeServiceLocations = new System.Collections.Concurrent.ConcurrentDictionary<ServiceLocation, string>();
             string[] serviceLocationIdentifiers = serviceLocations.Select(sl => sl.Identifier).ToArray();
-
-
+            
             bool errorCaught = false;
           
             bool timeout = false;
             string errorSLMessage = string.Empty;
+            Logger.InfoFormat("Start Geocoding {0} Service Locations", serviceLocations.Count());
+            System.Threading.Tasks.Parallel.ForEach(serviceLocations, (location) =>
+             {
+                 try
+                 {
+                     Logger.InfoFormat("Start Geocoding Service Location {0}", location.Identifier);
 
-            foreach (ServiceLocation location in serviceLocations)
+                     GeocodeCandidate candidate = _ApexConsumer.GeocodeRNA(out errorCaught, out errorSLMessage, out timeout, new Address[] { location.Address });
+                     if (!errorCaught && !timeout)
+                     {
+                         location.Coordinate = candidate.Coordinate;
+                         location.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                        
+                         serviceLocations = GeoServiceLocations(serviceLocations);
+
+                         geocodeServiceLocations.Add(location);
+                     }
+                     else if (errorCaught)
+                     {
+                        
+                         Logger.ErrorFormat("Error Geocoding Service Location {0} " + errorSLMessage, location.Identifier);
+                         Logger.DebugFormat("Adding Location {0} to failed location dictionary", location.Identifier);
+                         if (!failedGeocodeServiceLocations.TryAdd(location, errorSLMessage))
+                         {
+                             Logger.DebugFormat("Location {0} already in failed location dictionary", location.Identifier);
+                         }
+
+                     }
+                     else if (timeout)
+                     {
+                         
+                         string errorMessage = string.Format("Error Geocoding Service Location {0}. Geocoding Timed  Out", location.Identifier);
+                         Logger.DebugFormat("Adding Location {0} to failed location dictionary", location.Identifier);
+                         if (!failedGeocodeServiceLocations.TryAdd(location, errorMessage))
+                         {
+                             Logger.DebugFormat("Location {0} already in failed location dictionary", location.Identifier);
+                         }
+                     }
+                 }
+                 catch (Exception ex)
+                 {
+                     
+                     Logger.Error("Error Checking RNA for SL's : " + errorSLMessage);
+                     Logger.DebugFormat("Adding Location {0} to failed location dictionary", location.Identifier);
+                     if (!failedGeocodeServiceLocations.TryAdd(location, ex.Message))
+                     {
+                         Logger.DebugFormat("Location {0} already in failed location dictionary", location.Identifier);
+                     }
+                 }
+             });
+            Logger.DebugFormat("{0} Service Locations geocoded Successfully and {1} Failed", geocodeServiceLocations.Count, failedGeocodeServiceLocations.Count);
+
+            if (failedGeocodeServiceLocations.Count > 0)
             {
-                try
+                Logger.DebugFormat("Updating Failed Service Location status. Service Locations will still be saved into RNA");
+                foreach(KeyValuePair<ServiceLocation,string> location in failedGeocodeServiceLocations)
                 {
-
-
-                    GeocodeCandidate candidate = _ApexConsumer.GeocodeRNA(out errorCaught, out errorSLMessage, out timeout,new Address[]{ location.Address });
-                    if (!errorCaught && !timeout)
-                    {
-                        location.Coordinate = candidate.Coordinate;
-                        location.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                        Logger.InfoFormat("Start Geocoding {0} Service Location", serviceLocations.Count());
-                        serviceLocations = GeoServiceLocations(serviceLocations);
-
-                        geocodeServiceLocations.Add(location);
-                    }
-                    else if (errorCaught)
-                    {
-                        bool errorSave = false;
-                        string errorMessage = string.Empty;
-                        Logger.ErrorFormat("Error Geocoding Service Location {0} "+ errorSLMessage, location.Identifier);
-                        _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, errorSLMessage + " Will still Attempt to Save See Log", "", out errorMessage, out errorSave);
-                        if (errorCaught)
-                        {
-                            Logger.Debug("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
-
-                        }
-                        else
-                        {
-                            Logger.Debug("Updating Service Location " + location.Identifier + " error status succesfull");
-                        }
-                        geocodeServiceLocations.Add(location);
-
-                    } else if (timeout)
-                    {
-                        bool errorSave = false;
-                        string errorMessage = string.Empty;
-                        Logger.ErrorFormat("Error Geocoding Service Location {0}. Geocoding Timed  Out" , location.Identifier);
-                        _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "Error Geocoding ServiceLocation. Operation TimedOut" + "Will still Attempt to Save See Log", "", out errorMessage, out errorSave);
-                        if (errorCaught)
-                        {
-                            Logger.Debug("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorMessage);
-
-                        }
-                        else
-                        {
-                            Logger.Debug("Updating Service Location " + location.Identifier + " error status succesfull");
-                        }
-                        geocodeServiceLocations.Add(location);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    errorCaught = true;
-                    errorSLMessage = ex.Message;
-                    Logger.Error("Error Checking RNA for SL's : " + errorSLMessage);
-                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, errorSLMessage + "See Log", "ERROR", out errorSLMessage, out errorCaught);
+                    Logger.ErrorFormat("Error Geocoding Service Location {0} | {1} " + location.Key.Identifier, location.Value);
+                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Key.Identifier, "See Log" + location.Value +" Location will still be Added", "ERROR", out errorSLMessage, out errorCaught);
                     if (errorCaught)
                     {
-                        Logger.Debug("Updating Service Location " + location.Identifier + " error status in staging table failed | " + errorSLMessage);
-                        geocodeServiceLocations.Add(location);
+                        Logger.Debug("Updating Service Location " + location.Key.Identifier + " error status in staging table failed | " + errorSLMessage);
+                      
                     }
                     else
                     {
-                        Logger.Debug("Updating Service Location " + location.Identifier + " error status succesfull");
-                        geocodeServiceLocations.Add(location);
+                        Logger.Debug("Updating Service Location " + location.Key.Identifier + " error status succesfull");
+                     
                     }
                 }
+
             }
-            
-            return geocodeServiceLocations;
+
+
+            return geocodeServiceLocations.ToList();
         }
 
         private void SaveSLToRNA(string regionID, List<ServiceLocation> serviceLocations)
@@ -1476,10 +1489,10 @@ namespace Averitt_RNA
                                 newRNAOrder.SessionEntityKey = dailyRoutingSession.EntityKey;
                                 newRNAOrder.SessionDescription = dailyRoutingSession.Description;
                                 newRNAOrder.SessionDate = dailyRoutingSession.StartDate;
-                                long? passEntityKey = GetorCreateRoutingSessionPass(dailyRoutingSession, newRNAOrder);
-                                if (passEntityKey.HasValue)
+                                DailyPass pass = GetorCreateRoutingSessionPass(dailyRoutingSession, newRNAOrder);
+                                if (pass != null)
                                 {
-                                    long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newRNAOrder);
+                                    long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, pass, newRNAOrder);
 
                                     if (rtEntityKey.HasValue)
                                     {
@@ -1526,10 +1539,10 @@ namespace Averitt_RNA
                                     newRNAOrder.SessionEntityKey = rtSession.EntityKey;
                                     newRNAOrder.SessionDescription = rtSession.Description;
                                     newRNAOrder.SessionDate = rtSession.StartDate;
-                                    long? passEntityKey = GetorCreateRoutingSessionPass(rtSession, newRNAOrder);
-                                    if (passEntityKey.HasValue)
+                                    DailyPass pass = GetorCreateRoutingSessionPass(rtSession, newRNAOrder);
+                                    if (pass != null)
                                     {
-                                        long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newRNAOrder);
+                                        long? rtEntityKey = CreateRoute(order.PreferredRouteIdentifier, sessionDate, pass, newRNAOrder);
                                         if (rtEntityKey.HasValue)
                                         {
                                             bool assignedOrderSuccess = AssignOrderToRoute(newRNAOrder, (long)rtEntityKey, 1);
@@ -1708,10 +1721,10 @@ namespace Averitt_RNA
                                 newOrder.SessionEntityKey = dailyRoutingSession.EntityKey;
                                 newOrder.SessionDescription = dailyRoutingSession.Description;
                                 newOrder.SessionDate = dailyRoutingSession.StartDate;
-                                long? passEntityKey = GetorCreateRoutingSessionPassDummyOrder(dailyRoutingSession, newOrder);
-                                if (passEntityKey.HasValue)
+                                DailyPass pass = GetorCreateRoutingSessionPassDummyOrder(dailyRoutingSession, newOrder);
+                                if (pass != null)
                                 {
-                                    long? rtEntityKey = CreateRouteDummyOrder(newOrder.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newOrder);
+                                    long? rtEntityKey = CreateRouteDummyOrder(newOrder.PreferredRouteIdentifier, sessionDate, pass, newOrder);
 
                                     if (rtEntityKey.HasValue)
                                     {
@@ -1751,10 +1764,10 @@ namespace Averitt_RNA
                                     newOrder.SessionEntityKey = rtSession.EntityKey;
                                     newOrder.SessionDescription = rtSession.Description;
                                     newOrder.SessionDate = rtSession.StartDate;
-                                    long? passEntityKey = GetorCreateRoutingSessionPassDummyOrder(rtSession, newOrder);
-                                    if (passEntityKey.HasValue)
+                                    DailyPass pass = GetorCreateRoutingSessionPassDummyOrder(rtSession, newOrder);
+                                    if (pass != null)
                                     {
-                                        long? rtEntityKey = CreateRouteDummyOrder(newOrder.PreferredRouteIdentifier, sessionDate, (long)passEntityKey, newOrder);
+                                        long? rtEntityKey = CreateRouteDummyOrder(newOrder.PreferredRouteIdentifier, sessionDate, pass, newOrder);
                                         if (rtEntityKey.HasValue)
                                         {
                                             bool assignedOrderSuccess = AssignDummyOrderToRoute(newOrder, (long)rtEntityKey, 1);
@@ -1942,7 +1955,7 @@ namespace Averitt_RNA
             return RNAOrder.Tasks[0].ServiceWindowOverrides;
         }
 
-        private long? CreateRoute(string createRouteID, DateTime routeStartTime, long dailyPassEntityKey, Order rnaOrder)
+        private long? CreateRoute(string createRouteID, DateTime routeStartTime, DailyPass pass, Order rnaOrder)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -1952,7 +1965,7 @@ namespace Averitt_RNA
                 Identifier = createRouteID,
                 DispatcherEntityKey = MainService.User.EntityKey,
                 OriginDepotEntityKey = (long)rnaOrder.RequiredRouteOriginEntityKey,
-                PassEntityKey = dailyPassEntityKey,
+                PassEntityKey = pass.EntityKey,
                 Phase = RoutePhase.Plan,
                 Equipment = new RouteEquipmentType[]
                 {
@@ -1965,7 +1978,7 @@ namespace Averitt_RNA
                 LastStopIsDestination = true,
                 RouterEntityKey = MainService.User.EntityKey,
                 OriginLoadAction = LoadAction.AsNeeded,
-                StartTime = routeStartTime
+                StartTime = Convert.ToDateTime(pass.CommonAttributes.StartTime)
 
 
             };
@@ -2053,7 +2066,7 @@ namespace Averitt_RNA
 
         }
 
-        private long? CreateRouteDummyOrder(string createRouteID, DateTime routeStartTime, long dailyPassEntityKey, Order rnaOrder)
+        private long? CreateRouteDummyOrder(string createRouteID, DateTime routeStartTime, DailyPass pass, Order rnaOrder)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -2063,7 +2076,7 @@ namespace Averitt_RNA
                 Identifier = createRouteID,
                 DispatcherEntityKey = MainService.User.EntityKey,
                 OriginDepotEntityKey = (long)rnaOrder.RequiredRouteDestinationEntityKey,
-                PassEntityKey = dailyPassEntityKey,
+                PassEntityKey = pass.EntityKey,
                 Phase = RoutePhase.Plan,
                 Equipment = new RouteEquipmentType[]
                 {
@@ -2076,7 +2089,7 @@ namespace Averitt_RNA
                 LastStopIsDestination = true,
                 RouterEntityKey = MainService.User.EntityKey,
                 OriginLoadAction = LoadAction.AsNeeded,
-                StartTime = routeStartTime
+                StartTime = Convert.ToDateTime(pass.CommonAttributes.StartTime)
 
 
             };
@@ -2133,7 +2146,7 @@ namespace Averitt_RNA
 
         }
 
-        private long? GetorCreateRoutingSessionPass(DailyRoutingSession routingSession, Order rnaOrder)
+        private DailyPass GetorCreateRoutingSessionPass(DailyRoutingSession routingSession, Order rnaOrder)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -2145,7 +2158,7 @@ namespace Averitt_RNA
                 if (!errorCaught && dailyPass != null)
                 {
 
-                    return dailyPass.EntityKey;
+                    return dailyPass;
                 }
                 else if (dailyPass == null && !errorCaught)
                 {
@@ -2174,7 +2187,7 @@ namespace Averitt_RNA
 
                             Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
                                 dailypass.Identifier, routingSession.Description, routingSession.StartDate);
-                            return dailypass.EntityKey;
+                            return dailypass;
                         }
                         else if (saveResult.Error.ValidationFailures.Count() > 0)
                         {
@@ -2315,7 +2328,7 @@ namespace Averitt_RNA
             return null;
         }
 
-        private long? GetorCreateRoutingSessionPassDummyOrder(DailyRoutingSession routingSession, Order rnaOrder)
+        private DailyPass GetorCreateRoutingSessionPassDummyOrder(DailyRoutingSession routingSession, Order rnaOrder)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -2327,7 +2340,7 @@ namespace Averitt_RNA
                 if (!errorCaught && dailyPass != null)
                 {
 
-                    return dailyPass.EntityKey;
+                    return dailyPass;
                 }
                 else if (dailyPass == null && !errorCaught)
                 {
@@ -2356,7 +2369,7 @@ namespace Averitt_RNA
 
                             Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
                                 dailypass.Identifier, routingSession.Description, routingSession.StartDate);
-                            return dailypass.EntityKey;
+                            return dailypass;
                         }
                         else if (saveResult.Error.ValidationFailures.Count() > 0)
                         {

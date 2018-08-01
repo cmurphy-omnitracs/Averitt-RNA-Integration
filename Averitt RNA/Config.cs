@@ -26,7 +26,8 @@ namespace Averitt_RNA
         public static readonly int DictServiceTimeRefresh = Convert.ToInt32(ConfigurationManager.AppSettings["DictServiceTimeRefresh"]);
         public static readonly string DefaultRoutingPassIdentifier = ConfigurationManager.AppSettings["DefaultRoutingPassIdentifier"];
         public static readonly string DictPath = ConfigurationManager.AppSettings["DictPath"];
+        public static readonly bool GeocodeLocations = Convert.ToBoolean(ConfigurationManager.AppSettings["GeocodeLocations"]);
 
-        
+
     }
 }
