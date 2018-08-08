@@ -1371,7 +1371,7 @@ namespace Averitt_RNA
                     }
                     List<GeocodeResult> result = geocodeResults.Where(x => x.Results.All(y => y != null)).ToList();
                     List<GeocodeCandidate[]> temp = result.Select(x => x.Results).ToList();
-                  
+
                     foreach (GeocodeCandidate[] candidate in temp)
                     {
                         foreach(GeocodeCandidate c in candidate)

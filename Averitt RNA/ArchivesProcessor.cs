@@ -24,7 +24,7 @@ namespace Averitt_RNA
             {
                 DateTime now = DateTime.UtcNow;
                 DateTime boundary = now.AddDays(-1 * Config.ARCHIVE_DAYS);
-                Logger.Debug("Truncate staging tables.");
+                Logger.DebugFormat("Clean Up Log Files Older than {0} Days", Config.ARCHIVE_DAYS);
                 //TODO
                 //if (_IntegrationDBAccessor.Delete(boundary))
                 //{
@@ -37,7 +37,7 @@ namespace Averitt_RNA
                         fileInfo.Delete();
                     }
                 }
-                Logger.Debug("Staging tables truncated successfully.");
+                Logger.Debug("Log Files Cleaned Up Successfully");
                 MainService.LastTruncateArchivesTime = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(now, WSU.ServerTimeZone);
                 //}
             }

@@ -448,7 +448,7 @@ namespace Averitt_RNA
                         .ForEach(x => { x.Action = ActionType.Update; x.EntityKey = updateServiceLocations.Find(sl => serviceLocations.Any(z => z.Identifier == sl.Identifier)).EntityKey; });
 
                     Logger.InfoFormat("Start Geocoding {0} Service Location", serviceLocations.Count());
-                    serviceLocations = GeoServiceLocations(serviceLocations);
+                  
 
                     return serviceLocations;
                 }
@@ -491,7 +491,7 @@ namespace Averitt_RNA
                          location.Coordinate = candidate.Coordinate;
                          location.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
                         
-                         serviceLocations = GeoServiceLocations(serviceLocations);
+                         //serviceLocations = GeoServiceLocations(serviceLocations);
 
                          geocodeServiceLocations.Add(location);
                      }
@@ -1420,7 +1420,7 @@ namespace Averitt_RNA
                     serviceLocation.Coordinate = result.Coordinate;
                     serviceLocation.GeocodeAccuracy_GeocodeAccuracy = result.GeocodeAccuracy_Quality;
 
-                    Logger.ErrorFormat("Geocoding Service Locations {0} Successful ", serviceLocation.Identifier);
+                    Logger.DebugFormat("Geocoding Service Locations {0} Successful ", serviceLocation.Identifier);
                 }
                 else
                 {
