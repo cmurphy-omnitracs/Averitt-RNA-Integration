@@ -27,6 +27,9 @@ namespace Averitt_RNA
         public static readonly string DefaultRoutingPassIdentifier = ConfigurationManager.AppSettings["DefaultRoutingPassIdentifier"];
         public static readonly string DictPath = ConfigurationManager.AppSettings["DictPath"];
         public static readonly bool GeocodeLocations = Convert.ToBoolean(ConfigurationManager.AppSettings["GeocodeLocations"]);
+        public static readonly int SQLTransactionRetry = Convert.ToInt32(ConfigurationManager.AppSettings["SQLTransactionRetry"]);
+
+        
 
 
     }

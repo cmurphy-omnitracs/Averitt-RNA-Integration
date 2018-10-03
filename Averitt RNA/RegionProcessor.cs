@@ -117,6 +117,7 @@ namespace Averitt_RNA
 
                 try
                 {
+                    
                     //Region Processing
                     Logger.Info("Start Retrieving and Saving Region " + _Region.Identifier + " Service Locations");
                     //Service location Processing
@@ -1155,7 +1156,7 @@ namespace Averitt_RNA
                         foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
                         {
                             var tempOrder = (Order)saveResult.Object;
-                            bool errorUpdatingServiceLocation = false;
+                           
                             string errorUpdatingServiceLocationMessage = string.Empty;
                             if (saveResult.Error != null)
                             {
@@ -1211,7 +1212,7 @@ namespace Averitt_RNA
         }
 
         private List<Order> RetrieveOrdersSave(string regionID, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords,
-            Dictionary<string, long> orderClassCache, Dictionary<string, long> depotCache)
+            Dictionary<string, long> orderClassCache, Dictionary<string, Depot> depotCache)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -1247,7 +1248,7 @@ namespace Averitt_RNA
         }
 
 
-        private List<Order> RetrieveDummyOrdersSave(string regionID, Dictionary<string, long> orderClassCache, Dictionary<string, long> depotCache)
+        private List<Order> RetrieveDummyOrdersSave(string regionID, Dictionary<string, long> orderClassCache, Dictionary<string, Depot> depotCache)
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
@@ -1283,7 +1284,7 @@ namespace Averitt_RNA
         }
 
         private List<Order> RetrieveNewOrderRecords(out bool errorRetrieveOrdersFromTable, out string errorRetrieveOrdersFromTableMessage, out List<DBAccess.Records.StagedOrderRecord> stagedOrderRecords, string regionID,
-             Dictionary<string, long> orderClassCache, Dictionary<string, long> depotCache)
+             Dictionary<string, long> orderClassCache, Dictionary<string, Depot> depotCache)
         {
             List<Order> newOrders = new List<Order>();
             errorRetrieveOrdersFromTable = false;
@@ -1315,7 +1316,7 @@ namespace Averitt_RNA
                     foreach (DBAccess.Records.StagedOrderRecord orderRecord in stagedOrderRecords)
                     {
                         Order newOrder = (Order)orderRecord;
-                        newOrder.RequiredRouteOriginEntityKey = depotCache[orderRecord.OriginDepotIdentifier];
+                        newOrder.RequiredRouteOriginEntityKey = depotCache[orderRecord.OriginDepotIdentifier].EntityKey;
                         newOrder.OrderClassEntityKey = orderClassCache[orderRecord.OrderClassIdentifier];
                         newOrders.Add(newOrder);
                     }
@@ -1668,7 +1669,7 @@ namespace Averitt_RNA
 
 
 
-        private void AddNewDummyOrdersToRNA(List<Order> newOrders, Dictionary<string,long> depotCache)
+        private void AddNewDummyOrdersToRNA(List<Order> newOrders, Dictionary<string, Depot> depotCache)
         {
             List<Order> preppedOrder = new List<Order>();
             bool errorCaught = false;
@@ -1677,7 +1678,7 @@ namespace Averitt_RNA
            
             foreach(Order newOrder in newOrders)
             {
-                string depotIdentifier = depotCache.FirstOrDefault(x => x.Value == newOrder.RequiredRouteDestinationEntityKey).Key;
+                string depotIdentifier = depotCache.FirstOrDefault(x => x.Value.EntityKey == newOrder.RequiredRouteDestinationEntityKey).Key;
 
                 DateTime sessionDate = Convert.ToDateTime(newOrder.BeginDate);
                 if (newOrder.PreferredRouteIdentifier != string.Empty || newOrder.PreferredRouteIdentifier != null)
@@ -1957,17 +1958,31 @@ namespace Averitt_RNA
 
         private long? CreateRoute(string createRouteID, DateTime routeStartTime, DailyPass pass, Order rnaOrder)
         {
+            Depot orderDepot = dictCache.depotsForRegionDict.Values.ToList().Find(x => x.EntityKey==(long)rnaOrder.RequiredRouteOriginEntityKey);
+            DateTime startTime = new DateTime();
+            if (orderDepot!= null)
+            {
+                startTime = ConvertToLocalTime((WorldTimeZone)Enum.Parse(typeof(WorldTimeZone), orderDepot.WorldTimeZone_TimeZone),
+               Convert.ToDateTime(pass.CommonAttributes.StartTime));
+            } else
+            {
+                startTime = ConvertToLocalTime((WorldTimeZone)Enum.Parse(typeof(WorldTimeZone), _Region.Defaults.WorldTimeZone_TimeZone),
+               Convert.ToDateTime(pass.CommonAttributes.StartTime));
+            }
             bool errorCaught = false;
             string errorMessage = string.Empty;
+           
+           
 
+            
             SaveRouteArgs routeArgs = new SaveRouteArgs
             {
-                Identifier = createRouteID,
-                DispatcherEntityKey = MainService.User.EntityKey,
-                OriginDepotEntityKey = (long)rnaOrder.RequiredRouteOriginEntityKey,
-                PassEntityKey = pass.EntityKey,
-                Phase = RoutePhase.Plan,
-                Equipment = new RouteEquipmentType[]
+                Identifier=createRouteID,
+                DispatcherEntityKey=MainService.User.EntityKey,
+                OriginDepotEntityKey=(long)rnaOrder.RequiredRouteOriginEntityKey,
+                PassEntityKey=pass.EntityKey,
+                Phase=RoutePhase.Plan,
+                Equipment=new RouteEquipmentType[]
                 {
                    new RouteEquipmentType
                    {
@@ -1975,11 +1990,11 @@ namespace Averitt_RNA
 
                    }
                },
-                LastStopIsDestination = true,
-                RouterEntityKey = MainService.User.EntityKey,
-                OriginLoadAction = LoadAction.AsNeeded,
-                StartTime = Convert.ToDateTime(pass.CommonAttributes.StartTime)
-
+                LastStopIsDestination=true,
+                RouterEntityKey=MainService.User.EntityKey,
+                OriginLoadAction=LoadAction.AsNeeded,
+                StartTime =startTime
+                
 
             };
             SaveRouteResult saveRouteResult = new SaveRouteResult();
@@ -3157,6 +3172,35 @@ namespace Averitt_RNA
             }
 
 
+        }
+
+        private DateTime ConvertToLocalTime (WorldTimeZone timeZone, DateTime startTime)
+        {
+            Dictionary<WorldTimeZone, string> TimeZoneDict = new Dictionary<WorldTimeZone, string>
+            {
+                {WorldTimeZone.EasternTimeUSCanada, "Eastern Standard Time" },
+                {WorldTimeZone.Alaska, "Alaskan Standard Time" },
+                {WorldTimeZone.MountainTimeUSCanada, "US Mountain Standard Time" },
+                {WorldTimeZone.CentralTimeUSCanada, "Central Standard Time" },
+                {WorldTimeZone.PacificTimeUSCanada,"Pacific Standard Time" },
+                {WorldTimeZone.MidAtlantic,"Mid-Atlantic Standard Time" },
+                {WorldTimeZone.Arizona,"US Mountain Standard Time" },
+                {WorldTimeZone.AtlanticTimeCanada,"Atlantic Standard Time" },
+                {WorldTimeZone.Hawaii, "Hawaiian Standard Time" },
+                {WorldTimeZone.IndianaEast,"US Eastern Standard Time" },
+                
+                
+
+            };
+
+            if (TimeZoneDict.ContainsKey(timeZone))
+            {
+                return TimeZoneInfo.ConvertTimeToUtc(startTime, TimeZoneInfo.FindSystemTimeZoneById(TimeZoneDict[timeZone]));
+            } else
+            {
+                return startTime;
+            }
+            
         }
 
 

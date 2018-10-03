@@ -2761,7 +2761,7 @@ namespace Averitt_RNA
 
       
 
-        public List<Order> RetrieveDummyOrdersFromCSV(Dictionary<string, long> originDict, Dictionary<string, long> orderClassDict, string regionId, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
+        public List<Order> RetrieveDummyOrdersFromCSV(Dictionary<string, Depot> originDict, Dictionary<string, long> orderClassDict, string regionId, out bool errorRetrieveDummyOrdersFromCSV, out string errorRetrieveDummyOrdersFromCSVMessage)
         {
             //Retrieve Dummy Pickup Orders
             errorRetrieveDummyOrdersFromCSV = false;
@@ -2783,6 +2783,12 @@ namespace Averitt_RNA
                             Order temp = new Order();
                             string currentLine = sr.ReadLine();
                             string[] dummyOrderValue = currentLine.Split(',');
+                            if(dummyOrderValue.Length !=11)
+                            {
+                                _Logger.DebugFormat("File {0} not in the Correct Format. Order of line {1} not added to RNA", dummyCsvFilename, i.ToString());
+                                i++;
+                                continue;
+                            }
                             if (dummyOrderValue[0].Length == 0 || dummyOrderValue[0] == null || dummyOrderValue[8].Length == 0 || dummyOrderValue[8] == null || dummyOrderValue[9].Length == 0 || dummyOrderValue[9] == null || dummyOrderValue[10].Length == 0 || dummyOrderValue[10] == null)
                             {
                                 _Logger.DebugFormat("Dummy order on line {0} has some missing information. Order not added to RNA", i.ToString());
@@ -2791,7 +2797,7 @@ namespace Averitt_RNA
                             }
                             TaskServiceWindowOverrideDetail[] serviceWindowOverride = new TaskServiceWindowOverrideDetail[0];
                             long orderClassEntity;
-                            long routeOriginEntityKey;
+                            Depot routeDepot;
                             temp.Action = ActionType.Add;
                             temp.Identifier = dummyOrderValue[0];
                             temp.BeginDate = dummyOrderValue[10];
@@ -2868,10 +2874,10 @@ namespace Averitt_RNA
 
                             }
 
-                            if (originDict.TryGetValue(dummyOrderValue[9], out routeOriginEntityKey))
+                            if (originDict.TryGetValue(dummyOrderValue[9], out routeDepot))
                             {
                                 
-                                temp.RequiredRouteDestinationEntityKey = routeOriginEntityKey;
+                                temp.RequiredRouteDestinationEntityKey = routeDepot.EntityKey;
                             }
                             else
                             {
@@ -3690,7 +3696,7 @@ namespace Averitt_RNA
             return null;
         }
 
-        public Dictionary<string, long> RetrieveDepotsForRegion(out ErrorLevel errorLevel, out string fatalErrorMessage, long regionEntityKey)
+        public Dictionary<string, Depot> RetrieveDepotsForRegion(out ErrorLevel errorLevel, out string fatalErrorMessage, long regionEntityKey)
         {
             errorLevel = ErrorLevel.None;
             fatalErrorMessage = string.Empty;
@@ -3709,7 +3715,8 @@ namespace Averitt_RNA
                         PropertyInclusionMode = PropertyInclusionMode.AccordingToPropertyOptions,
                         PropertyOptions = new DepotPropertyOptions
                         {
-                            Identifier = true
+                            Identifier = true,
+                            WorldTimeZone_TimeZone = true
 
 
                         },
@@ -3729,7 +3736,7 @@ namespace Averitt_RNA
                 }
                 else
                 {
-                    return retrievalResults.Items.Cast<Depot>().ToDictionary(x => x.Identifier, y => y.EntityKey);
+                    return retrievalResults.Items.Cast<Depot>().ToDictionary(x => x.Identifier, y => y);
 
                 }
             }

@@ -28,7 +28,7 @@ namespace Averitt_RNA
         public Dictionary<string, long> regionEntityKeyDict { get; set; }
         public Dictionary<string, long> serviceTimeEntityKeyDict { get; set; }
         public Dictionary<string, long> timeWindowEntityKeyDict { get; set; }
-        public Dictionary<string, long> depotsForRegionDict { get; set; }
+        public Dictionary<string, Depot> depotsForRegionDict { get; set; }
         public Dictionary<string, long> orderClassesDict { get; set; }
         public Dictionary<string, ServiceLocation> serviceLocationDict { get; set; }
 
@@ -44,7 +44,7 @@ namespace Averitt_RNA
             serviceLocationDict = new Dictionary<string, ServiceLocation>();
             timeWindowEntityKeyDict = new Dictionary<string, long>();
             serviceTimeEntityKeyDict = new Dictionary<string, long>();
-            depotsForRegionDict = new Dictionary<string, long>();
+            depotsForRegionDict = new Dictionary<string, Depot>();
             orderClassesDict = new Dictionary<string, long>();
             _ApexConsumer = apexConsumer;
             _Region = region;

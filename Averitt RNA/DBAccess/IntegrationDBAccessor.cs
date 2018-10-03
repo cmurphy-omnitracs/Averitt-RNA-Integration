@@ -190,38 +190,66 @@ namespace Averitt_RNA.DBAccess
 
         public void InsertStagedRoute(string orderNumber, string regionID,  string routeId, string routeStartTime, string RouteDescr, string stopSeq, string staged, string error, string status)
         {
-           
-            try
+            int retry = 1;
+            do
             {
-                ExecuteNonQuery(
-                    SQLStrings.INSERT_STAGED_ROUTES(orderNumber, regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status),
-                     "Insert Route " + routeId + " into Staged Route table for Region " + regionID);
-            }
-            catch (DatabaseException ex)
-            {
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
-         
-            
+                try
+                {
+                    ExecuteNonQuery(
+                        SQLStrings.INSERT_STAGED_ROUTES(orderNumber, regionID, routeId, routeStartTime, RouteDescr, stopSeq, staged, error, status),
+                         "Insert Route " + routeId + " into Staged Route table for Region " + regionID);
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    _Logger.ErrorFormat("Insert Route {0} from Region {1} SQl Transaction Deadlocked,  {1} retrys left.", routeId, regionID, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+
+                }
+                catch (DatabaseException ex)
+                {
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
+
         }
 
         public void InsertStagedUnassignedOrders(string regionID, string orderId, string staged, string error, string status, out string databaseError, out bool errorCaught)
         {
             databaseError = string.Empty;
             errorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                ExecuteNonQuery(
-                    SQLStrings.INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(regionID, orderId, staged, status),
-                     "Insert UnnasignedOrder " + orderId + " into Staged Route table for Region " + regionID);
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                errorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-                
-            }
+                try
+                {
+                    ExecuteNonQuery(
+                        SQLStrings.INSERT_STAGED_ROUTES_UNASSIGNED_ORDER(regionID, orderId, staged, status),
+                         "Insert Staged UnnasignedOrder " + orderId + " into Staged Route table for Region " + regionID);
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError = ex.Message;
+                    errorCaught = true;
+                    _Logger.ErrorFormat("Insert Staged Unassigned Order {0} SQl Transaction Deadlocked,  {1} retrys left.", orderId, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    errorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+
+                }
+            } while (retry<=Config.SQLTransactionRetry);
 
         }
 
@@ -231,20 +259,36 @@ namespace Averitt_RNA.DBAccess
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry =1;
+            do
             {
-                //Edit this 
+                try
+                {
+                    //Edit this 
 
-                ExecuteNonQuery(
-                    SQLStrings.UPDATE_STAGED_ORDERS_STATUS(regionID, OrderId, error, status),
-                     "Update  Service Location " + OrderId + " status from New to Completed");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                    ExecuteNonQuery(
+                        SQLStrings.UPDATE_STAGED_ORDERS_STATUS(regionID, OrderId, error, status),
+                         "Update Staged Orders Status for Order " + OrderId + " status from New to Completed");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.ErrorFormat("Update Staged Order {0} Status SQl Transaction Deadlocked,  {1} retrys left.",OrderId, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            }while (retry <=Config.SQLTransactionRetry) ;
 
         }
 
@@ -253,43 +297,72 @@ namespace Averitt_RNA.DBAccess
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-               
-                ExecuteNonQuery(
-                    SQLStrings.UPDATE_STAGED_SERVICE_LOCATION_STATUS(regionID, serviceLocationID, error, status),
-                     "Update  Service Location " + serviceLocationID + " status from New to Completed");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                try
+                {
+                    ExecuteNonQuery(
+                        SQLStrings.UPDATE_STAGED_SERVICE_LOCATION_STATUS(regionID, serviceLocationID.Replace("'","''"), error, status),
+                         "Update  Service Location Status for Service Location " + serviceLocationID + " status from New to Completed");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.ErrorFormat("Update Service Location {0} Status SQl Transaction Deadlocked,  {1} retrys left.", serviceLocationID, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public void DeleteExpiredOrder(string regionID, string orderId, string status, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Order {0}", orderId);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_ORDERS(regionID, orderId, staged, status),
-                     "Delete expired Order" + orderId + " from STAGE_ORDER Table");
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Order {0}", orderId);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_EXPIRED_STAGED_ORDERS(regionID, orderId, staged, status),
+                         "Delete expired Order"+orderId+" from STAGE_ORDER Table");
 
-                _Logger.DebugFormat("Delete Successful", orderId);
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                    _Logger.DebugFormat("Delete Successful", orderId);
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Order {0} Status SQl Transaction Deadlocked,  {1} retrys left.", orderId, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.Error("IntegrationDBAccessor | "+ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
 
         }
 
@@ -297,135 +370,226 @@ namespace Averitt_RNA.DBAccess
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Error/Complete Order older than {0}", Config.ARCHIVE_DAYS);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_ERROR_COMPLETE_EXP_STAGED_ORDERS(),
-                     "Delete expired Orders from STAGE_ORDER Table");
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Error/Complete Order older than {0}", Config.ARCHIVE_DAYS);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_ERROR_COMPLETE_EXP_STAGED_ORDERS(),
+                            "Delete expired Orders from STAGE_ORDER Table");
 
-                _Logger.DebugFormat("Delete Successful");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                    _Logger.DebugFormat("Delete Successful");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Orders Status SQl Transaction Deadlocked,  {0} retrys left.", retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public void DeleteExpiredRoutesSQL(out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Error/Complete Routes older than {0}", Config.ARCHIVE_DAYS);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_ERROR_COMPLETE_EXP_STAGED_ROUTES(),
-                     "Delete expired Routes from Staged Routes Table");
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Error/Complete Routes older than {0}", Config.ARCHIVE_DAYS);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_ERROR_COMPLETE_EXP_STAGED_ROUTES(),
+                         "Delete expired Routes from Staged Routes Table");
 
-                _Logger.DebugFormat("Delete Successful");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                    _Logger.DebugFormat("Delete Successful");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Routes Status SQl Transaction Deadlocked,  {0} retrys left.", retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.Error("IntegrationDBAccessor | "+ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public void DeleteExpiredSLSQL(out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Error/Complete Service Location older than {0}", Config.ARCHIVE_DAYS);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_ERROR_COMPLETE_EXP_SL(),
-                     "Delete expired Service Location from Staged Service Locations Table");
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Error/Complete Service Location older than {0}", Config.ARCHIVE_DAYS);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_ERROR_COMPLETE_EXP_SL(),
+                         "Delete expired Service Location from Staged Service Locations Table");
 
-                _Logger.DebugFormat("Delete Successful");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                    _Logger.DebugFormat("Delete Successful");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Service Location  Status SQl Transaction Deadlocked,  {0} retrys left.", retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.Error("IntegrationDBAccessor | "+ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public void DeleteExpiredStagedRouteOrder(string regionID, string orderId, string status, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Route Table order {0} ", orderId);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTE_TABLE_ORDER(regionID, status, staged, orderId),
-                     "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Route Table order {0} ", orderId);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_EXPIRED_STAGED_ROUTE_TABLE_ORDER(regionID, status, staged, orderId),
+                         "Delete expired Route Order"+orderId+" from STAGED_ROUTE Table");
 
-                _Logger.DebugFormat(" Delete of Route Table order {0} successful ", orderId);
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                    _Logger.DebugFormat(" Delete of Route Table order {0} successful ", orderId);
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Route Order {0} Status SQl Transaction Deadlocked,  {1} retrys left.", orderId, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.Error("IntegrationDBAccessor | "+ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public void DeleteExpiredStagedRouteAndOrder(string regionID, string orderId, string routeID ,string status, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Staged Route {0} and order {1} ", routeID, orderId);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, status, staged, orderId, routeID),
-                     "Delete expired Route" + orderId + " from STAGED_ROUTE Table");
-                _Logger.DebugFormat("Delete of Staged Route {0} and order {1} successful", routeID, orderId);
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Staged Route {0} and order {1} ", routeID, orderId);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_EXPIRED_STAGED_ROUTES(regionID, status, staged, orderId, routeID),
+                         "Delete expired Route"+routeID+" from STAGED_ROUTE Table");
+                    _Logger.DebugFormat("Delete of Staged Route {0} and order {1} successful", routeID, orderId);
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Staged Route {0} Status SQl Transaction Deadlocked,  {1} retrys left.", routeID, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.Error("IntegrationDBAccessor | "+ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
+
         public void DeleteExpiredStagedServiceLocation(string regionID, string serviceLocationId, string staged, out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                _Logger.DebugFormat("Executing Delete of Service Location {0}", serviceLocationId);
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_EXPIRED_STAGED_SERVICE_LOCATION(regionID, serviceLocationId, staged),
-                     "Delete expired Service Location" + serviceLocationId + " from STAGED_SERVICE_LOCATION Table");
-                _Logger.DebugFormat("Delete of Service Location {0} Successful", serviceLocationId);
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                try
+                {
+                    //Edit this 
+                    _Logger.DebugFormat("Executing Delete of Service Location {0}", serviceLocationId);
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_EXPIRED_STAGED_SERVICE_LOCATION(regionID, serviceLocationId.Replace("'","''"), staged),
+                         "Delete expired Service Location" + serviceLocationId + " from STAGED_SERVICE_LOCATION Table");
+                    _Logger.DebugFormat("Delete of Service Location {0} Successful", serviceLocationId);
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete expired Service Location {0} Status SQl Transaction Deadlocked,  {1} retrys left.", serviceLocationId, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public List<StagedOrderRecord> SelectAllStagedOrdersStatus(string status, out string databaseError, out bool databaseErrorCaught)
@@ -433,25 +597,40 @@ namespace Averitt_RNA.DBAccess
             databaseError = string.Empty;
             databaseErrorCaught = false;
             List<StagedOrderRecord> stagedOrderRecords = null;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
+                try
+                {
+                    //Edit this 
 
-                stagedOrderRecords =
-                   GetList(
-                       SQLStrings.SELECT_ALL_STAGED_ORDERS_STATUS(status),
-                       new StagedOrderRecord(),
-                       "Select all staged orders based on Status: " + status + " from STAGED_ORDERS Table"
-                   ).Cast<StagedOrderRecord>().ToList();
+                    stagedOrderRecords =
+                       GetList(
+                           SQLStrings.SELECT_ALL_STAGED_ORDERS_STATUS(status),
+                           new StagedOrderRecord(),
+                           "Select all staged orders based on Status: " + status + " from STAGED_ORDERS Table"
+                       ).Cast<StagedOrderRecord>().ToList();
+                    return stagedOrderRecords;
 
-                
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Select All Staged Order with status {0} SQl Transaction Deadlocked,  {1} retrys left.", status, retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
             return stagedOrderRecords;
         }
 
@@ -459,40 +638,71 @@ namespace Averitt_RNA.DBAccess
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_DUPLICATE_SERVICE_LOCATIONS(),
-                     "Delete Duplicate Service Locations from STAGED_SERVICE_LOCATION Table");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                try
+                {
+                    //Edit this 
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_DUPLICATE_SERVICE_LOCATIONS(),
+                         "Delete Duplicate Service Locations from STAGED_SERVICE_LOCATION Table");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete Duplicate Service Locations from STAGED_SERVICE_LOCATION Table SQl Transaction Deadlocked,  {0} retrys left.", retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.Error("IntegrationDBAccessor | "+ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         public void DeleteDuplicatedOrders(out string databaseError, out bool databaseErrorCaught)
         {
             databaseError = string.Empty;
             databaseErrorCaught = false;
-            try
+            int retry = 1;
+            do
             {
-                //Edit this 
-                ExecuteNonQuery(
-                    SQLStrings.DELETE_DUPLICATE_ORDERS(),
-                     "Delete Duplicate ORDERS from STAGED_ORDERS Table");
-            }
-            catch (DatabaseException ex)
-            {
-                databaseError = ex.Message;
-                databaseErrorCaught = true;
-                _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
-            }
+                try
+                {
+                    //Edit this 
+                    ExecuteNonQuery(
+                        SQLStrings.DELETE_DUPLICATE_ORDERS(),
+                         "Delete Duplicate ORDERS from STAGED_ORDERS Table");
+                    break;
+                }
+                catch (DatabaseException ex) when (ex.Message.ToUpper().Contains("DEADLOCKED"))
+                {
+                    databaseError=ex.Message;
+                    databaseErrorCaught=true;
+                    _Logger.ErrorFormat("Delete Duplicate ORDERS from STAGED_ORDERS Table SQl Transaction Deadlocked,  {0} retrys left.", retry);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
 
+                }
+                catch (DatabaseException ex)
+                {
+                    databaseError = ex.Message;
+                    databaseErrorCaught = true;
+                    _Logger.Error("IntegrationDBAccessor | " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(retry*1000);
+                    retry++;
+                }
+            } while (retry<=Config.SQLTransactionRetry);
         }
 
         #endregion
