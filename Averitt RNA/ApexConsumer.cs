@@ -3441,6 +3441,12 @@ namespace Averitt_RNA
                             ServiceTimeTypeEntityKey = true,
                             TimeWindowTypeEntityKey = true,
                             DayOfWeekFlags_DeliveryDays = true,
+                            Coordinate = true,
+                            GeocodeAccuracy_GeocodeAccuracy = true,
+                            GeocodeAttentionReason_GeocodeAttentionReason = true,
+                            GeocodeMethod_GeocodeMethod = true, 
+
+                           
 
                         },
 

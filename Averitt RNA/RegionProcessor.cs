@@ -491,6 +491,7 @@ namespace Averitt_RNA
                      {
                          location.Coordinate = candidate.Coordinate;
                          location.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
+                         location.GeocodeMethod_GeocodeMethod= Enum.GetName(typeof(GeocodeMethod),GeocodeMethod.GeocoderAuto);
                         
                          //serviceLocations = GeoServiceLocations(serviceLocations);
 
