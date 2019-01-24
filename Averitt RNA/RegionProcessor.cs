@@ -430,8 +430,7 @@ namespace Averitt_RNA
             }
             return newServiceLocations;
         }
-
-
+        
         private List<ServiceLocation> prepServiceLocations(List<ServiceLocation> serviceLocations)
         {
             List<ServiceLocation> updateServiceLocations = new List<ServiceLocation>();
@@ -1972,9 +1971,14 @@ namespace Averitt_RNA
             }
             bool errorCaught = false;
             string errorMessage = string.Empty;
-           
-           
 
+
+            Color randomColor = new Color();
+            Random r = new Random();
+            randomColor.Blue=Convert.ToByte(r.Next(0, 255));
+            randomColor.Red=Convert.ToByte(r.Next(0, 255));
+            randomColor.Green=Convert.ToByte(r.Next(0, 255));
+            randomColor.Alpha=Convert.ToByte(255);
             
             SaveRouteArgs routeArgs = new SaveRouteArgs
             {
@@ -1994,10 +1998,26 @@ namespace Averitt_RNA
                 LastStopIsDestination=true,
                 RouterEntityKey=MainService.User.EntityKey,
                 OriginLoadAction=LoadAction.AsNeeded,
-                StartTime =startTime
+                StartTime =startTime,
+                Color =randomColor,
+                PreRouteTime=pass.CommonAttributes.PreRouteTime,
+                PostRouteTime=pass.CommonAttributes.PostRouteTime,
+                MaximumRuntime = pass.CommonAttributes.MaximumRunTime,
+                PreferredRuntime = pass.CommonAttributes.PreferredRunTime,
                 
-
             };
+
+            if(pass.CommonAttributes.DepotEquipmentTypeQuantities.Any(x=>x.DepotEntityKey==routeArgs.OriginDepotEntityKey))
+            {
+                routeArgs.Equipment=new RouteEquipmentType[]
+                {
+                   new RouteEquipmentType
+                   {
+                       EquipmentTypeEntityKey = Array.Find(pass.CommonAttributes.DepotEquipmentTypeQuantities,x=>x.DepotEntityKey==routeArgs.OriginDepotEntityKey).EquipmentTypeEntityKey
+
+                   }
+               };
+            }
             SaveRouteResult saveRouteResult = new SaveRouteResult();
             try
             {
@@ -2086,12 +2106,16 @@ namespace Averitt_RNA
         {
             bool errorCaught = false;
             string errorMessage = string.Empty;
-
+            Color randomColor = new Color();
+            Random r = new Random();
+            randomColor.Blue=Convert.ToByte(r.Next(0, 255));
+            randomColor.Red=Convert.ToByte(r.Next(0, 255));
+            randomColor.Green=Convert.ToByte(r.Next(0, 255));
             SaveRouteArgs routeArgs = new SaveRouteArgs
             {
                 Identifier = createRouteID,
                 DispatcherEntityKey = MainService.User.EntityKey,
-                OriginDepotEntityKey = (long)rnaOrder.RequiredRouteDestinationEntityKey,
+                OriginDepotEntityKey = (long)rnaOrder.RequiredRouteOriginEntityKey,
                 PassEntityKey = pass.EntityKey,
                 Phase = RoutePhase.Plan,
                 Equipment = new RouteEquipmentType[]
@@ -2105,7 +2129,10 @@ namespace Averitt_RNA
                 LastStopIsDestination = true,
                 RouterEntityKey = MainService.User.EntityKey,
                 OriginLoadAction = LoadAction.AsNeeded,
-                StartTime = Convert.ToDateTime(pass.CommonAttributes.StartTime)
+                StartTime = Convert.ToDateTime(pass.CommonAttributes.StartTime),
+                Color =randomColor,
+                PreRouteTime = pass.CommonAttributes.PreRouteTime,
+                PostRouteTime = pass.CommonAttributes.PostRouteTime
 
 
             };

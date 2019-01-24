@@ -231,6 +231,7 @@ namespace Averitt_RNA.DBAccess.Records
                 SpecialInstructions = record.SpecialInstructions,
                 CustomProperties = dict,
                 Tasks = task,
+                PreferredRouteIdentifierOverride =record.PreferredRouteIdentifier,
 
 
             };
