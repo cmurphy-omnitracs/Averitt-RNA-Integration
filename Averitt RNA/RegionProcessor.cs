@@ -537,7 +537,7 @@ namespace Averitt_RNA
                 foreach(KeyValuePair<ServiceLocation,string> location in failedGeocodeServiceLocations)
                 {
                     Logger.ErrorFormat("Error Geocoding Service Location {0} | {1} " + location.Key.Identifier, location.Value);
-                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Key.Identifier, "See Log" + location.Value +" Location will still be Added", "ERROR", out errorSLMessage, out errorCaught);
+                    _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Key.Identifier, "See Log: " + location.Value.Replace("'", "''") + " Location will still be Added", "ERROR", out errorSLMessage, out errorCaught);
                     if (errorCaught)
                     {
                         Logger.Debug("Updating Service Location " + location.Key.Identifier + " error status in staging table failed | " + errorSLMessage);
