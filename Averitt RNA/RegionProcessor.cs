@@ -1,12 +1,11 @@
-﻿using System;
+﻿using Averitt_RNA.Apex;
+using Averitt_RNA.DBAccess;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using Averitt_RNA.Apex;
-using Averitt_RNA.DBAccess;
 using WindowsServiceUtility;
-using System.Threading;
-using System.IO;
 
 
 namespace Averitt_RNA
@@ -53,9 +52,9 @@ namespace Averitt_RNA
                 string fatalErrorMessage = string.Empty;
 
 
-                string successfullRunCacheFile =Config.DictPath + String.Format("{0}-SuccessfulRunTimeCache.json", _Region.Identifier);
+                string successfullRunCacheFile = Config.DictPath + string.Format("{0}-SuccessfulRunTimeCache.json", _Region.Identifier);
 
-                //Get last successfull Rune Time
+                //Get last successful Rune Time
                 Logger.Info("Retrieve Last Successful Run Time");
                 if (!File.Exists(successfullRunCacheFile))
                 {
@@ -74,7 +73,7 @@ namespace Averitt_RNA
                 {
                     try
                     {
-                        Object thisLock = new Object();
+                        object thisLock = new object();
 
                         Logger.Debug("Starting Writing and Loading of Dictionaries");
                         lock (thisLock)
@@ -117,14 +116,14 @@ namespace Averitt_RNA
 
                 try
                 {
-                    
+
                     //Region Processing
                     Logger.Info("Start Retrieving and Saving Region " + _Region.Identifier + " Service Locations");
                     //Service location Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
                     Logger.InfoFormat("Start Retrieving NEW Service Locations from staging table");
                     List<ServiceLocation> newServiceLocations = RetrieveNewSLRecords(_Region.Identifier, dictCache.serviceTimeEntityKeyDict, dictCache.timeWindowEntityKeyDict);
-                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Succesfully", newServiceLocations.Count());
+                    Logger.InfoFormat("Retrieved {0} New/Updated ServiceLocationsRecords Successfully", newServiceLocations.Count());
 
                     if (newServiceLocations != null)
                     {
@@ -138,15 +137,16 @@ namespace Averitt_RNA
                             {
 
 
-                                Logger.InfoFormat("Geocoding {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
+                                Logger.InfoFormat("Geo-coding {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
                                 geocoded = GeocodeServiceLocations(finalizedServiceLocations);
-                                Logger.InfoFormat("Geocoding Complete");
-                                
-                            } else
+                                Logger.InfoFormat("Geo-coding Complete");
+
+                            }
+                            else
                             {
                                 geocoded = finalizedServiceLocations;
                             }
-                            
+
                             if (geocoded.Count != 0)
                             {
                                 Logger.InfoFormat("Saving {0} New/Updated Service Locations to RNA", newServiceLocations.Count());
@@ -168,7 +168,7 @@ namespace Averitt_RNA
                     List<Order> dummyCSVOrders = RetrieveDummyOrdersSave(_Region.Identifier, dictCache.orderClassesDict, dictCache.depotsForRegionDict);
 
                     Logger.InfoFormat("Retrieved {0} Dummy Orders Successfully", dummyCSVOrders.Count);
-                    Logger.InfoFormat("Seperate Order Types and prepare for saving");
+                    Logger.InfoFormat("Separate Order Types and prepare for saving");
                     List<Order> updateOrders = new List<Order>();
                     List<Order> newOrders = new List<Order>();
                     List<Order> deleteOrders = new List<Order>();
@@ -176,7 +176,7 @@ namespace Averitt_RNA
                     List<Order> updateDummyOrders = new List<Order>();
                     SeperateOrders(_Region.Identifier, newDBOrders, out updateOrders, out newOrders, out deleteOrders, dummyCSVOrders, out newDummyOrders,
                        out updateDummyOrders, dictCache.serviceLocationDict);
-                    Logger.InfoFormat("Seperation and Order Processing Completed");
+                    Logger.InfoFormat("Separation and Order Processing Completed");
 
                     //Update Order Processing
                     Logger.InfoFormat("---------------------------------------------------------------------------------");
@@ -252,7 +252,7 @@ namespace Averitt_RNA
             string errorMessage = string.Empty;
 
 
-            Logger.InfoFormat("Writing Timestamp of Lasts Successful processing for region {1} Cache file to {0}", filename, _Region.Identifier);
+            Logger.InfoFormat("Writing Time-stamp of Lasts Successful processing for region {1} Cache file to {0}", filename, _Region.Identifier);
             try
             {
 
@@ -344,9 +344,9 @@ namespace Averitt_RNA
                         }
                         catch (Exception ex)
                         {
-                           
+
                             errorSLMessage = ex.Message;
-                            Logger.Error("Error Retrieveing New SL's from Database: " + errorSLMessage);
+                            Logger.Error("Error Retrieving New SL's from Database: " + errorSLMessage);
                             _IntegrationDBAccessor.UpdateServiceLocationStatus(locationRecord.RegionIdentifier, locationRecord.ServiceLocationIdentifier, errorSLMessage, "ERROR", out errorSLMessage, out errorCaught);
                             if (errorCaught)
                             {
@@ -362,7 +362,7 @@ namespace Averitt_RNA
                     }
 
 
-                    //update service locations in errorlist in database indicating service location is missing fields
+                    //update service locations in error list in database indicating service location is missing fields
                     foreach (DBAccess.Records.StagedServiceLocationRecord sLrecord in errorSLRecords)
                     {
                         errorCaught = false;
@@ -425,12 +425,12 @@ namespace Averitt_RNA
             {
                 errorCaught = true;
                 errorSLMessage = ex.Message;
-                Logger.Error("Error Retrieveing New SL's from Database: " + errorSLMessage);
-                
+                Logger.Error("Error Retrieving New SL's from Database: " + errorSLMessage);
+
             }
             return newServiceLocations;
         }
-        
+
         private List<ServiceLocation> prepServiceLocations(List<ServiceLocation> serviceLocations)
         {
             List<ServiceLocation> updateServiceLocations = new List<ServiceLocation>();
@@ -447,8 +447,8 @@ namespace Averitt_RNA
                     serviceLocations.Where(sl => updateServiceLocations.Any(x => x.Identifier == sl.Identifier)).ToList()
                         .ForEach(x => { x.Action = ActionType.Update; x.EntityKey = updateServiceLocations.Find(sl => serviceLocations.Any(z => z.Identifier == sl.Identifier)).EntityKey; });
 
-                    Logger.InfoFormat("Start Geocoding {0} Service Location", serviceLocations.Count());
-                  
+                    Logger.InfoFormat("Start Geo-coding {0} Service Location", serviceLocations.Count());
+
 
                     return serviceLocations;
                 }
@@ -473,34 +473,34 @@ namespace Averitt_RNA
             System.Collections.Concurrent.ConcurrentBag<ServiceLocation> geocodeServiceLocations = new System.Collections.Concurrent.ConcurrentBag<ServiceLocation>();
             System.Collections.Concurrent.ConcurrentDictionary<ServiceLocation, string> failedGeocodeServiceLocations = new System.Collections.Concurrent.ConcurrentDictionary<ServiceLocation, string>();
             string[] serviceLocationIdentifiers = serviceLocations.Select(sl => sl.Identifier).ToArray();
-            
+
             bool errorCaught = false;
-          
+
             bool timeout = false;
             string errorSLMessage = string.Empty;
-            Logger.InfoFormat("Start Geocoding {0} Service Locations", serviceLocations.Count());
+            Logger.InfoFormat("Start Geo-coding {0} Service Locations", serviceLocations.Count());
             System.Threading.Tasks.Parallel.ForEach(serviceLocations, (location) =>
              {
                  try
                  {
-                     Logger.InfoFormat("Start Geocoding Service Location {0}", location.Identifier);
+                     Logger.InfoFormat("Start Geo-coding Service Location {0}", location.Identifier);
 
                      GeocodeCandidate candidate = _ApexConsumer.GeocodeRNA(out errorCaught, out errorSLMessage, out timeout, new Address[] { location.Address });
                      if (!errorCaught && !timeout)
                      {
                          location.Coordinate = candidate.Coordinate;
                          location.GeocodeAccuracy_GeocodeAccuracy = candidate.GeocodeAccuracy_Quality;
-                         location.GeocodeMethod_GeocodeMethod= Enum.GetName(typeof(GeocodeMethod),GeocodeMethod.GeocoderAuto);
-                        
+                         location.GeocodeMethod_GeocodeMethod = Enum.GetName(typeof(GeocodeMethod), GeocodeMethod.GeocoderAuto);
+
                          //serviceLocations = GeoServiceLocations(serviceLocations);
 
                          geocodeServiceLocations.Add(location);
                      }
                      else if (errorCaught)
                      {
-                        
-                         Logger.ErrorFormat("Error Geocoding Service Location {0} " + errorSLMessage, location.Identifier);
-                         Logger.DebugFormat("Adding Location {0} to failed location dictionary", location.Identifier);
+
+                         Logger.ErrorFormat("Error Geo-coding Service Location {0} " + errorSLMessage, location.Identifier);
+                         Logger.DebugFormat("Adding Location {0} to failed Geo-coding Service location dictionary", location.Identifier);
                          if (!failedGeocodeServiceLocations.TryAdd(location, errorSLMessage))
                          {
                              Logger.DebugFormat("Location {0} already in failed location dictionary", location.Identifier);
@@ -509,9 +509,9 @@ namespace Averitt_RNA
                      }
                      else if (timeout)
                      {
-                         
-                         string errorMessage = string.Format("Error Geocoding Service Location {0}. Geocoding Timed  Out", location.Identifier);
-                         Logger.DebugFormat("Adding Location {0} to failed location dictionary", location.Identifier);
+
+                         string errorMessage = string.Format("Error Geo-coding Service Location {0}. Geo-coding Timed  Out", location.Identifier);
+                         Logger.DebugFormat("Adding Location {0} to failed Geo-coding Service location dictionary", location.Identifier);
                          if (!failedGeocodeServiceLocations.TryAdd(location, errorMessage))
                          {
                              Logger.DebugFormat("Location {0} already in failed location dictionary", location.Identifier);
@@ -520,9 +520,9 @@ namespace Averitt_RNA
                  }
                  catch (Exception ex)
                  {
-                     
-                     Logger.Error("Error Checking RNA for SL's : " + errorSLMessage);
-                     Logger.DebugFormat("Adding Location {0} to failed location dictionary", location.Identifier);
+
+                     Logger.Error("Error Geo-coding RNA for SL's : " + errorSLMessage);
+                     Logger.DebugFormat("Adding Location {0} to failed Geo-coding Service location dictionary", location.Identifier);
                      if (!failedGeocodeServiceLocations.TryAdd(location, ex.Message))
                      {
                          Logger.DebugFormat("Location {0} already in failed location dictionary", location.Identifier);
@@ -534,19 +534,19 @@ namespace Averitt_RNA
             if (failedGeocodeServiceLocations.Count > 0)
             {
                 Logger.DebugFormat("Updating Failed Service Location status. Service Locations will still be saved into RNA");
-                foreach(KeyValuePair<ServiceLocation,string> location in failedGeocodeServiceLocations)
+                foreach (KeyValuePair<ServiceLocation, string> location in failedGeocodeServiceLocations)
                 {
-                    Logger.ErrorFormat("Error Geocoding Service Location {0} | {1} " + location.Key.Identifier, location.Value);
+                    Logger.ErrorFormat("Error Geo-coding Service Location {0} | {1} ", location.Key.Identifier, location.Value);
                     _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Key.Identifier, "See Log: " + location.Value.Replace("'", "''") + " Location will still be Added", "ERROR", out errorSLMessage, out errorCaught);
                     if (errorCaught)
                     {
                         Logger.Debug("Updating Service Location " + location.Key.Identifier + " error status in staging table failed | " + errorSLMessage);
-                      
+
                     }
                     else
                     {
-                        Logger.Debug("Updating Service Location " + location.Key.Identifier + " error status succesfull");
-                     
+                        Logger.Debug("Updating Service Location " + location.Key.Identifier + " error status successful");
+
                     }
                 }
 
@@ -583,7 +583,7 @@ namespace Averitt_RNA
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
                                         message = message + " | " + string.Format(" ErrorCode: ValidationError ErrorProperty: " + validFailure.Property + " ErrorDetail: " + validFailure.FailureType_Type + "\r\n");
-                                        Logger.Debug("A Validation Error Occured While Saving Service Locations. The " + validFailure.Property + " Property for Order " + location.Identifier + " is not Valid");
+                                        Logger.Debug("A Validation Error Occurred While Saving Service Locations. The " + validFailure.Property + " Property for Order " + location.Identifier + " is not Valid");
                                         Logger.Debug("Updating Service Location " + location.Identifier + " db record status to Error");
 
                                     }
@@ -595,13 +595,13 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.Debug("Updating Service Location " + location.Identifier + " error status succesfull");
+                                        Logger.Debug("Updating Service Location " + location.Identifier + " error status successful");
                                     }
                                 }
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Saving Service Locations. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + location.Identifier + " is not Valid");
+                                    Logger.Debug("An Error Occurred While Saving Service Locations. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + location.Identifier + " is not Valid");
                                     Logger.Debug("Updating Service Location " + location.Identifier + " db records status to Error");
                                     _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorMessage, out errorCaught);
                                     if (errorCaught)
@@ -611,14 +611,14 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.Info("Updating Order " + location.Identifier + " error status succesfull");
+                                        Logger.Info("Updating Order " + location.Identifier + " error status successful");
                                     }
 
                                 }
                             }
                             else
                             {
-                                Logger.Debug("Saving/Updating Order : " + location.Identifier + " to RNA Successfull ");
+                                Logger.Debug("Saving/Updating Order : " + location.Identifier + " to RNA Successful ");
                                 _IntegrationDBAccessor.UpdateServiceLocationStatus(_Region.Identifier, location.Identifier, "", "COMPLETE", out errorMessage, out errorCaught);
                                 if (errorCaught)
                                 {
@@ -627,7 +627,7 @@ namespace Averitt_RNA
                                 }
                                 else
                                 {
-                                    Logger.Info("Updating Order " + location.Identifier + " status succesfull");
+                                    Logger.Info("Updating Order " + location.Identifier + " status successful");
                                 }
                             }
 
@@ -647,7 +647,7 @@ namespace Averitt_RNA
                         }
                         else
                         {
-                            Logger.Debug("Updating Order " + location.Identifier + " error status succesfull");
+                            Logger.Debug("Updating Order " + location.Identifier + " error status successful");
                         }
                     }
                 }
@@ -658,6 +658,54 @@ namespace Averitt_RNA
                 errorCaught = true;
                 errorMessage = ex.Message;
                 Logger.Error("Error Saving/Updating/Deleting Service Locations into RNA: " + errorMessage);
+            }
+
+        }
+
+        private bool RetrieveServiceLocation(string locationID, out ServiceLocation location)
+        {
+            ApexConsumer.ErrorLevel errorLevel = ApexConsumer.ErrorLevel.None;
+            string errorMessage = string.Empty;
+            location = null;
+
+            try
+            {
+
+                ServiceLocation serviceLocation = _ApexConsumer.RetrieveServiceLocation(out errorLevel, out errorMessage, locationID, true);
+                if (errorLevel == ApexConsumer.ErrorLevel.None)
+                {
+                    if (serviceLocation != null)
+                    {
+                        Logger.Debug($"Found service location {locationID} in RNA.");
+                        location = serviceLocation;
+                        return true;
+                    }
+                    {
+                        Logger.Debug($"Service location {locationID} not found in RNA.");
+                        return false;
+                    }
+
+
+
+
+                    return true;
+
+                }
+                else
+                {
+                    Logger.Error("Error retrieving location" + locationID + " | " + errorMessage);
+                    return false;
+
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+               
+                errorMessage = ex.Message;
+                Logger.Error("Error retrieving location" + locationID + " | " + errorMessage);
+                return false;
             }
 
         }
@@ -697,7 +745,7 @@ namespace Averitt_RNA
                     });
 
                     List<Order> tempOrder = new List<Order>();
-                    
+
                     deleteOrders = ordersFromRNA.FindAll(order => orders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action == ActionType.Delete));
                     tempOrder = deleteOrders;
                     errorDeletOrders = orders.FindAll(errorOrder => !tempOrder.Any(order => errorOrder.Identifier == order.Identifier) && errorOrder.Action == ActionType.Delete);
@@ -706,11 +754,11 @@ namespace Averitt_RNA
                 {
                     Logger.Error("Error Caught Checking if Orders Exist in RNA : " + errorMessage);
                 }
-                foreach(Order deleteORder in errorDeletOrders)
+                foreach (Order deleteORder in errorDeletOrders)
                 {
                     bool temperrorCaught = false;
                     string temperrorMessage = string.Empty;
-                    Logger.ErrorFormat("Error seperating delete order {0} order not found in RNA", deleteORder.Identifier);
+                    Logger.ErrorFormat("Error separating delete order {0} order not found in RNA", deleteORder.Identifier);
                     _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, deleteORder.Identifier, "Delete Order not Found in RNA " + "See Log", "ERROR", out temperrorMessage, out temperrorCaught);
                     if (temperrorCaught)
                     {
@@ -719,7 +767,7 @@ namespace Averitt_RNA
                     }
                     else
                     {
-                        Logger.Debug("Updating Order " + deleteORder.Identifier + " error status succesfull");
+                        Logger.Debug("Updating Order " + deleteORder.Identifier + " error status successful");
                     }
                 }
 
@@ -757,34 +805,54 @@ namespace Averitt_RNA
                     Order databaseOrder = orders.Find(order => (order.Identifier == newOrder.Identifier) &&
                        (order.BeginDate == newOrder.BeginDate));
                     bool locationEKFound = serviceLocationsDict.TryGetValue(databaseOrder.Tasks[0].LocationIdentifier, out location);
-                    if(locationEKFound)
+                    Logger.Debug($"Retrieving Location {databaseOrder.Tasks[0].LocationIdentifier} from Location Cache");
+                    if (locationEKFound)
                     {
+                        Logger.Debug($"Retrieved Location {databaseOrder.Tasks[0].LocationIdentifier} from Location Cache");
                         newOrder.Tasks[0].LocationEntityKey = serviceLocationsDict[databaseOrder.Tasks[0].LocationIdentifier].EntityKey;
                         newOrder.LineItems = new LineItem[] { };
                         newOrders.Add(newOrder);
                     }
                     else
                     {
-                      
-                        bool errorSave = false;
-                        string errorSaveMessage = string.Empty;
-                        string message = String.Format("Order {0} | ServiceLocation {1} not found in RNA", databaseOrder.Identifier, databaseOrder.Tasks[0].LocationIdentifier);
-                        Logger.Error(message);
-                        _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, databaseOrder.Identifier, message + "See Log", "ERROR", out errorSaveMessage, out errorSave);
-                        if (errorSave)
+                        Logger.Debug($"Did not retrieve location {databaseOrder.Tasks[0].LocationIdentifier} from Location Cache. Retrieving it from RNA");
+
+                        ServiceLocation rnaServiceLocation = new ServiceLocation();
+                        if (RetrieveServiceLocation(databaseOrder.Tasks[0].LocationIdentifier, out rnaServiceLocation))
                         {
-                            Logger.Debug("Updating Order " + databaseOrder.Identifier + " error status in staging table failed | " + errorSaveMessage);
+                            Logger.Debug($"Location {databaseOrder.Tasks[0].LocationIdentifier} Found in RNA. Updating Location cache and order with retrieve Service Location");
+                            serviceLocationsDict.Add(databaseOrder.Tasks[0].LocationIdentifier, rnaServiceLocation);
+                            newOrder.Tasks[0].LocationEntityKey = rnaServiceLocation.EntityKey;
+                            newOrder.LineItems = new LineItem[] { };
+                            newOrders.Add(newOrder);
 
                         }
                         else
                         {
-                            Logger.Debug("Updating Order " + databaseOrder.Identifier + " error status succesfull");
+
+                            bool errorSave = false;
+                            string errorSaveMessage = string.Empty;
+                            Logger.Debug($"Location {databaseOrder.Tasks[0].LocationIdentifier} Not Found in RNA. Updating order with Error Information");
+
+
+                            string message = string.Format("Order {0} | ServiceLocation {1} not found in RNA", databaseOrder.Identifier, databaseOrder.Tasks[0].LocationIdentifier);
+                            Logger.Error(message);
+                            _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, databaseOrder.Identifier, message + "See Log", "ERROR", out errorSaveMessage, out errorSave);
+                            if (errorSave)
+                            {
+                                Logger.Debug("Updating Order " + databaseOrder.Identifier + " error status in staging table failed | " + errorSaveMessage);
+
+                            }
+                            else
+                            {
+                                Logger.Debug("Updating Order " + databaseOrder.Identifier + " error status successful");
+                            }
                         }
                     }
 
-                       
-                     
-                    
+
+
+
 
 
                 }
@@ -792,12 +860,15 @@ namespace Averitt_RNA
 
                 List<Order> dummOrdersFromRNA = _ApexConsumer.RetrieveDummyRNAOrders(out errorCaught, out errorMessage, dummyOrderIdentifiers.ToArray());
                 List<Order> tempNewDummyOrders = new List<Order>();
-                if (!errorCaught)
+                if (!errorCaught && dummOrdersFromRNA != null)
                 {
                     updateDummyOrders = dummOrdersFromRNA.Where(order => dummyOrders.Any(rnOrder => rnOrder.Identifier == order.Identifier && rnOrder.Action != ActionType.Delete) && dummyOrders.
                     Any(rnOrder => rnOrder.BeginDate == order.BeginDate)).ToList();
                     tempNewDummyOrders = dummyOrders.FindAll(order => order.Action != ActionType.Delete && !dummOrdersFromRNA.Any(rnOrder => rnOrder.Identifier == order.Identifier)).ToList();
                     tempNewDummyOrders.ForEach(x => { x.Action = ActionType.Add; x.ManagedByUserEntityKey = MainService.User.EntityKey; x.RegionEntityKey = _Region.EntityKey; });
+                }else if (dummOrdersFromRNA == null)
+                {
+                    Logger.Debug("No Dummy Orders Found in RNA " + errorMessage);
                 }
                 else
                 {
@@ -819,10 +890,10 @@ namespace Averitt_RNA
                     else
                     {
 
-                       
-                        string message = String.Format("Order {0} | ServiceLocation {1} not found in RNA", csvDummyOrder.Identifier, csvDummyOrder.Tasks[0].LocationIdentifier);
+
+                        string message = string.Format("Order {0} | ServiceLocation {1} not found in RNA", csvDummyOrder.Identifier, csvDummyOrder.Tasks[0].LocationIdentifier);
                         Logger.Error(message);
-                       
+
                     }
                 }
 
@@ -836,9 +907,9 @@ namespace Averitt_RNA
                     updateDummyOrder.PlannedPickupQuantities.Size1 = csvOrder.PlannedPickupQuantities.Size1;
                     updateDummyOrder.PlannedPickupQuantities.Size2 = csvOrder.PlannedPickupQuantities.Size2;
                     updateDummyOrder.PlannedPickupQuantities.Size3 = csvOrder.PlannedPickupQuantities.Size3;
-                  
-                  
-                   
+
+
+
 
                 }
 
@@ -892,7 +963,7 @@ namespace Averitt_RNA
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
                                         message = string.Format(" | " + message + " ErrorCode: ValidationError, ErrorDetail: {0}, ErrorProperty: {1} \r\n", validFailure.FailureType_Type, validFailure.Property);
-                                        Logger.Debug("A Validation Error Occured While Saving Orders. The " + validFailure.Property + " Property for Order " + updateOrderSpec.Identifier + " is not Valid");
+                                        Logger.Debug("A Validation Error Occurred While Saving Orders. The " + validFailure.Property + " Property for Order " + updateOrderSpec.Identifier + " is not Valid");
                                         Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " db record status to Error");
 
                                     }
@@ -904,13 +975,13 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " error status succesfull");
+                                        Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " error status successful");
                                     }
                                 }
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Saving Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + updateOrderSpec.Identifier + " is not Valid");
+                                    Logger.Debug("An Error Occurred While Saving Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + updateOrderSpec.Identifier + " is not Valid");
                                     Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " db records status to Error");
                                     _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, updateOrderSpec.Identifier, "Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                     if (errorUpdatingServiceLocation)
@@ -920,7 +991,7 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " error status succesfull");
+                                        Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " error status successful");
                                     }
 
                                 }
@@ -929,7 +1000,7 @@ namespace Averitt_RNA
                         }
                         foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error == null)).ToList())
                         {
-                            Logger.Debug("Saving/Updating Order : " + updateOrderSpec.Identifier + " to RNA Successfull ");
+                            Logger.Debug("Saving/Updating Order : " + updateOrderSpec.Identifier + " to RNA Successful ");
                             _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, updateOrderSpec.Identifier, "", "COMPLETE", out errorMessage, out errorCaught);
                             if (errorCaught)
                             {
@@ -938,7 +1009,7 @@ namespace Averitt_RNA
                             }
                             else
                             {
-                                Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " error status succesfull");
+                                Logger.Debug("Updating Order " + updateOrderSpec.Identifier + " error status successful");
                             }
                         }
 
@@ -974,7 +1045,7 @@ namespace Averitt_RNA
                 OrderSpec temp = ConvertOrderToOrderSpec(rnaOrder);
                 temp.OrderInstance = null;
                 orderSpecs.Add(temp);
-               
+
             });
 
 
@@ -1006,7 +1077,7 @@ namespace Averitt_RNA
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
 
-                                        Logger.Debug("A Validation Error Occured While Saving Orders. The " + validFailure.Property + " Property for Order " + updateOrderSpec.Identifier + " is not Valid");
+                                        Logger.Debug("A Validation Error Occurred While Saving Orders. The " + validFailure.Property + " Property for Order " + updateOrderSpec.Identifier + " is not Valid");
                                         Logger.Debug("Updating Dummy Order " + updateOrderSpec.Identifier + " db record status to Error");
 
                                     }
@@ -1015,7 +1086,7 @@ namespace Averitt_RNA
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Saving  DummyOrders. The " + saveResult.Error.Code.ErrorCode_Status + " Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
+                                    Logger.Debug("An Error Occurred While Saving  DummyOrders. The " + saveResult.Error.Code.ErrorCode_Status + " Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
                                     Logger.Debug("Updating Dummy Order " + updateOrderSpec.Identifier + " db records status to Error");
 
 
@@ -1025,7 +1096,7 @@ namespace Averitt_RNA
                         }
                         foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error == null)).ToList())
                         {
-                            Logger.Debug("Saving/Updating Dummy Order : " + updateOrderSpec.Identifier + " to RNA Successfull ");
+                            Logger.Debug("Saving/Updating Dummy Order : " + updateOrderSpec.Identifier + " to RNA Successful ");
 
                         }
 
@@ -1087,7 +1158,7 @@ namespace Averitt_RNA
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
 
-                                        Logger.Debug("A Validation Error Occured While Saving Orders. The " + validFailure.Property + " Property for Order " + updateOrderSpec.Identifier + " is not Valid");
+                                        Logger.Debug("A Validation Error Occurred While Saving Orders. The " + validFailure.Property + " Property for Order " + updateOrderSpec.Identifier + " is not Valid");
                                         Logger.Debug("Updating Dummy Order " + updateOrderSpec.Identifier + " db record status to Error");
 
                                     }
@@ -1096,7 +1167,7 @@ namespace Averitt_RNA
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Saving  DummyOrders. The " + saveResult.Error.Code.ErrorCode_Status + " Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
+                                    Logger.Debug("An Error Occurred While Saving  DummyOrders. The " + saveResult.Error.Code.ErrorCode_Status + " Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
                                     Logger.Debug("Updating Dummy Order " + updateOrderSpec.Identifier + " db records status to Error");
 
 
@@ -1106,7 +1177,7 @@ namespace Averitt_RNA
                         }
                         foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error == null)).ToList())
                         {
-                            Logger.Debug("Saving/Updating Dummy Order : " + updateOrderSpec.Identifier + " to RNA Successfull ");
+                            Logger.Debug("Saving/Updating Dummy Order : " + updateOrderSpec.Identifier + " to RNA Successful ");
 
                         }
 
@@ -1156,7 +1227,7 @@ namespace Averitt_RNA
                         foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error != null)).ToList())
                         {
                             var tempOrder = (Order)saveResult.Object;
-                           
+
                             string errorUpdatingServiceLocationMessage = string.Empty;
                             if (saveResult.Error != null)
                             {
@@ -1168,7 +1239,7 @@ namespace Averitt_RNA
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
 
-                                        Logger.Debug("A Validation Error Occured While Saving Dummy Orders. The " + validFailure.Property + " Property for Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
+                                        Logger.Debug("A Validation Error Occurred While Saving Dummy Orders. The " + validFailure.Property + " Property for Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
 
 
                                     }
@@ -1177,7 +1248,7 @@ namespace Averitt_RNA
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Saving Dummy Orders. The " + saveResult.Error.Code.ErrorCode_Status + "Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
+                                    Logger.Debug("An Error Occurred While Saving Dummy Orders. The " + saveResult.Error.Code.ErrorCode_Status + "Dummy Order " + updateOrderSpec.Identifier + " is not Valid");
 
 
 
@@ -1187,7 +1258,7 @@ namespace Averitt_RNA
                         }
                         foreach (SaveResult saveResult in saveOrdersResult.Where(result => (result.Error == null)).ToList())
                         {
-                            Logger.Debug("Saving Dummy Order : " + updateOrderSpec.Identifier + " to RNA Successfull ");
+                            Logger.Debug("Saving Dummy Order : " + updateOrderSpec.Identifier + " to RNA Successful ");
 
                         }
 
@@ -1239,7 +1310,7 @@ namespace Averitt_RNA
             }
             else
             {
-                Logger.Error("Error Ocurred Retrieving Orders form Database " + errorMessage);
+                Logger.Error("Error Occurred Retrieving Orders form Database " + errorMessage);
                 return new List<Order>();
 
             }
@@ -1275,7 +1346,7 @@ namespace Averitt_RNA
             }
             else
             {
-                Logger.Error("Error Ocurred Retrieving dummy Orders from CSV file " + errorMessage);
+                Logger.Error("Error Occurred Retrieving dummy Orders from CSV file " + errorMessage);
                 return new List<Order>();
 
             }
@@ -1399,7 +1470,7 @@ namespace Averitt_RNA
             {
                 errorRetrieveOrdersFromTable = true;
                 errorRetrieveOrdersFromTableMessage = ex.Message;
-                Logger.Error("Error Retrieveing New Orders from Database: " + errorRetrieveOrdersFromTableMessage);
+                Logger.Error("Error Retrieving New Orders from Database: " + errorRetrieveOrdersFromTableMessage);
             }
             return newOrders;
         }
@@ -1408,24 +1479,24 @@ namespace Averitt_RNA
         {
             System.Collections.Concurrent.ConcurrentBag<ServiceLocation> serviceLocationBag = new System.Collections.Concurrent.ConcurrentBag<ServiceLocation>(serviceLocations);
 
-            foreach(ServiceLocation serviceLocation in serviceLocationBag)
+            foreach (ServiceLocation serviceLocation in serviceLocationBag)
             {
                 bool errorCaught = false;
                 bool timeout = false;
                 string errorMessage = string.Empty;
 
-                Logger.DebugFormat("Start Geocoding Service Locations {0}", serviceLocation.Identifier);
+                Logger.DebugFormat("Start Geo-coding Service Locations {0}", serviceLocation.Identifier);
                 GeocodeCandidate result = _ApexConsumer.GeocodeRNA(out errorCaught, out errorMessage, out timeout, new Address[] { serviceLocation.Address });
                 if (!errorCaught)
                 {
                     serviceLocation.Coordinate = result.Coordinate;
                     serviceLocation.GeocodeAccuracy_GeocodeAccuracy = result.GeocodeAccuracy_Quality;
 
-                    Logger.DebugFormat("Geocoding Service Locations {0} Successful ", serviceLocation.Identifier);
+                    Logger.DebugFormat("Geo-coding Service Locations {0} Successful ", serviceLocation.Identifier);
                 }
                 else
                 {
-                    Logger.ErrorFormat("Error Geocoding Service Locations {0} : " + errorMessage, serviceLocation.Identifier);
+                    Logger.ErrorFormat("Error Geo-coding Service Locations {0} : " + errorMessage, serviceLocation.Identifier);
                 }
 
 
@@ -1445,7 +1516,7 @@ namespace Averitt_RNA
             string errorMessage = string.Empty;
             System.Collections.Concurrent.ConcurrentBag<Order> newOrdersBag = new System.Collections.Concurrent.ConcurrentBag<Order>(newOrders);
 
-            foreach(DBAccess.Records.StagedOrderRecord order in newOrderRecords)
+            foreach (DBAccess.Records.StagedOrderRecord order in newOrderRecords)
             {
                 Order newRNAOrder = newOrdersBag.Where(x => x.Identifier == order.OrderIdentifier).First();
                 DateTime sessionDate = Convert.ToDateTime(order.BeginDate);
@@ -1453,8 +1524,8 @@ namespace Averitt_RNA
                 {
 
                     Route route = _ApexConsumer.RetrieveRoute(out errorCaught, out errorMessage, order.PreferredRouteIdentifier, sessionDate, order.OriginDepotIdentifier);
-                   
-                   
+
+
 
                     if (!errorCaught)
                     {
@@ -1501,7 +1572,8 @@ namespace Averitt_RNA
                                         if (assignedOrderSuccess)
                                         {
                                             Logger.InfoFormat("Order {0} assigned to route {1} successfully", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
-                                        } else
+                                        }
+                                        else
                                         {
                                             Logger.ErrorFormat("Error Order {0} assigned to route {1}. See logs and table", newRNAOrder.Identifier, newRNAOrder.PreferredRouteIdentifier);
                                         }
@@ -1531,7 +1603,7 @@ namespace Averitt_RNA
                             }
                             else// session is null create new routing session, create new route, update order with session information;
                             {
-                                
+
                                 SaveResult[] dsSaveResult = _ApexConsumer.SaveDailyRoutingSessions(out errorCaught, out errorMessage, new DateTime[] { sessionDate }, new string[] { order.OriginDepotIdentifier }, newRNAOrder);
                                 if (dsSaveResult[0].Error == null)
                                 {
@@ -1675,8 +1747,8 @@ namespace Averitt_RNA
             bool errorCaught = false;
             string errorMessage = string.Empty;
             System.Collections.Concurrent.ConcurrentBag<Order> newOrdersBag = new System.Collections.Concurrent.ConcurrentBag<Order>(newOrders);
-           
-            foreach(Order newOrder in newOrders)
+
+            foreach (Order newOrder in newOrders)
             {
                 string depotIdentifier = depotCache.FirstOrDefault(x => x.Value.EntityKey == newOrder.RequiredRouteDestinationEntityKey).Key;
 
@@ -1695,7 +1767,7 @@ namespace Averitt_RNA
 
                             if (newOrdersBag.Any(x => x.Identifier == newOrder.Identifier && x.BeginDate == newOrder.BeginDate))
                             {
-                              
+
                                 newOrder.SessionEntityKey = route.RoutingSessionEntityKey;
                                 newOrder.SessionDescription = route.RoutingSessionDescription;
                                 newOrder.SessionDate = route.RoutingSessionDate;
@@ -1718,7 +1790,7 @@ namespace Averitt_RNA
 
                             if (dailyRoutingSession != null) // just create route and update order with session information
                             {
-                               
+
                                 newOrder.SessionEntityKey = dailyRoutingSession.EntityKey;
                                 newOrder.SessionDescription = dailyRoutingSession.Description;
                                 newOrder.SessionDate = dailyRoutingSession.StartDate;
@@ -1748,7 +1820,7 @@ namespace Averitt_RNA
                                 else
                                 {
                                     Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1} not created, cannot create Route", dailyRoutingSession.Description, dailyRoutingSession.StartDate);
-                                    
+
                                 }
 
 
@@ -1761,7 +1833,7 @@ namespace Averitt_RNA
                                 if (dsSaveResult[0].Error == null)
                                 {
                                     DailyRoutingSession rtSession = (DailyRoutingSession)dsSaveResult[0].Object;
-                                   
+
                                     newOrder.SessionEntityKey = rtSession.EntityKey;
                                     newOrder.SessionDescription = rtSession.Description;
                                     newOrder.SessionDate = rtSession.StartDate;
@@ -1786,7 +1858,7 @@ namespace Averitt_RNA
                                     else
                                     {
                                         Logger.ErrorFormat("Daily Routing Pass for routing session {0} on date {1} not created, cannot create Route", rtSession.Description, rtSession.StartDate);
-                                       
+
                                     }
                                 }
                                 else //Error Creating Routing Session
@@ -1958,13 +2030,14 @@ namespace Averitt_RNA
 
         private long? CreateRoute(string createRouteID, DateTime routeStartTime, DailyPass pass, Order rnaOrder)
         {
-            Depot orderDepot = dictCache.depotsForRegionDict.Values.ToList().Find(x => x.EntityKey==(long)rnaOrder.RequiredRouteOriginEntityKey);
+            Depot orderDepot = dictCache.depotsForRegionDict.Values.ToList().Find(x => x.EntityKey == (long)rnaOrder.RequiredRouteOriginEntityKey);
             DateTime startTime = new DateTime();
-            if (orderDepot!= null)
+            if (orderDepot != null)
             {
                 startTime = ConvertToLocalTime((WorldTimeZone)Enum.Parse(typeof(WorldTimeZone), orderDepot.WorldTimeZone_TimeZone),
                Convert.ToDateTime(pass.CommonAttributes.StartTime));
-            } else
+            }
+            else
             {
                 startTime = ConvertToLocalTime((WorldTimeZone)Enum.Parse(typeof(WorldTimeZone), _Region.Defaults.WorldTimeZone_TimeZone),
                Convert.ToDateTime(pass.CommonAttributes.StartTime));
@@ -1975,19 +2048,19 @@ namespace Averitt_RNA
 
             Color randomColor = new Color();
             Random r = new Random();
-            randomColor.Blue=Convert.ToByte(r.Next(0, 255));
-            randomColor.Red=Convert.ToByte(r.Next(0, 255));
-            randomColor.Green=Convert.ToByte(r.Next(0, 255));
-            randomColor.Alpha=Convert.ToByte(255);
-            
+            randomColor.Blue = Convert.ToByte(r.Next(0, 255));
+            randomColor.Red = Convert.ToByte(r.Next(0, 255));
+            randomColor.Green = Convert.ToByte(r.Next(0, 255));
+            randomColor.Alpha = Convert.ToByte(255);
+
             SaveRouteArgs routeArgs = new SaveRouteArgs
             {
-                Identifier=createRouteID,
-                DispatcherEntityKey=MainService.User.EntityKey,
-                OriginDepotEntityKey=(long)rnaOrder.RequiredRouteOriginEntityKey,
-                PassEntityKey=pass.EntityKey,
-                Phase=RoutePhase.Plan,
-                Equipment=new RouteEquipmentType[]
+                Identifier = createRouteID,
+                DispatcherEntityKey = MainService.User.EntityKey,
+                OriginDepotEntityKey = (long)rnaOrder.RequiredRouteOriginEntityKey,
+                PassEntityKey = pass.EntityKey,
+                Phase = RoutePhase.Plan,
+                Equipment = new RouteEquipmentType[]
                 {
                    new RouteEquipmentType
                    {
@@ -1995,21 +2068,21 @@ namespace Averitt_RNA
 
                    }
                },
-                LastStopIsDestination=true,
-                RouterEntityKey=MainService.User.EntityKey,
-                OriginLoadAction=LoadAction.AsNeeded,
-                StartTime =startTime,
-                Color =randomColor,
-                PreRouteTime=pass.CommonAttributes.PreRouteTime,
-                PostRouteTime=pass.CommonAttributes.PostRouteTime,
+                LastStopIsDestination = true,
+                RouterEntityKey = MainService.User.EntityKey,
+                OriginLoadAction = LoadAction.AsNeeded,
+                StartTime = startTime,
+                Color = randomColor,
+                PreRouteTime = pass.CommonAttributes.PreRouteTime,
+                PostRouteTime = pass.CommonAttributes.PostRouteTime,
                 MaximumRuntime = pass.CommonAttributes.MaximumRunTime,
                 PreferredRuntime = pass.CommonAttributes.PreferredRunTime,
-                
+
             };
 
-            if(pass.CommonAttributes.DepotEquipmentTypeQuantities.Any(x=>x.DepotEntityKey==routeArgs.OriginDepotEntityKey))
+            if (pass.CommonAttributes.DepotEquipmentTypeQuantities.Any(x => x.DepotEntityKey == routeArgs.OriginDepotEntityKey))
             {
-                routeArgs.Equipment=new RouteEquipmentType[]
+                routeArgs.Equipment = new RouteEquipmentType[]
                 {
                    new RouteEquipmentType
                    {
@@ -2034,7 +2107,7 @@ namespace Averitt_RNA
                         string message = string.Empty;
                         if (saveRouteResult.Error.ValidationFailures.Count() == 0)
                         {
-                            message = String.Format("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
+                            message = string.Format("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
                             Logger.ErrorFormat("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
                             _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + message + "See Log", "ERROR", out errorMessage, out errorCaught);
                             if (errorCaught)
@@ -2051,7 +2124,7 @@ namespace Averitt_RNA
                         {
                             foreach (ValidationFailure validFailure in saveRouteResult.Error.ValidationFailures)
                             {
-                                message = " | " + String.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}", "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
+                                message = " | " + string.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}", "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
                                 Logger.ErrorFormat("Error Creating Routing failed | ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}", "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
                             }
                             _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error Saving Order RNA:  " + message + "See Log", "ERROR", out errorMessage, out errorCaught);
@@ -2108,9 +2181,9 @@ namespace Averitt_RNA
             string errorMessage = string.Empty;
             Color randomColor = new Color();
             Random r = new Random();
-            randomColor.Blue=Convert.ToByte(r.Next(0, 255));
-            randomColor.Red=Convert.ToByte(r.Next(0, 255));
-            randomColor.Green=Convert.ToByte(r.Next(0, 255));
+            randomColor.Blue = Convert.ToByte(r.Next(0, 255));
+            randomColor.Red = Convert.ToByte(r.Next(0, 255));
+            randomColor.Green = Convert.ToByte(r.Next(0, 255));
             SaveRouteArgs routeArgs = new SaveRouteArgs
             {
                 Identifier = createRouteID,
@@ -2130,7 +2203,7 @@ namespace Averitt_RNA
                 RouterEntityKey = MainService.User.EntityKey,
                 OriginLoadAction = LoadAction.AsNeeded,
                 StartTime = Convert.ToDateTime(pass.CommonAttributes.StartTime),
-                Color =randomColor,
+                Color = randomColor,
                 PreRouteTime = pass.CommonAttributes.PreRouteTime,
                 PostRouteTime = pass.CommonAttributes.PostRouteTime
 
@@ -2149,23 +2222,23 @@ namespace Averitt_RNA
                     }
                     else
                     {
-                      
+
                         if (saveRouteResult.Error.ValidationFailures.Count() == 0)
                         {
-                           
+
                             Logger.ErrorFormat("Error Creating Routing failed | ErrorCode: {1} ErrorDetail: {1}", saveRouteResult.Error.Code, saveRouteResult.Error.Detail);
-                            
+
                         }
 
                         else
                         {
                             foreach (ValidationFailure validFailure in saveRouteResult.Error.ValidationFailures)
                             {
-                               
+
                                 Logger.ErrorFormat("Error Creating Routing failed | ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}", "ValidationFailure", validFailure.FailureType_Type, validFailure.Property);
                             }
-                          
-                            
+
+
                         }
                         return null;
                     }
@@ -2174,7 +2247,7 @@ namespace Averitt_RNA
                 else
                 {
                     Logger.ErrorFormat("Error Creating Route {0} | {1}", routeArgs.Identifier, errorMessage);
-                   
+
                     return null;
                 }
 
@@ -2182,7 +2255,7 @@ namespace Averitt_RNA
             catch (Exception ex)
             {
                 Logger.ErrorFormat("Error Creating Route {0} | {1}", routeArgs.Identifier, ex.Message);
-              
+
                 return null;
             }
 
@@ -2228,7 +2301,7 @@ namespace Averitt_RNA
                         if (saveResult.Error == null)
                         {
 
-                            Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
+                            Logger.InfoFormat("Daily Routing Pass {0} Created Successfully for Routing Session {1} on Date {2}",
                                 dailypass.Identifier, routingSession.Description, routingSession.StartDate);
                             return dailypass;
                         }
@@ -2279,7 +2352,7 @@ namespace Averitt_RNA
                         //        PostRouteTime = new TimeSpan(0, 0, 0),
                         //        ReloadOptions = new ReloadOptions { },
                         //        MultiDayRoutingOptions = new MultiDayRoutingOptions { MultiDayRoutingIsEnabled = false, MultiDayMaxLayovers = 1 }
-                                
+
 
                         //    },
                         //    RegionEntityKey = _Region.EntityKey,
@@ -2304,7 +2377,7 @@ namespace Averitt_RNA
                         //if (saveResult.Error == null)
                         //{
 
-                        //    Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
+                        //    Logger.InfoFormat("Daily Routing Pass {0} Created Successfully for Routing Session {1} on Date {2}",
                         //        dailypass.Identifier, routingSession.Description, routingSession.StartDate);
                         //    return dailypass.EntityKey;
                         //}
@@ -2410,7 +2483,7 @@ namespace Averitt_RNA
                         if (saveResult.Error == null)
                         {
 
-                            Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
+                            Logger.InfoFormat("Daily Routing Pass {0} Created Successfully for Routing Session {1} on Date {2}",
                                 dailypass.Identifier, routingSession.Description, routingSession.StartDate);
                             return dailypass;
                         }
@@ -2486,7 +2559,7 @@ namespace Averitt_RNA
                         //if (saveResult.Error == null)
                         //{
 
-                        //    Logger.InfoFormat("Daily Routing Pass {0} Created Succesfully for Routing Session {1} on Date {2}",
+                        //    Logger.InfoFormat("Daily Routing Pass {0} Created Successfully for Routing Session {1} on Date {2}",
                         //        dailypass.Identifier, routingSession.Description, routingSession.StartDate);
                         //    return dailypass.EntityKey;
                         //}
@@ -2523,7 +2596,7 @@ namespace Averitt_RNA
                 else if (errorCaught)
                 {
                     Logger.ErrorFormat("Error Creating Daily Routing Pass | {0}", errorMessage);
-                   
+
                     return null;
                 }
             }
@@ -2544,6 +2617,8 @@ namespace Averitt_RNA
 
             return null;
         }
+
+
 
 
 
@@ -2571,17 +2646,17 @@ namespace Averitt_RNA
 
 
 
-                                Logger.Debug("An Error Occured While Unassigning Order. " + order.Identifier + " ErrorCode" + saveResultError.Reason);
+                                Logger.Debug("An Error Occurred While Unassigns Order. " + order.Identifier + " ErrorCode" + saveResultError.Reason);
 
                                 _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, order.Identifier, "Deleting Order failed | Error: " + saveResultError.Reason + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                 if (errorUpdatingServiceLocation)
                                 {
-                                    Logger.Debug("Unassigning Order " + order.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
+                                    Logger.Debug("Unassigns Order " + order.Identifier + " error status in staging table failed | " + errorUpdatingServiceLocationMessage);
 
                                 }
                                 else
                                 {
-                                    Logger.Debug("Unassigning Order " + order.Identifier + " error status succesfull");
+                                    Logger.Debug("Unassigns Order " + order.Identifier + " error status successful");
                                 }
 
 
@@ -2590,7 +2665,7 @@ namespace Averitt_RNA
                         }
                         else
                         {
-                            Logger.Debug("Unassigning Order : " + order.Identifier + " to RNA Successfull ");
+                            Logger.Debug("Unassigns Order : " + order.Identifier + " to RNA Successful ");
                             unAssignedDeleteOrders.Add(order);
 
                         }
@@ -2602,11 +2677,11 @@ namespace Averitt_RNA
             {
                 errorCaught = true;
                 errorMessage = ex.Message;
-                Logger.Error("Error Unassigning Orders in RNA: " + errorMessage);
+                Logger.Error("Error Unassigns Orders in RNA: " + errorMessage);
 
 
             }
-            
+
             try
             {
                 foreach (Order dOrder in unAssignedDeleteOrders)
@@ -2630,7 +2705,7 @@ namespace Averitt_RNA
                                     foreach (ValidationFailure validFailure in saveResult.Error.ValidationFailures)
                                     {
                                         message = message + " | " + string.Format("ErrorCode: {0} ErrorDetail: {1} ErrorProperty: {2}", "ValidationError", validFailure.FailureType_Type, validFailure.Property);
-                                        Logger.Debug("A Validation Error Occured While Deleting Orders. The " + validFailure.Property + " Property for Order " + dOrder.Identifier + " is not Valid");
+                                        Logger.Debug("A Validation Error Occurred While Deleting Orders. The " + validFailure.Property + " Property for Order " + dOrder.Identifier + " is not Valid");
 
 
                                     }
@@ -2642,13 +2717,13 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.Debug("Updating Order Table | Order  " + dOrder.Identifier + " error status succesfull");
+                                        Logger.Debug("Updating Order Table | Order  " + dOrder.Identifier + " error status successful");
                                     }
                                 }
                                 else if (saveResult.Error.Code.ErrorCode_Status != Enum.GetName(typeof(ErrorCode), ErrorCode.ValidationFailure))
                                 {
 
-                                    Logger.Debug("An Error Occured While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + dOrder.Identifier + " is not Valid");
+                                    Logger.Debug("An Error Occurred While Deleting Orders. The " + saveResult.Error.Code.ErrorCode_Status + " Order " + dOrder.Identifier + " is not Valid");
 
                                     _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, dOrder.Identifier, "Deleting Order failed | Error: " + saveResult.Error.Code.ErrorCode_Status + " See Log", "ERROR", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                     if (errorUpdatingServiceLocation)
@@ -2658,14 +2733,14 @@ namespace Averitt_RNA
                                     }
                                     else
                                     {
-                                        Logger.Debug("Updating Order " + dOrder.Identifier + " error status succesfull");
+                                        Logger.Debug("Updating Order " + dOrder.Identifier + " error status successful");
                                     }
 
                                 }
                             }
                             else
                             {
-                                Logger.Debug("Saving/Updating Order : " + dOrder.Identifier + " to RNA Successfull ");
+                                Logger.Debug("Saving/Updating Order : " + dOrder.Identifier + " to RNA Successful ");
                                 _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, dOrder.Identifier, "", "COMPLETE", out errorUpdatingServiceLocationMessage, out errorUpdatingServiceLocation);
                                 if (errorUpdatingServiceLocation)
                                 {
@@ -2674,7 +2749,7 @@ namespace Averitt_RNA
                                 }
                                 else
                                 {
-                                    Logger.Debug("Updating Order " + dOrder.Identifier + " error status succesfull");
+                                    Logger.Debug("Updating Order " + dOrder.Identifier + " error status successful");
                                 }
                             }
                         }
@@ -2889,7 +2964,7 @@ namespace Averitt_RNA
                         string message = string.Empty;
                         foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
                         {
-                            message = " | " + message + "|" + String.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}",
+                            message = " | " + message + "|" + string.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}",
                            orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
                             Logger.ErrorFormat("Error Saving Unassigned Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
                                orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
@@ -2942,7 +3017,7 @@ namespace Averitt_RNA
                         string message = string.Empty;
                         foreach (ValidationFailure validFailure in orderSaveResult.Error.ValidationFailures)
                         {
-                            message = " | " + message + "|" + String.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}",
+                            message = " | " + message + "|" + string.Format("ErrorCode: {0}; ErrorDetailMessage: {1}, ErrorProperty: {2}",
                                orderSaveResult.Error.Code.ErrorCode_Status, validFailure.FailureType_Type, validFailure.Property);
 
                             Logger.ErrorFormat("Error Saving  Order {0} to RNA | ErrorrCode: {1}; ErrorDetailMessage: {2}, ErrorProperty: {3}", rnaOrder.Identifier,
@@ -3031,11 +3106,11 @@ namespace Averitt_RNA
                     if (!errorCaught)
                     {
 
-                        if (assignOrderResult.Errors.Count() > 0)
+                        if (assignOrderResult.Errors?.Count() > 0)
                         {
                             foreach (ManipulationResult.ManipulationError error in assignOrderResult.Errors)
                             {
-                                Logger.ErrorFormat("Assiging Order {0} to Route {1} Failed | {2}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
+                                Logger.ErrorFormat("Assigning Order {0} to Route {1} Failed | {2}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
 
                                 _IntegrationDBAccessor.UpdateOrderStatus(_Region.Identifier, rnaOrder.Identifier, "Error assigning Order to Route:  " + error.Reason.ErrorCode_Status + "See Log", "ERROR", out errorMessage, out errorCaught);
                                 if (errorCaught)
@@ -3159,9 +3234,9 @@ namespace Averitt_RNA
                         {
                             foreach (ManipulationResult.ManipulationError error in assignOrderResult.Errors)
                             {
-                                Logger.ErrorFormat("Assiging Order {0} to Route {1} Failed | {2}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
+                                Logger.ErrorFormat("Assigning Order {0} to Route {1} Failed | {2}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier, error.Reason.ErrorCode_Status);
 
-                               
+
 
                             }
 
@@ -3171,7 +3246,7 @@ namespace Averitt_RNA
                         else
                         {
                             Logger.InfoFormat("Order {0} assigned to Route {1}", rnaOrder.Identifier, rnaOrder.PreferredRouteIdentifier);
-                            
+
                             return true;
                         }
 
@@ -3181,13 +3256,13 @@ namespace Averitt_RNA
                     {
 
                         Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
-                      
+
                         return false;
                     }
                 }
                 else
                 {
-                  
+
                     return false;
                 }
             }
@@ -3195,14 +3270,14 @@ namespace Averitt_RNA
             {
 
                 Logger.ErrorFormat("Error Saving  Order {0} | {1}", rnaOrder.Identifier, errorMessage);
-               
+
                 return false;
             }
 
 
         }
 
-        private DateTime ConvertToLocalTime (WorldTimeZone timeZone, DateTime startTime)
+        private DateTime ConvertToLocalTime(WorldTimeZone timeZone, DateTime startTime)
         {
             Dictionary<WorldTimeZone, string> TimeZoneDict = new Dictionary<WorldTimeZone, string>
             {
@@ -3216,19 +3291,20 @@ namespace Averitt_RNA
                 {WorldTimeZone.AtlanticTimeCanada,"Atlantic Standard Time" },
                 {WorldTimeZone.Hawaii, "Hawaiian Standard Time" },
                 {WorldTimeZone.IndianaEast,"US Eastern Standard Time" },
-                
-                
+
+
 
             };
 
             if (TimeZoneDict.ContainsKey(timeZone))
             {
                 return TimeZoneInfo.ConvertTimeToUtc(startTime, TimeZoneInfo.FindSystemTimeZoneById(TimeZoneDict[timeZone]));
-            } else
+            }
+            else
             {
                 return startTime;
             }
-            
+
         }
 
 

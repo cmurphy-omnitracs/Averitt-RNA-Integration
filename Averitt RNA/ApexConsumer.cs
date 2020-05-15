@@ -3077,7 +3077,7 @@ namespace Averitt_RNA
                     _RegionContext,
                     new RetrievalOptions
                     {
-                        Expression = new InExpression
+                        Expression = new EqualToExpression
                         {
                             Left = new PropertyExpression { Name = "Identifier" },
                             Right = new ValueExpression { Value = identifier }
